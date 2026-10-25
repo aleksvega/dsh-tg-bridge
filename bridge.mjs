@@ -27,6 +27,7 @@ import { immediateKind } from './immediate.mjs';
 import { writeSteerJob } from './steer-queue.mjs';
 import { inlineText } from './media-text.mjs';
 import { createAlbumBuffer } from './albums.mjs';
+import { ensureProfile } from './profiles.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
@@ -773,7 +774,12 @@ async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
 function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = 'ru') {
   return new Promise((resolve) => {
-    const args = ['--expose-internals', CLI_JS, '--profile', profile, '--json', ...extraArgs];
+    // Launcher options (`--profile`, `--patch`) must come before the app's own
+    // flags. The launcher stops parsing at the first flag it does not know and
+    // hands the rest to the app, so `--json ... --patch x.yml` reached the app
+    // as an unknown option: every photo turn and every fallback-model attempt
+    // died in ~5 s with "CLI exited with code 1 and no output".
+    const args = ['--expose-internals', CLI_JS, '--profile', profile, ...extraArgs, '--json'];
     if (sessionId) args.push('--session-id', sessionId);
     args.push(task);
     const child = spawn(EXE, args, {
@@ -1138,6 +1144,8 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   const voiceOn = Boolean(config.voice?.enabled) && voiceReady;
   const parts = [];
   let extraArgs = [];
+  /** Profile the turn must run on (photo turns need the vision overlay). */
+  let profile = '';
   let caption = '';
   let photo = false;
   for (const msg of list) {
@@ -1170,8 +1178,14 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
       parts.push(t(lang, 'prompt.photo', { path }));
       photo = true;
       if (config.vision?.patch && existsSync(config.vision.patch)) {
-        extraArgs = ['--patch', config.vision.patch];
-        log(`photo turn uses vision patch ${config.vision.patch}`);
+        // The desktop host CLI dropped `--patch` (it answers "unknown option"
+        // and exits 1 with no output), so the overlay is materialised once as a
+        // profile carrying the same model and the turn switches profile instead.
+        const visionProfile = ensureProfile(config.vision.patch);
+        if (visionProfile) {
+          profile = visionProfile;
+          log(`photo turn uses profile ${visionProfile} (overlay ${config.vision.patch})`);
+        }
       } else {
         log('photo turn without vision patch: the default model cannot read images');
       }
@@ -1204,7 +1218,7 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   // unreadable image.
   if (text && photo && opts.steer) text += `\n\n${t(lang, 'prompt.photoMidTurn')}`;
   if (text && caption) text += `\n\n${t(lang, 'prompt.note', { note: caption })}`;
-  return { text, extraArgs };
+  return { text, extraArgs, profile };
 }
 
 async function handleMessage(msg, album = null) {
@@ -1249,7 +1263,11 @@ async function handleMessage(msg, album = null) {
 
   const key = sessionKey(chatId, threadId);
   // Language for everything this turn shows: topic choice, config, then Telegram.
+  const learned = !state.lang?.[key];
   const lang = resolveLang(state, key, msg, config);
+  // First message in a topic teaches the bridge what it speaks, and the button
+  // presses that follow have no message of their own — keep the answer.
+  if (learned && state.lang?.[key]) saveState();
   const where = `${chatId}${threadId ? ` topic=${threadId}` : ''}`;
   if (!config.allowedUserIds.includes(from) && !config.allowedUserIds.includes(chatId)) {
     log(`ignored message from ${from} (chat ${chatId})`);
@@ -1264,10 +1282,12 @@ async function handleMessage(msg, album = null) {
   // A file almost always arrives with a caption, so the presence of text must
   // not be taken as "no attachment": that dropped every captioned document.
   let extraArgs = [];
+  let turnProfile = '';
   if (!msg.text && attachments.some((m) => m.voice || m.audio || m.photo || m.document || m.video || m.video_note || m.animation)) {
     const built = await mediaPrompt(attachments, chatId, threadId, lang);
     if (built.text) text = built.text;
     extraArgs = built.extraArgs;
+    turnProfile = built.profile || '';
   }
   if (!text) return;
   log(`in ${where} from=${from} len=${text.length}${msg.is_topic_message ? ' topic-message' : ''}`);
@@ -1431,11 +1451,11 @@ ${t(lang, 'help.body')}`,
       }
     } catch {}
   };
-  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
+  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
   if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
     delete state.sessions[key];
     log(`session dropped for ${where}: recorded in another directory, starting fresh`);
-    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
+    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
   }
   // Provider failover: the headless profile has no failover plugin, so one busy
   // route ("all providers are busy", 503, or a turn that emits nothing at all)
@@ -1466,7 +1486,8 @@ ${t(lang, 'help.body')}`,
       onEvent,
       onAbort: () => killTurn(key),
       onHeartbeat: () => progress.heartbeat(),
-      extraArgs: ['--patch', entry.patch],
+      // Same overlay problem as the vision turn: the host CLI has no --patch.
+      profile: ensureProfile(entry.patch),
       cwd,
       lang,
     });
@@ -1486,11 +1507,11 @@ ${t(lang, 'help.body')}`,
   // of failing the user's message.
   if (result.error && /already owned by an active write handle/i.test(result.error)) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
+    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
     if (result.error && /already owned by an active write handle/i.test(result.error)) {
       delete state.sessions[key];
       saveState();
-      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
+      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
       if (!result.error) result.text = `${t(lang, 'bridge.fallback.sessionBusy')}\n\n${result.text}`;
     }
   }
@@ -2064,7 +2085,7 @@ function runTurnLive(task, sessionId, key, options = {}) {
           onEvent(event);
         } catch {}
       }
-    }, options.extraArgs ?? [], options.cwd ?? '', profileOf(key), options.lang ?? 'ru')
+    }, options.extraArgs ?? [], options.cwd ?? '', options.profile || profileOf(key), options.lang ?? 'ru')
       .then((result) => finish({ ...result, sessionId: result.sessionId || sessionSeen }))
       .catch((error) => finish({ sessionId: sessionSeen, text: '', error: String(error?.message ?? error) }));
   });

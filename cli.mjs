@@ -25,7 +25,7 @@ const RUNTIME = join(DSH_HOME, 'tg-bridge');
 const RUNTIME_FILES = [
   'bridge.mjs', 'control.mjs', 'i18n.mjs', 'bot-menu.mjs', 'prices.mjs',
   'transcribe.py', 'setup.mjs', 'bridge-kick.mjs', 'bridge-restart-idle.mjs',
-  'restart-after-send.mjs', 'config.example.json',
+  'restart-after-send.mjs', 'config.example.json', 'profiles.mjs',
 ];
 
 /**
