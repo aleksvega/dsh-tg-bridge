@@ -1,5 +1,23 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.7 — 2026-10-25
+
+- `/agents` answers the question the desktop sidebar answers: who can this
+  session delegate to, on which model, how deep, with which tool filter, which
+  routes a child may pick, and which children this session actually started
+  (read from the catalog the delegation tools themselves publish). `/agents <id>`
+  opens one child with its label, mode and the `/resume` line that continues it
+  here.
+- `/profile show [name]` is the profile card: model, rows in its patch, disabled
+  rows, bundle count, delegation tools, child routes, and the file that owns them
+  all. `/profile` alone says which profile you are on; this says whether the one
+  you are about to switch to is the one you want.
+- `agents.mjs` reads the delegation rows out of a profile patch (the bridge
+  already edited those patches by hand for `/model` and plugin toggles). It is
+  parse-only and tested, because a wrong indent assumption here reports the wrong
+  model to a person setting a cost budget.
+- The command menu and `/help` carry `/agents` in all three languages.
+
 ## 1.7.6 — 2026-10-25
 
 - The status card names the session ("Название: Отвечай по игре сюда"). The

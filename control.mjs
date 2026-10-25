@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
 import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
 import { lastTurnReasoning, lastTurnText, sessionFile, sessionStats } from './thoughts.mjs';
+import { parseModelSelection, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -304,6 +305,29 @@ function stamp(ms) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * What a profile hands to the model as delegation tools, and which routes a
+ * delegated turn may pick. Both live in the profile patch, so a topic's agents
+ * are a property of the topic's profile, not of the bridge.
+ */
+function agentsOf(profile) {
+  const text = read(patchPath(profile));
+  return { rows: parseSubagentRows(text), selection: parseModelSelection(text) };
+}
+
+/** Child sessions this session started, from DSH's projection cache. */
+function fleetOf(sessionId) {
+  if (!sessionId) return { children: [], policy: null };
+  const record = readJson(join(DSH_HOME, 'storages', 'session_projcache', 'sessions', `session-${bareId(sessionId)}.json`));
+  return parseSubagentFleet(record);
+}
+
+/** Loader rows a profile's own patch declares, nested groupings included. */
+function patchRows(profile) {
+  const text = read(patchPath(profile));
+  return [...text.matchAll(/^\s*-?\s*id:\s*\S+/gm)].length;
+}
+
 /** Recent DSH sessions of this workspace, newest first, with their titles. */
 function recentSessions(cwd, limit, lang = 'ru') {  const root = join(DSH_HOME, 'sessions');
   const rows = [];
@@ -436,7 +460,7 @@ function goalView(goal, lang) {
  * command and the caller must not run a turn.
  */
 export const CONTROL_COMMANDS = [
-  'status', 'models', 'model', 'profile', 'sessions', 'resume', 'plugins', 'plugin',
+  'status', 'models', 'model', 'profile', 'agents', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task',
   'thoughts', 'version', 'update',
@@ -612,6 +636,29 @@ export async function handleControl(ctx) {
         return true;
       }
 
+      if (action === 'show') {
+        // One card per profile: what it runs, what it carries, who may delegate.
+        // `/profile` alone answers "which one am I on"; this answers "should I
+        // switch to it", which is the question a person asks next.
+        const name = verb || bound || activeProfile;
+        if (!profiles.includes(name)) {
+          say(t(lang, 'profile.unknown', { name, list: profiles.join(', ') }));
+          return true;
+        }
+        const pkg = pluginsOf(name);
+        const route = modelOf(name);
+        const { rows, selection } = agentsOf(name);
+        say([
+          t(lang, 'ctrl.profile.title', { name }),
+          t(lang, 'ctrl.profile.model', { route: `${route.provider}/${route.model}` }),
+          t(lang, 'ctrl.profile.plugins', { n: patchRows(name), off: pkg.disabled.length }),
+          t(lang, 'ctrl.profile.bundles', { n: pkg.bundles.length }),
+          t(lang, 'ctrl.profile.agents', { n: rows.length, routes: selection ? selection.allowed.length : 0 }),
+          t(lang, 'ctrl.profile.file', { path: join(PROFILES, name, 'cordis.patch.yml') }),
+        ].join('\n'));
+        return true;
+      }
+
       if (action === 'new') {
         const from = template || 'headless';
         if (!verb || !/^[a-z0-9][a-z0-9-]{1,30}$/.test(verb)) {
@@ -653,6 +700,75 @@ export async function handleControl(ctx) {
       ctx.saveState();
       const head = modelOf(action);
       say(t(lang, 'profile.set', { name: action, route: `${head.provider}/${head.model}` }));
+      return true;
+    }
+
+    case '/agents': {
+      // The desktop sidebar has a subagent list and a settings page; Telegram
+      // gets the same two facts in one card: what this profile hands the model
+      // as delegation tools, and which children this session actually started.
+      const profileName = state.profiles?.[key] || activeProfile;
+      const { rows, selection } = agentsOf(profileName);
+      const head = modelOf(profileName);
+      const fleet = fleetOf(state.sessions?.[key]);
+      const wanted = String(arg || '').trim();
+
+      if (wanted) {
+        const needle = wanted.replace(/^session-/, '').toLowerCase();
+        const child = fleet.children.find((row) => row.id.replace(/^session-/, '').toLowerCase().startsWith(needle)
+          || row.label.toLowerCase().includes(wanted.toLowerCase()));
+        if (!child) {
+          say(t(lang, 'ctrl.agents.notFound', { id: wanted }));
+          return true;
+        }
+        say([
+          t(lang, 'ctrl.agents.oneTitle', { id: child.id }),
+          t(lang, 'ctrl.agents.oneName', { label: child.label || '—' }),
+          t(lang, 'ctrl.agents.oneMode', { mode: child.mode || '—' }),
+          t(lang, 'ctrl.agents.oneCreated', { when: stamp(child.at) }),
+          '',
+          t(lang, 'ctrl.agents.resume', { id: child.id }),
+        ].join('\n'));
+        return true;
+      }
+
+      const lines = [
+        t(lang, 'ctrl.agents.title'),
+        t(lang, 'ctrl.agents.profile', { name: profileName, route: `${head.provider}/${head.model}` }),
+        t(lang, 'ctrl.agents.tools', { n: rows.length }),
+      ];
+      for (const row of rows) {
+        lines.push(row.model
+          ? `  • ${row.toolName} — ${row.provider}, ${row.modelProvider ? `${row.modelProvider}/` : ''}${row.model}`
+          : t(lang, 'ctrl.agents.rowNoModel', { tool: row.toolName, provider: row.provider }));
+        const filter = row.toolAllow + row.toolDeny > 0
+          ? t(lang, 'ctrl.agents.filterList', { allow: row.toolAllow, deny: row.toolDeny })
+          : t(lang, 'ctrl.agents.filterNone');
+        lines.push(t(lang, 'ctrl.agents.detail', {
+          depth: row.maxDepth || t(lang, 'ctrl.agents.hostDepth'),
+          bg: row.background ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
+          filter,
+        }));
+      }
+      if (selection && selection.allowed.length > 0) {
+        lines.push(t(lang, 'ctrl.agents.routes', { n: selection.allowed.length }));
+        for (const route of selection.allowed) lines.push(`  • ${route.provider}/${route.model}`);
+      }
+      lines.push(t(lang, 'ctrl.agents.children', { n: fleet.children.length }));
+      if (fleet.children.length === 0) {
+        lines.push(t(lang, 'ctrl.agents.noChildren'));
+      } else {
+        for (const child of fleet.children.slice(0, 8)) {
+          lines.push(t(lang, 'ctrl.agents.childLine', {
+            label: (child.label || t(lang, 'ctrl.sessions.untitled')).slice(0, 40),
+            mode: child.mode || '—',
+            when: stamp(child.at),
+          }));
+        }
+        if (fleet.children.length > 8) lines.push(`  … +${fleet.children.length - 8}`);
+      }
+      lines.push(t(lang, 'ctrl.agents.hint'));
+      say(lines.join('\n'));
       return true;
     }
 
