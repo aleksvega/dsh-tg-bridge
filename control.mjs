@@ -11,7 +11,7 @@ import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
 import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
-import { lastTurnReasoning, sessionFile } from './thoughts.mjs';
+import { lastTurnReasoning, lastTurnText, sessionFile } from './thoughts.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -1141,7 +1141,13 @@ export async function handleControl(ctx) {
       const file = sessionFile(join(DSH_HOME, 'sessions'), sessionId);
       const text = file ? lastTurnReasoning(file, { maxChars: 4000 }) : '';
       if (!text) {
-        say(t(lang, 'ctrl.thoughts.none'));
+        // Not every turn plans: a one-word answer has no reasoning part at all.
+        // Saying "here is what the last turn answered" beats a dead end that
+        // looks like a broken command.
+        const answered = file ? lastTurnText(file, { maxChars: 1200 }) : '';
+        say(answered
+          ? `${t(lang, 'ctrl.thoughts.none')}\n\n${t(lang, 'ctrl.thoughts.lastAnswer')}\n\n${answered}`
+          : t(lang, 'ctrl.thoughts.none'));
         return true;
       }
       say(t(lang, 'ctrl.thoughts.title', { chars: text.length }) + '\n\n' + text);

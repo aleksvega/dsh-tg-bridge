@@ -44,14 +44,25 @@ export function sessionFile(sessionsRoot, sessionId) {
 /**
  * Reasoning blocks of the last turn, oldest first. `maxChars` keeps the head of
  * the stream: that is where the plan and the first diagnosis are.
+ *
+ * Not every turn has reasoning to show: a one-word answer ("ok") carries a text
+ * part and nothing else, and some models are not given a reasoning budget at all.
+ * The caller distinguishes "no plan in this turn" from "no such session".
  */
 export function lastTurnReasoning(file, { maxChars = 4000 } = {}) {
-  if (!file || !existsSync(file)) return '';
+  const blocks = lastTurnBlocks(file).filter((part) => part.type === 'reasoning' && part.text);
+  const text = blocks.map((part) => part.text.trim()).join('\n\n').trim();
+  return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
+}
+
+/** Every part of every assistant message of the last turn, in order. */
+function lastTurnBlocks(file) {
+  if (!file || !existsSync(file)) return [];
   let buf;
   try {
     buf = readFileSync(file);
   } catch {
-    return '';
+    return [];
   }
   const starts = frameStarts(buf);
   const lines = [];
@@ -73,7 +84,7 @@ export function lastTurnReasoning(file, { maxChars = 4000 } = {}) {
     }
   }
   lines.reverse();
-  const blocks = [];
+  const out = [];
   for (const line of lines) {
     let record;
     try {
@@ -82,11 +93,18 @@ export function lastTurnReasoning(file, { maxChars = 4000 } = {}) {
       continue;
     }
     if (record?.type !== 'assistant/message') continue;
-    for (const part of record.data?.message?.content ?? []) {
-      if (part?.type === 'reasoning' && part.text) blocks.push(part.text.trim());
-    }
+    for (const part of record.data?.message?.content ?? []) out.push(part);
   }
-  const text = blocks.join('\n\n').trim();
+  return out;
+}
+
+/** The last turn's own answer text — the fallback when it planned nothing. */
+export function lastTurnText(file, { maxChars = 1500 } = {}) {
+  const text = lastTurnBlocks(file)
+    .filter((part) => part.type === 'text' && part.text)
+    .map((part) => part.text.trim())
+    .join('\n\n')
+    .trim();
   return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
 }
 
