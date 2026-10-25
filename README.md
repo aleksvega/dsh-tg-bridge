@@ -92,6 +92,15 @@ What `init` does:
 `init` flags: `--cwd <path>` (default `~/Projects`), `--voice` (enable
 voice transcription), `--dry-run` (show what would be written, change nothing).
 
+Optional provider settings live in `config.json`:
+
+| Key | Meaning |
+|---|---|
+| `providerKeys` | extra env var names to pass to a turn, read from `~/.dsh/.credentials.yaml`; default `[]` |
+| `pricesUrl` | public model page for `/prices`; default `""` uses models.dev only |
+| `vision.patch` | overlay for photo turns; default `""` (photos are text-only until set) |
+| `fallbackModels` | free-model fallbacks; default `[]` |
+
 Get your id from [@userinfobot](https://t.me/userinfobot), the token from
 [@BotFather](https://t.me/BotFather).
 
@@ -106,9 +115,11 @@ Three things without which the bot will stay silent in a group or work only half
 3. **Pin Messages** permission for the bot. Only needed to pin the first
    message of a topic; without it the bridge keeps working but will not pin.
 
-You do not need to set up the command menu by hand: the bridge installs it on start,
-in Russian, English and Chinese at once. The full settings table, permissions, checks and
-common errors are in [docs/TELEGRAM-SETUP.md](docs/TELEGRAM-SETUP.md).
+You do not need to set up the command menu by hand: `init` and `setup` install it
+in Russian, English and Chinese at once. The menu is not refreshed by a plain
+bridge restart, so after adding commands run `dsh-tg menu`. The full settings
+table, permissions, checks and common errors are in
+[docs/TELEGRAM-SETUP.md](docs/TELEGRAM-SETUP.md).
 
 **Autostart** is installed by the setup: `launchd` on macOS, `systemd --user` on
 Linux. On Windows `setup` registers the `DSH-TG-Bridge` task, which runs the

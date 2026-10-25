@@ -1,12 +1,10 @@
-// prices.mjs — unorouter model prices without the metrics plugin.
+// prices.mjs — model prices without a provider-specific plugin.
 //
-// The plugin `dsh-unorouter-metrics` never mounted, so `/prices` had nothing to
-// read. This module fetches the public models page directly, parses the table
-// and renders a short answer: what the current route costs, and the cheapest
-// models that still fit the context floor. Fallback is models.dev, which has
-// no uptime data but is stable JSON.
+// `/prices` reads the public models.dev catalog by default. An install that
+// wants live prices from its own provider can point `pricesUrl` at that
+// provider's public model page; the parser is generic, so no vendor is baked
+// into the code.
 
-const MODELS_PAGE = 'https://unorouter.com/en/models';
 const MODELS_DEV = 'https://models.dev/api.json';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
@@ -128,7 +126,7 @@ const WORDS = {
 
 /**
  * Find a model by id. Providers prefix ids differently (`openai/gpt-4o`,
- * `gpt-4o`, `unorouter/gpt-4o:free`), so exact match first, then the shortest
+ * `gpt-4o`, `vendor/gpt-4o:free`), so exact match first, then the shortest
  * id that contains the wanted token.
  */
 export function findModel(models, wanted) {
@@ -142,31 +140,33 @@ export function findModel(models, wanted) {
 }
 
 /**
- * Render `/prices [filter]` from every catalog we can reach, so the answer does
- * not depend on one provider: the unorouter page carries live prices for its
- * own routes, models.dev covers the rest of the market. Both are merged; the
- * current model is looked up in the merged list.
+ * Render `/prices [filter]` from the public market catalog, plus an optional
+ * provider page configured as `pricesUrl`. Neither source is required: if one
+ * is down the other still answers, and with no `pricesUrl` only models.dev is
+ * queried.
  * @param {string} filter optional text to match model ids
- * @param {{ model?: string, provider?: string, lang?: string }} options
+ * @param {{ model?: string, provider?: string, pageUrl?: string, lang?: string }} options
  */
 export async function renderPrices(filter = '', options = {}) {
   const lang = WORDS[options.lang] ? options.lang : 'en';
   const words = WORDS[lang];
-  const [page, dev] = await Promise.allSettled([
-    fetchText(MODELS_PAGE),
-    fetchText(MODELS_DEV, 30000),
-  ]);
+  const pageUrl = String(options.pageUrl || '').trim();
+  const jobs = [fetchText(MODELS_DEV, 30000)];
+  if (pageUrl) jobs.unshift(fetchText(pageUrl));
+  const results = await Promise.allSettled(jobs);
+  const page = pageUrl ? results[0] : null;
+  const dev = pageUrl ? results[1] : results[0];
 
   let models = [];
   const sources = [];
-  if (page.status === 'fulfilled') {
+  if (page?.status === 'fulfilled') {
     const parsed = parseModelsPage(page.value);
     if (parsed.length > 0) {
       models.push(...parsed);
-      sources.push('unorouter');
+      try { sources.push(new URL(pageUrl).hostname.replace(/^www\./i, '')); } catch { sources.push('provider'); }
     }
   }
-  if (dev.status === 'fulfilled') {
+  if (dev?.status === 'fulfilled') {
     try {
       const parsed = parseModelsDev(JSON.parse(dev.value));
       if (parsed.length > 0) {
@@ -176,9 +176,9 @@ export async function renderPrices(filter = '', options = {}) {
     } catch {}
   }
   if (models.length === 0) {
-    const reason = dev.status === 'rejected'
+    const reason = dev?.status === 'rejected'
       ? dev.reason?.message
-      : page.status === 'rejected'
+      : page?.status === 'rejected'
         ? page.reason?.message
         : 'catalogs parsed to 0 models';
     return `${words.fail}: ${reason}`;

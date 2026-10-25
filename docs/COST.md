@@ -1,7 +1,7 @@
 # API spend: what was measured and what was configured
 
 This document is about money, not features. All figures come from a live
-install on Windows (DSH 0.2.1-rc.2, unorouter route, model
+install on Windows (DSH 0.2.1-rc.2, one hosted route, model
 `deepseek-v4.1-flash-1017`), not from theory.
 
 ## What it was

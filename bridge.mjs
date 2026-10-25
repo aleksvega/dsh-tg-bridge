@@ -260,6 +260,30 @@ function readSecret(name) {
 }
 
 /**
+ * Env vars for the provider keys this install needs.
+ *
+ * A headless turn inherits the bridge's environment, and the credentials
+ * service only resolves providers the app knows about. Extra providers are
+ * therefore declared per install in `config.json` as
+ * `"providerKeys": ["MY_PROVIDER_API_KEY"]`, and each name is read from
+ * `~/.dsh/.credentials.yaml` under the same name. Nothing is hardcoded: an
+ * install that runs on the app's own providers sets an empty list and gets
+ * exactly the inherited environment.
+ */
+function providerKeys(cfg) {
+  const out = {};
+  const names = Array.isArray(cfg.providerKeys) ? cfg.providerKeys : [];
+  for (const name of names) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(String(name))) continue;
+    try {
+      const value = readSecret(name) || (process.env[name] || '').trim();
+      if (value) out[name] = value;
+    } catch {}
+  }
+  return out;
+}
+
+/**
  * The bot token can be stored under three names: the plain one that `dsh-tg
  * init` writes, the suffixed one DSH generates when the secret is added through
  * the app, or an env var. Checking only the suffixed name made a fresh install
@@ -740,13 +764,10 @@ function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd 
         DSH_TG_CHAT: String(key).split(':')[0] || '',
         DSH_TG_THREAD: String(key).split(':')[1] || '0',
         ELECTRON_RUN_AS_NODE: '1',
-        UNOROUTER_API_KEY: readSecret('UNOROUTER_API_KEY'),
-        // Free fallback providers: their keys live next to the main one and are
-        // passed explicitly, because the credentials service only resolves the
-        // providers it knows about.
-        TAYNIK_API_KEY: readSecret('TAYNIK_API_KEY'),
-        NEURALDEEP_API_KEY: readSecret('NEURALDEEP_API_KEY'),
-        IKHDEV_PRO_API_KEY: readSecret('IKHDEV_PRO_API_KEY'),
+        // Provider keys the profile cannot resolve on its own. Configured per
+        // install (`providerKeys`, see config.example.json); a key listed in
+        // `~/.dsh/.credentials.yaml` is passed by its own name.
+        ...providerKeys(config),
       },
       windowsHide: true,
     });
@@ -1248,7 +1269,14 @@ ${t(lang, 'help.body')}`,
       seedTopic: ensureTopicSeed,
       prices: (filter) => {
         const route = modelOf(config.profile || 'headless');
-        return renderPrices(filter, { model: route.model, provider: route.provider, lang });
+        // A provider page is optional: without `pricesUrl` the answer comes from
+        // the public models.dev catalog, so no install is tied to one vendor.
+        return renderPrices(filter, {
+          model: route.model,
+          provider: route.provider,
+          pageUrl: config.pricesUrl || '',
+          lang,
+        });
       },
       reply: (out) => send(chatId, out, threadId),
       stopTurn: (k) => {

@@ -3,6 +3,8 @@
   "allowedUserIds": [],
   "profile": "headless",
   "cwd": "",
+  "providerKeys": [],
+  "pricesUrl": "",
   "turnIdleMs": 120000,
   "turnTimeoutMs": 0,
   "busyNoticeMs": 45000,
@@ -12,23 +14,7 @@
   "pinTopicSeed": true,
   "plainText": false,
   "servers": {},
-  "fallbackModels": [
-    {
-      "model": "glm-5.3-flash:free",
-      "patch": "./patches/model-glm-5.3-flash_free.yml",
-      "free": true
-    },
-    {
-      "model": "deepseek-v4.1-flash:free",
-      "patch": "./patches/model-deepseek-v4.1-flash_free.yml",
-      "free": true
-    },
-    {
-      "model": "kimi-k3:free",
-      "patch": "./patches/model-kimi-k3_free.yml",
-      "free": true
-    }
-  ],
+  "fallbackModels": [],
   "voice": {
     "enabled": false,
     "python": "",
@@ -41,7 +27,7 @@
     "echo": true
   },
   "vision": {
-    "patch": "./patches/vision.yml",
-    "model": "gemini-3.8-flash"
+    "patch": "",
+    "model": ""
   }
 }

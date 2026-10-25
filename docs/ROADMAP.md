@@ -12,8 +12,8 @@ Updated: 2026-10-23. History: `CHANGELOG.md`; UX analysis: `UX-ANALYSIS.md`.
 - Progress: one status message, steps, model text, cache; heartbeat every 2 min.
 - Timeouts: no hard ceiling, silence does not kill a turn.
 - Network: IPv4 forced, polling backoff, error codes.
-- Fallback: 7 models; providers taynik/neuraldeep/ikhdev; message "balance exhausted — running on X (free)".
-- Subagents: `agentOptions` → unorouter/deepseek-v4.1-flash.
+- Fallback: free-model chain from `fallbackModels` in `config.json`; message "balance exhausted — running on X (free)".
+- Subagents: per-profile `agentOptions` model override.
 
 ## P0 — next (stability and control)
 

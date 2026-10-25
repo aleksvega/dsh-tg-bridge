@@ -1,5 +1,19 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 2026-10-25 — v1.5.4
+
+- Portability: no command depends on one provider any more.
+  - `/prices` reads the public models.dev catalog; a provider page is optional
+    and configured with `pricesUrl` (default `""`). The vendor was previously
+    hardcoded.
+  - Provider keys passed to a turn are declared per install with
+    `"providerKeys": ["NAME"]` and read from `~/.dsh/.credentials.yaml`. The
+    four fixed provider names are gone, so a fresh install sends no foreign keys.
+  - `config.example.json` ships with `fallbackModels: []` and an empty vision
+    patch instead of one vendor's free models and vision model.
+- README: the command menu is installed by `init`/`setup`, not refreshed by a
+  plain restart; run `dsh-tg menu` after upgrading.
+
 ## 2026-10-24 — v1.5.3
 
 - `say.mjs --thought` no longer depends on environment variables: tool shells

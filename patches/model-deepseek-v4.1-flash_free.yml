@@ -1,4 +1,0 @@
-- id: agent-default-model
-  config:
-    provider: unorouter
-    model: deepseek-v4.1-flash:free

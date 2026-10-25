@@ -1,4 +1,0 @@
-- id: agent-default-model
-  config:
-    provider: unorouter
-    model: glm-5.3-flash:free

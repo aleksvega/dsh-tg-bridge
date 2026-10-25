@@ -37,15 +37,19 @@ const RUNTIME_FILES = [
  */
 function syncRuntime() {
   if (resolve(DIR) === resolve(RUNTIME)) return;
-  mkdirSync(join(RUNTIME, 'patches'), { recursive: true });
   for (const file of RUNTIME_FILES) {
     if (existsSync(join(DIR, file))) copyFileSync(join(DIR, file), join(RUNTIME, file));
   }
-  try {
-    for (const patch of readdirSync(join(DIR, 'patches'))) {
-      copyFileSync(join(DIR, 'patches', patch), join(RUNTIME, 'patches', patch));
-    }
-  } catch {}
+  // Model overlays ship in `patches/` of the package. A checkout without that
+  // directory is valid: fallbacks and vision are then simply not configured.
+  if (existsSync(join(DIR, 'patches'))) {
+    mkdirSync(join(RUNTIME, 'patches'), { recursive: true });
+    try {
+      for (const patch of readdirSync(join(DIR, 'patches'))) {
+        copyFileSync(join(DIR, 'patches', patch), join(RUNTIME, 'patches', patch));
+      }
+    } catch {}
+  }
   console.log(`  код: скопирован из ${DIR} в ${RUNTIME}`);
 }
 
@@ -146,7 +150,9 @@ function writeConfig({ userId, cwd, voice }, dryRun) {
     // Turns run from the user's project directory, so these must be absolute:
     // a relative "./transcribe.py" silently disables voice and vision.
     voice: { ...example.voice, enabled: Boolean(voice), script: join(RUNTIME, 'transcribe.py') },
-    vision: { ...example.vision, patch: join(RUNTIME, 'patches', 'vision.yml') },
+    // Vision is opt-in: without a patch the bridge logs that photos cannot be
+    // read instead of forcing one provider's model onto every install.
+    vision: { ...example.vision, patch: example.vision?.patch ? join(RUNTIME, 'patches', 'vision.yml') : '' },
   };
   delete config._comment;
   if (dryRun) {
