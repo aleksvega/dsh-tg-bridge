@@ -1,5 +1,12 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.9.1 — 2026-10-25
+
+- `/remind list` lists the reminders instead of failing as an unreadable time, and
+  the hint line mentions it.
+- `/help` shows the real `/agents set model|depth|filter … @tool` form, which was
+  still documented as `/agents <id>`.
+
 ## 1.9.0 — 2026-10-25
 
 - The turn message shows the whole turn: the reasoning block plus, when a turn

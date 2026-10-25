@@ -1066,7 +1066,7 @@ export async function handleControl(ctx) {
         return t(lang, 'ctrl.remind.inDay', { n: Math.round(hours / 24) });
       };
 
-      if (!input) {
+      if (!input || input === 'list') {
         if (ahead.length === 0) {
           say([t(lang, 'ctrl.remind.title'), t(lang, 'ctrl.remind.empty'), t(lang, 'ctrl.remind.hint')].join('\n'));
           return true;

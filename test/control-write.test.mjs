@@ -194,6 +194,8 @@ test('/remind adds, lists, deletes and clears in this chat only', async () => {
   const listed = await run('/remind', '', { state });
   assert.match(listed.text, /1\./);
   assert.match(listed.text, /проверить/);
+  const spelled = await run('/remind', 'list', { state });
+  assert.match(spelled.text, /проверить/, '/remind list is the same listing, not a bad time');
   const other = await run('/remind', '', { state, chatId: 99, key: '99:1' });
   assert.match(other.text, /Ничего не запланировано|Nothing scheduled/);
   const removed = await run('/remind', 'del 1', { state });
