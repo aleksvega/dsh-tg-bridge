@@ -163,6 +163,9 @@ Send the bot:
 | Command | Expected |
 |---|---|
 | `/doctor` | report: pid, Telegram, disk, directory, session |
+| `/version` | bridge version, the latest on npm, bridge directory |
+| `/update` | says whether a newer release exists (`/update confirm` installs it) |
+| `/thoughts` | the last turn's reasoning, deleted after a few minutes |
 | `/help` | commands grouped by category |
 | `/cd my-app` | topic bound to the project |
 | `/prices` | model prices and the cost of the current one |

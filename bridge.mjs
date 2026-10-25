@@ -710,6 +710,25 @@ async function send(chatId, text, threadId = 0, replyTo = 0) {
   return lastId;
 }
 
+/**
+ * Send a message that deletes itself after `ttlMs`.
+ *
+ * Reports read once and forgotten (`/thoughts`, an unknown command showing the
+ * menu) should not stay in the scrollback forever. The API cannot edit plain
+ * text into a spoiler, so the choice is between two kinds of litter: a long
+ * reply or a "gone" tombstone. A tombstone wins.
+ */
+async function sendEphemeral(chatId, text, threadId = 0, replyTo = 0, ttlMs = 180000) {
+  const id = await send(chatId, text, threadId, replyTo);
+  if (!id) return id;
+  const timer = setTimeout(() => {
+    tg('deleteMessage', { chat_id: chatId, message_id: id })
+      .catch((error) => log(`ephemeral delete failed msg=${id}: ${String(error.message).slice(0, 80)}`));
+  }, ttlMs);
+  timer.unref?.();
+  return id;
+}
+
 /** Remember which topics already got their seed message, so it happens once. */
 function topicSeeded(threadId) {
   return Boolean(state.seededTopics?.[String(threadId)]);
@@ -1336,7 +1355,9 @@ async function handleMessage(msg, album = null) {
   // answers something the person did not ask. Answer with the menu instead.
   if (command && !effective) {
     log(`unknown command ${head} from ${from}`);
-    await send(
+    // Ephemeral: a mistyped command is usually a typo of a real one, so the menu
+    // appears long enough to pick from it and then clears itself.
+    await sendEphemeral(
       chatId,
       `${t(lang, 'msg.unknownCommand', { cmd: head })}
 

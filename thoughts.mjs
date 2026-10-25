@@ -1,0 +1,93 @@
+// "What was the model thinking in the last turn?" — read straight from the
+// session log instead of keeping a copy in memory.
+//
+// A session is `<sessions>/<cwd>/<id>/session.v4.jsonl.zstd`: one zstd frame per
+// appended batch of records, and a `turn/start` record marks the beginning of a
+// turn. Walking the file backwards from the newest frame is enough to reach the
+// current turn, which keeps the command cheap on a 13 MB log with 16k frames.
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { zstdDecompressSync } from 'node:zlib';
+
+const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
+
+/** Every zstd frame start in `buf`, ascending. */
+function frameStarts(buf) {
+  const starts = [];
+  let at = 0;
+  for (;;) {
+    const found = buf.indexOf(MAGIC, at);
+    if (found < 0) break;
+    starts.push(found);
+    at = found + MAGIC.length;
+  }
+  starts.push(buf.length);
+  return starts;
+}
+
+/** Path of a session file, or '' when the id is unknown. */
+export function sessionFile(sessionsRoot, sessionId) {
+  if (!sessionId) return '';
+  let dirs = [];
+  try {
+    dirs = readdirSync(sessionsRoot, { withFileTypes: true }).filter((e) => e.isDirectory());
+  } catch {
+    return '';
+  }
+  for (const dir of dirs) {
+    const direct = join(sessionsRoot, dir.name, sessionId, 'session.v4.jsonl.zstd');
+    if (existsSync(direct)) return direct;
+  }
+  return '';
+}
+
+/**
+ * Reasoning blocks of the last turn, oldest first. `maxChars` keeps the head of
+ * the stream: that is where the plan and the first diagnosis are.
+ */
+export function lastTurnReasoning(file, { maxChars = 4000 } = {}) {
+  if (!file || !existsSync(file)) return '';
+  let buf;
+  try {
+    buf = readFileSync(file);
+  } catch {
+    return '';
+  }
+  const starts = frameStarts(buf);
+  const lines = [];
+  let reachedTurnStart = false;
+  for (let i = starts.length - 2; i >= 0 && !reachedTurnStart; i--) {
+    let text = '';
+    try {
+      text = zstdDecompressSync(buf.subarray(starts[i], starts[i + 1])).toString('utf8');
+    } catch {
+      continue;
+    }
+    const parts = text.split('\n').filter(Boolean);
+    for (let j = parts.length - 1; j >= 0; j--) {
+      lines.push(parts[j]);
+      if (parts[j].includes('"type":"turn/start"')) {
+        reachedTurnStart = true;
+        break;
+      }
+    }
+  }
+  lines.reverse();
+  const blocks = [];
+  for (const line of lines) {
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (record?.type !== 'assistant/message') continue;
+    for (const part of record.data?.message?.content ?? []) {
+      if (part?.type === 'reasoning' && part.text) blocks.push(part.text.trim());
+    }
+  }
+  const text = blocks.join('\n\n').trim();
+  return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
+}
+
+export { frameStarts };

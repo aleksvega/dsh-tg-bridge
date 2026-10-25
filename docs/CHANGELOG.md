@@ -1,5 +1,26 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.0 — 2026-10-25
+
+- A command typed during a long turn is answered at once, not after it. The
+  immediate set was a list of six "safe" reports; everything else queued, so
+  `/model`, `/goal` or a mistyped command sat in the queue behind a turn that
+  could run for twenty minutes — which is indistinguishable from a dead bot.
+  The rule is inverted: only `/new`, `/resume`, `/seed`, `/send` and plugin
+  mutations queue, because those replace or feed the session the running turn is
+  writing. The list lives in `immediate.mjs`, and a test walks `CONTROL_COMMANDS`
+  so a new command is never silently left in the queue.
+- `/thoughts` shows what the model was thinking in the last turn, read straight
+  from the session log (`thoughts.mjs` walks the zstd frames of
+  `session.v4.jsonl.zstd` backwards to the last `turn/start`), so it works for any
+  session, even one this process no longer holds. The reply deletes itself after
+  a few minutes; so does an unknown command's menu.
+- `/version` reports the bridge version, the latest on npm and where the
+  bridge lives. `/update` says whether a newer release exists; `/update confirm`
+  installs it into the bridge directory (fetched into a temp dir and copied over,
+  with the previous files in `update-backup-*`). Until `/restart confirm` the old
+  code keeps serving, so a bad release cannot take the chat down by itself.
+
 ## 1.6.0 — 2026-10-25
 
 - A photo is read by the turn's own model, not by a second, billed one. The

@@ -5,12 +5,13 @@
 // Everything works on the same files DSH itself reads, so a running desktop app
 // and a headless turn see the same state; commands that need a reload say so.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
 import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
+import { lastTurnReasoning, sessionFile } from './thoughts.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -416,6 +417,7 @@ export const CONTROL_COMMANDS = [
   'status', 'models', 'model', 'profile', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task',
+  'thoughts', 'version', 'update',
 ];
 
 /**
@@ -1124,9 +1126,133 @@ export async function handleControl(ctx) {
       return true;
     }
 
+    case '/thoughts': {
+      // The reasoning of the last turn, pulled from the session log itself. It
+      // is ephemeral: the reply lives a few minutes and then deletes itself, so
+      // a long plan never turns into chat clutter.
+      const sessionId = ctx.state.sessions?.[key];
+      if (!sessionId) {
+        say(t(lang, 'ctrl.thoughts.noSession'));
+        return true;
+      }
+      const file = sessionFile(join(DSH_HOME, 'sessions'), sessionId);
+      const text = file ? lastTurnReasoning(file, { maxChars: 4000 }) : '';
+      if (!text) {
+        say(t(lang, 'ctrl.thoughts.none'));
+        return true;
+      }
+      say(t(lang, 'ctrl.thoughts.title', { chars: text.length }) + '\n\n' + text);
+      return true;
+    }
+
+    case '/version': {
+      // Which bridge is running, which one npm has, and whether this install can
+      // update itself. A report, so it answers even in the middle of a turn.
+      const installed = bridgeVersion();
+      const latest = npmLatest('dsh-tg-bridge');
+      const where = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
+      const lines = [t(lang, 'ctrl.version.title')];
+      lines.push(t(lang, 'ctrl.version.installed', { v: installed || t(lang, 'ctrl.version.unknown') }));
+      lines.push(t(lang, 'ctrl.version.latest', { v: latest || t(lang, 'ctrl.version.offline') }));
+      if (installed && latest && installed !== latest) lines.push(t(lang, 'ctrl.version.update', { v: latest }));
+      lines.push(t(lang, 'ctrl.version.root', { path: where }));
+      lines.push(t(lang, 'ctrl.version.hint'));
+      say(lines.join('\n'));
+      return true;
+    }
+
+    case '/update': {
+      // The person's own copy of the bridge, updated from npm. Nothing is
+      // touched unless the release is newer, and the running process keeps its
+      // old modules until the next `/restart confirm` — so a bad release never
+      // takes the chat down by itself.
+      if (String(arg).trim() === 'confirm') {
+        const installed = bridgeVersion();
+        const latest = npmLatest('dsh-tg-bridge');
+        if (!latest) {
+          say(t(lang, 'ctrl.update.offline'));
+          return true;
+        }
+        if (installed && installed === latest) {
+          say(t(lang, 'ctrl.update.current', { v: installed }));
+          return true;
+        }
+        const root = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
+        say(t(lang, 'ctrl.update.running', { v: latest }));
+        // `npm install dsh-tg-bridge@x` inside the bridge's own directory would
+        // drop a nested node_modules/dsh-tg-bridge and leave the running files
+        // alone, so the release is fetched into a temp dir and its files are
+        // copied over the top. Config, state and logs stay untouched.
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backup = join(root, `update-backup-${stamp}`);
+        const work = join(tmpdir(), `dsh-tg-bridge-${stamp}`);
+        const r = spawnSync(
+          'npm',
+          ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', work, `dsh-tg-bridge@${latest}`],
+          { encoding: 'utf8', shell: true, timeout: 240000, windowsHide: true },
+        );
+        const tail = `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/).slice(-6).join('\n');
+        if (r.status !== 0) {
+          say(t(lang, 'ctrl.update.failed', { code: r.status ?? '?' }) + (tail ? `\n\n${tail}` : ''));
+          return true;
+        }
+        try {
+          mkdirSync(backup, { recursive: true });
+          for (const name of readdirSync(join(work, 'package'))) {
+            const from = join(work, 'package', name);
+            const to = join(root, name);
+            if (existsSync(to)) copyFileSync(to, join(backup, name));
+            copyFileSync(from, to);
+          }
+        } catch (error) {
+          say(t(lang, 'ctrl.update.failed', { code: 'copy' }) + `\n\n${error.message}`);
+          return true;
+        } finally {
+          try {
+            rmSync(work, { recursive: true, force: true });
+          } catch {}
+        }
+        say(t(lang, 'ctrl.update.done', { v: latest }));
+        return true;
+      }
+      const installed = bridgeVersion();
+      const latest = npmLatest('dsh-tg-bridge');
+      if (!latest) {
+        say(t(lang, 'ctrl.update.offline'));
+        return true;
+      }
+      if (installed && installed === latest) {
+        say(t(lang, 'ctrl.update.current', { v: installed }));
+        return true;
+      }
+      say(t(lang, 'ctrl.update.available', { from: installed || '?', to: latest }));
+      return true;
+    }
+
     default:
       return false;
   }
 }
 
-export { DSH_HOME, modelOf, modelsOf, pluginsOf, recentSessions, skillsOf, soulOf };
+/** Version of the bridge this process runs, read from its own package.json. */
+function bridgeVersion() {
+  const root = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
+  try {
+    return JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Latest published version of an npm package, or '' when npm is unreachable. */
+function npmLatest(name) {
+  try {
+    const r = spawnSync('npm', ['view', name, 'version'], { encoding: 'utf8', shell: true, timeout: 45000, windowsHide: true });
+    const out = String(r.stdout || '').trim().split(/\s+/).pop() || '';
+    return r.status === 0 && /^\d/.test(out) ? out : '';
+  } catch {
+    return '';
+  }
+}
+
+export { DSH_HOME, modelOf, modelsOf, pluginsOf, recentSessions, skillsOf, soulOf, bridgeVersion, npmLatest };

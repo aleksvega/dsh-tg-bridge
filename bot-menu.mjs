@@ -52,6 +52,9 @@ const COMMANDS = [
   { command: 'lang', description: 'Язык интерфейса: en, ru, zh' },
   { command: 'reasoning', description: 'Заметки по ходу: /reasoning on|off' },
   { command: 'profile', description: 'Профиль темы: /profile <имя>, /profile new' },
+  { command: 'thoughts', description: 'Рассуждения последнего хода (исчезает)' },
+  { command: 'version', description: 'Версия моста и последняя на npm' },
+  { command: 'update', description: 'Обновить мост из npm: /update confirm' },
 ];
 
 /** English menu (language_code: en). Same commands, translated descriptions. */
@@ -79,6 +82,9 @@ const COMMANDS_EN = [
   { command: 'lang', description: 'Interface language: en, ru, zh' },
   { command: 'reasoning', description: 'Working notes: /reasoning on|off' },
   { command: 'profile', description: 'Topic profile: /profile <name>, /profile new' },
+  { command: 'thoughts', description: 'Reasoning of the last turn (self-deleting)' },
+  { command: 'version', description: 'Bridge version and the latest on npm' },
+  { command: 'update', description: 'Update the bridge from npm: /update confirm' },
 ];
 
 /** Chinese menu (language_code: zh-hans). */
@@ -106,6 +112,9 @@ const COMMANDS_ZH = [
   { command: 'lang', description: '界面语言：en、ru、zh' },
   { command: 'reasoning', description: '工作记录：/reasoning on|off' },
   { command: 'profile', description: '话题配置档：/profile <名称>，/profile new' },
+  { command: 'thoughts', description: '上一轮的推理（稍后自动消失）' },
+  { command: 'version', description: '桥接版本与 npm 上的最新版本' },
+  { command: 'update', description: '从 npm 更新桥接：/update confirm' },
 ];
 
 async function api(method, body) {
