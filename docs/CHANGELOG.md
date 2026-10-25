@@ -1,5 +1,14 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.5 — 2026-10-25
+
+- `/version` adds one line when the modules on disk are newer than the running
+  process: the version number comes from `package.json`, the answers come from
+  the code loaded at start, and after `sync-runtime.mjs` or `/update` those two
+  disagree until `/restart confirm`. Say it instead of letting a fresh number
+  read as live code.
+- The `/logs` menu entry mentions `/logs file`.
+
 ## 1.7.4 — 2026-10-25
 
 - `/logs file` sends `bridge.log` as a document instead of pasting a slice of it:

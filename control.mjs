@@ -1230,6 +1230,15 @@ export async function handleControl(ctx) {
       if (installed && latest && installed !== latest) lines.push(t(lang, 'ctrl.version.update', { v: latest }));
       lines.push(t(lang, 'ctrl.version.root', { path: where }));
       lines.push(t(lang, 'ctrl.version.hint'));
+      // The number above comes from package.json on disk; the code actually
+      // answering this came from the files as they were at process start. When
+      // ./sync-runtime.mjs (or /update) has since replaced them, saying so
+      // beats a version that reads as live while it is not.
+      const started = Date.now() - process.uptime() * 1000;
+      const newest = newestModuleMtime(where);
+      if (newest && newest > started + 2000) {
+        lines.push(t(lang, 'ctrl.version.stale', { when: stamp(newest) }));
+      }
       say(lines.join('\n'));
       return true;
     }
@@ -1315,6 +1324,19 @@ function bridgeVersion() {
   } catch {
     return '';
   }
+}
+
+/** Newest mtime among the modules a bridge install is made of, or 0. */
+function newestModuleMtime(root) {
+  let newest = 0;
+  try {
+    for (const name of readdirSync(root)) {
+      if (!name.endsWith('.mjs')) continue;
+      const at = statSync(join(root, name)).mtimeMs;
+      if (at > newest) newest = at;
+    }
+  } catch {}
+  return newest;
 }
 
 /** Latest published version of an npm package, or '' when npm is unreachable. */
