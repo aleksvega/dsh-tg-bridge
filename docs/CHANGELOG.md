@@ -1,5 +1,19 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.2 — 2026-10-25
+
+- A voice note or photo that arrived while a turn was running, but finished
+  downloading after that turn ended, is now delivered as a turn of its own. It
+  used to be written as a steer job and then sit in the directory until the
+  watcher noticed ninety seconds later — long enough to look like the message
+  was swallowed. The prepared text (transcript, file path, caption) is already
+  the whole request, so it runs directly instead of re-transcribing the audio.
+- An album flush no longer decides "steer or turn" from the state at upload
+  time: the buffer holds photos for up to four seconds, and a turn that ended in
+  that window must still get an answer.
+- The mid-turn photo disclaimer ("only the path is attached") is left out when
+  the text ends up as a fresh turn, where the image is readable after all.
+
 ## 1.7.1 — 2026-10-25
 
 - `/status` is a card now, not a key dump: session title, when it was created and

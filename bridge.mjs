@@ -1229,8 +1229,11 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   let text = parts.filter(Boolean).join('\n\n');
   // A steer cannot apply the vision overlay to a turn that is already running,
   // so the model gets a path and an honest line instead of a silently
-  // unreadable image.
-  if (text && photo && opts.steer) text += `\n\n${t(lang, 'prompt.photoMidTurn')}`;
+  // unreadable image. If the turn died while the file was being fetched, the
+  // text is about to become a turn of its own — and there the image *is*
+  // readable, so the disclaimer would be a lie.
+  const liveNow = opts.stillRunning ? opts.stillRunning() : true;
+  if (text && photo && opts.steer && liveNow) text += `\n\n${t(lang, 'prompt.photoMidTurn')}`;
   if (text && caption) text += `\n\n${t(lang, 'prompt.note', { note: caption })}`;
   return { text, extraArgs, profile };
 }
@@ -1756,13 +1759,33 @@ function watchSteer(job, msg, text, thread, lang) {
 async function steerMediaMessage(msgs, sessionId, key, thread, lang) {
   const list = Array.isArray(msgs) ? msgs : [msgs];
   const first = list[0];
-  const built = await mediaPrompt(list, first.chat.id, thread, lang, { steer: true });
+  const wasRunning = activeTurns.has(key);
+  const built = await mediaPrompt(list, first.chat.id, thread, lang, {
+    steer: true,
+    stillRunning: () => activeTurns.has(key),
+  });
   if (!built.text) {
     log('steer media produced no text; nothing injected');
     return;
   }
-  if (!activeTurns.has(key)) log(`steer media: turn ended during prep, job will re-queue (${key})`);
-  steerRunningTurn(first, built.text, sessionId, thread);
+  if (activeTurns.has(key)) {
+    steerRunningTurn(first, built.text, sessionId, thread);
+    return;
+  }
+  // Transcribing and downloading take seconds; the turn this addition was meant
+  // for may already be gone. Writing the job anyway left the addition in the
+  // directory until `watchSteer` noticed — a minute of silence for a voice note
+  // that arrived half a second too late. The prepared text (transcript, file
+  // path, caption) is already the whole request, so run it as its own turn.
+  log(`steer media: turn ended during prep (was ${wasRunning ? 'running' : 'gone'}), delivering as a turn (${key})`);
+  enqueue(key, () => handleMessage({
+    chat: first.chat,
+    from: first.from,
+    message_id: 0,
+    message_thread_id: thread || undefined,
+    is_topic_message: thread > 0,
+    text: built.text,
+  }));
 }
 
 // ------------------------------------------------------------------ albums
@@ -1797,7 +1820,11 @@ async function deliverAlbum(msgs) {
   const lang = resolveLang(state, key, first, config);
   const sessionId = liveSessions.get(key) || state.sessions[key];
   log(`album ${first.media_group_id}: ${msgs.length} item(s) in ${key}`);
-  if (config.steerDuringTurn !== false && steerAvailable(profileOf(key)) && activeTurns.has(key) && sessionId) {
+  // Decide at flush time, not at send time: the buffer holds the photos for up
+  // to four seconds, and a turn that ended in that window must still get an
+  // answer rather than a silent drop. `steerMediaMessage` re-checks on its own
+  // and quotes the built prompt into a turn when the steered turn is gone.
+  if (config.steerDuringTurn !== false && steerAvailable(profileOf(key)) && sessionId) {
     try {
       await steerMediaMessage(msgs, sessionId, key, thread, lang);
       return;
@@ -2209,8 +2236,9 @@ async function main() {
           return;
         }
         // Transcription and downloads take seconds; the update loop must not
-        // wait for them, and the turn may even finish meanwhile — the steer
-        // watcher then turns the prepared text into a turn of its own.
+        // wait for them. The turn may finish meanwhile, and `steerMediaMessage`
+        // then runs the prepared text as a turn of its own instead of leaving
+        // the voicemail in a directory nobody reads again.
         ack(update.update_id);
         const lang = resolveLang(state, queueKey, msg, config);
         void steerMediaMessage(msg, sessionId, queueKey, thread, lang).catch((error) => {
