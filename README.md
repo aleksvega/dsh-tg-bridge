@@ -11,7 +11,8 @@ blocks.
 
 - **Text**: a regular task goes to the agent, the answer comes back in the same topic.
 - **Voice**: local faster-whisper, the transcript is shown before the answer.
-- **Photos**: sent to a vision-capable model; text and UI are recognized.
+- **Photos**: the turn's own model reads them through `read_image`, text and UI
+  included; no second model is needed (a vision overlay stays opt-in).
 - **Project per topic**: `/cd my-app`, and all turns run from that directory.
 - **Goal and checklist per topic**: `/goal`, `/task`; both survive restarts and are prepended to every turn.
 - **Live progress**: "⏳ Working..." with steps, a timer and the cache hit rate at the end.
@@ -53,7 +54,7 @@ can be listed next to them:
 - Topic language: `/lang en|ru|zh`; stored in `state.json` and survives a restart.
 - A new user gets the language from the Telegram `language_code`; anything that is not `ru`/`zh` → `en`.
 - Translated so far: menus, the start message, turn status, errors, `/cd`, `/new`, `/stop`, `/lang`,
-  the reply to an unknown command. Long reports (`/status`, `/sessions`, `/models` and similar)
+  the reply to an unknown command. Long reports (`/status`, `/sessions`, `/model` and similar)
   are still in Russian, that is the next pass.
 
 ## Installation
@@ -98,7 +99,8 @@ Optional provider settings live in `config.json`:
 |---|---|
 | `providerKeys` | extra env var names to pass to a turn, read from `~/.dsh/.credentials.yaml`; default `[]` |
 | `pricesUrl` | public model page for `/prices`; default `""` uses models.dev only |
-| `vision.patch` | overlay for photo turns; default `""` (photos are text-only until set) |
+| `vision.patch` | opt-in overlay profile for photo turns; default `""` — the turn's own model reads images |
+| `vision.enabled` | set `true` to run photo turns on `vision.patch` instead of the topic profile |
 | `fallbackModels` | free-model fallbacks; default `[]` |
 
 Get your id from [@userinfobot](https://t.me/userinfobot), the token from
@@ -144,13 +146,13 @@ Error replies end with a code, which tells you what to fix:
 
 | Code | Meaning |
 |---|---|
-| `INSUFFICIENT_QUOTA` | provider balance is empty: top up or stay on free models (`/prices`, `/models`) |
+| `INSUFFICIENT_QUOTA` | provider balance is empty: top up or stay on free models (`/prices`, `/model`) |
 | `TG_CONFLICT` | a second process is polling the same bot: `/doctor`, then `/restart` |
 | `MISSING_CREDENTIAL` | no provider key in the profile: add it in the DSH app |
 | `NO_DSH_CLI` | DeepSeek Harness CLI not found: check the app installation |
 | `NETWORK` | no network to the provider: retry, check VPN/DNS |
 | `SANDBOX_DENY` | DSH denied access to a file or directory: check the project path and permissions |
-| `UNKNOWN_MODEL` | the model from the config is unavailable: `/models` lists the working ones |
+| `UNKNOWN_MODEL` | the model from the config is unavailable: `/model` lists the working ones |
 | `EMPTY_RESPONSE` | the model returned nothing: retry or switch model (`/model`) |
 | `TURN_FAILED` | cause not recognized: `/doctor` and `/logs errors` |
 
@@ -171,9 +173,9 @@ Send the bot:
 Work:         /cd · /new · /stop · /send · /seed
 Goals:        /goal · /task
 Sessions:     /status · /sessions · /resume
-Models:       /models · /model · /prices
+Models:       /model · /model <id> · /prices
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
-Extensions:   /skills · /plugins · /plugin · /soul
+Extensions:   /skills · /plugins · /soul
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
 Display:      /lang · /reasoning on|off
@@ -214,7 +216,7 @@ What each kind of attachment becomes inside a running turn:
 | small text file (`.md`, `.json`, `.csv`, `.py`, `.log`, … up to 60 KB) | the content itself between `<file>` markers — no tool call needed |
 | PDF, archive, binary, anything bigger | its local path under `~/.dsh/tg-bridge/inbox/` |
 | video, video note, animation | its path; the agent can pull frames or sound out with ffmpeg |
-| photo | its path plus one honest line: a running turn cannot apply the vision overlay, so the model says it cannot see the image instead of ignoring it silently |
+| photo | its path plus one honest line; the turn reads it with `read_image`, and says so in one line if it cannot |
 
 A caption does not turn the attachment into a text-only message: it is folded into the same
 hand-over, so "why did this fail" plus a `.log` file arrives as one steer.

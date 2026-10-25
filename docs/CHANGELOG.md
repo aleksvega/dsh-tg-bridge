@@ -1,7 +1,23 @@
 # CHANGELOG — DSH Telegram bridge
 
-## Unreleased
+## 1.6.0 — 2026-10-25
 
+- A photo is read by the turn's own model, not by a second, billed one. The
+  automatic switch to `vision.patch` dated from a text-only default model; a
+  plain `headless` turn read the Chinese captions off a 720×1560 screenshot and
+  answered with them verbatim. The overlay is now opt-in (`vision.enabled`) and
+  mid-turn photos are honestly described as "here is the path" instead of "the
+  model cannot see it".
+- `/models` is gone from the menu: bare `/model` lists the models and
+  `/model <id>` switches, the way every other command works. `/models` still
+  answers as an alias so old habits do not break. `/app` and `/restart` now say
+  which one restarts the desktop app and which one restarts the bridge.
+- The package ships `profiles.mjs` and `cli-args.mjs`. Both are imported by
+  `bridge.mjs`, and `files` in `package.json` did not list them: an install from
+  npm would have died with `ERR_MODULE_NOT_FOUND` on the first turn.
+- Model overlays that are materialised as profiles no longer show up in
+  `/profile`, and they keep the base profile's plugins through a `node_modules`
+  junction instead of booting a bare host without the steer inbox.
 - Photo turns work again, and so does the fallback-model path: both passed
   `--patch` to `dsh` *after* `--json`, and the launcher hands everything from
   the first flag it does not know to the app, which rejected it with

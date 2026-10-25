@@ -1,6 +1,6 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "description": "Telegram bridge for DeepSeek Harness: text, voice, photos and project-per-topic sessions without opening the desktop app",
   "type": "module",
   "main": "plugin-bridge.mjs",
@@ -60,10 +60,12 @@
     "README.md",
     "LICENSE",
     "config.example.json",
-        "queue-notice.mjs",
+    "queue-notice.mjs",
     "immediate.mjs",
     "say.mjs",
     "steer-queue.mjs",
-    "plugin/"
+    "plugin/",
+    "profiles.mjs",
+    "cli-args.mjs"
   ]
 }

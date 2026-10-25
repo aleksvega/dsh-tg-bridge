@@ -108,6 +108,20 @@ function modelOf(profile) {
   return { provider: provider ? provider[1] : '?', model: model ? model[1] : '?' };
 }
 
+/** The `/model` list: what this profile runs and what else it could run. */
+function modelsReport(lang, profile) {
+  const head = modelOf(profile);
+  const ids = modelsOf(profile);
+  return [
+    ids.length > 0
+      ? t(lang, 'ctrl.models.current', { model: head.model })
+      : t(lang, 'ctrl.models.none', { name: profile }),
+    ...(ids.length > 0
+      ? [t(lang, 'ctrl.models.available'), ...ids.map((id) => `  ${id === head.model ? '*' : ' '} ${id}`)]
+      : []),
+  ].join('\n');
+}
+
 /** Rewrite the default model of a profile; returns false for an unknown id. */
 function setModel(profile, wanted) {
   const ids = modelsOf(profile);
@@ -470,25 +484,17 @@ export async function handleControl(ctx) {
     }
 
     case '/models': {
-      const head = modelOf(activeProfile);
-      const ids = modelsOf(activeProfile);
-      say(
-        [
-          ids.length > 0
-            ? t(lang, 'ctrl.models.current', { model: head.model })
-            : t(lang, 'ctrl.models.none', { name: activeProfile }),
-          ...(ids.length > 0
-            ? [t(lang, 'ctrl.models.available'), ...ids.map((id) => `  ${id === head.model ? '*' : ' '} ${id}`)]
-            : []),
-        ].join('\n'),
-      );
+      say(modelsReport(lang, activeProfile));
       return true;
     }
 
     case '/model': {
       const [wanted = '', scope = ''] = (arg || '').split(/\s+/);
       if (!wanted) {
-        say(t(lang, 'ctrl.model.usage'));
+        // One command, two states: bare `/model` lists what can be picked, and
+        // `/model <id>` picks it. A separate `/models` read as a second, near
+        // identical command (and did the same thing as `/model` with no id).
+        say(modelsReport(lang, activeProfile));
         return true;
       }
       if (!setModel(activeProfile, wanted)) {

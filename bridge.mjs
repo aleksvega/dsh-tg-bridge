@@ -1129,8 +1129,8 @@ async function readVoiceIntoText(msg, chatId, threadId, lang) {
  * one `media_group_id`; the bridge collects them and builds a single hand-over.
  * Every supported attachment becomes the same kind of text here, so a normal
  * turn and a mid-turn steer describe a file identically. `extraArgs` carries
- * the vision patch a photo turn needs; a steer cannot apply it to a running
- * turn and leaves it empty.
+ * per-turn flags (the opt-in vision overlay); a steer cannot apply them to a
+ * running turn and leaves it empty.
  */
 async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   const list = Array.isArray(msgs) ? msgs : [msgs];
@@ -1138,7 +1138,7 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   const voiceOn = Boolean(config.voice?.enabled) && voiceReady;
   const parts = [];
   let extraArgs = [];
-  /** Profile the turn must run on (photo turns need the vision overlay). */
+  /** Profile the turn must run on (only an opt-in photo overlay overrides it). */
   let profile = '';
   let caption = '';
   let photo = false;
@@ -1160,9 +1160,12 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
       if (heard) parts.push(heard);
       continue;
     }
-    // Photo handling: the current default route has no image input, so the turn
-    // is run with a `--patch` overlay that points it at a vision model. Without
-    // the overlay every photo ended in "model does not declare image input".
+    // Photo handling: the turn's own model reads the file through `read_image`.
+    // A headless turn on the plain `headless` profile read the Chinese captions
+    // off a 720×1560 screenshot and answered with them verbatim, so the vision
+    // overlay is opt-in (`vision.enabled`) instead of being applied to every
+    // photo — switching each one to a second, billed model was the workaround
+    // for a text-only default that no longer applies.
     if (msg.photo) {
       const fileId = msg.photo[msg.photo.length - 1].file_id;
       const file = await tg('getFile', { file_id: fileId });
@@ -1171,7 +1174,7 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
       writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
       parts.push(t(lang, 'prompt.photo', { path }));
       photo = true;
-      if (config.vision?.patch && existsSync(config.vision.patch)) {
+      if (config.vision?.enabled && config.vision?.patch && existsSync(config.vision.patch)) {
         // The desktop host CLI dropped `--patch` (it answers "unknown option"
         // and exits 1 with no output), so the overlay is materialised once as a
         // profile carrying the same model and the turn switches profile instead.
@@ -1180,8 +1183,6 @@ async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
           profile = visionProfile;
           log(`photo turn uses profile ${visionProfile} (overlay ${config.vision.patch})`);
         }
-      } else {
-        log('photo turn without vision patch: the default model cannot read images');
       }
       continue;
     }
