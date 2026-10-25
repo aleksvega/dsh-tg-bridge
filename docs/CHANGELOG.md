@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The whole surface speaks en / ru / zh, not just the menu and the greeting:
+  every `/command` reply in `control.mjs` (98 `ctrl.*` keys) and every runtime
+  line in `bridge.mjs` — progress steps, the fallback-model notice, the failure
+  explainer, approval buttons and callback answers (38 `bridge.*` keys). The
+  Russian wording is unchanged; English and Chinese are new. A `/logs errors`
+  filter keeps its Russian alternatives because it matches the bridge's own log
+  text, not user output.
 - An album is one hand-over, not ten. Telegram sends one update per file with a
   shared `media_group_id`; `albums.mjs` collects the group (1.2 s quiet, 4 s
   ceiling) and delivers it as one steer into a running turn or one turn when the

@@ -667,9 +667,21 @@ export function toTelegramHtml(input) {
   return out.replace(/\n{3,}/g, '\n\n').trim();
 }
 
+/**
+ * Language of a (chat, topic) pair, for the few helpers that have no message to
+ * read it from: `send` falls back to this for its empty-text placeholder, and
+ * the callback handler uses it for button answers.
+ */
+function langFor(chatId, threadId = 0) {
+  return resolveLang(state, sessionKey(chatId, threadId), null, config);
+}
+
 async function send(chatId, text, threadId = 0, replyTo = 0) {
+  // Who is reading: the topic's language decides even the fallback line, so an
+  // English or Chinese topic never sees a Russian placeholder.
+  const lang = langFor(chatId, threadId);
   const html = config.plainText === true ? '' : toTelegramHtml(text);
-  const parts = html ? chunk(html, 3800) : chunk(toPlainText(text) || '(пусто)');
+  const parts = html ? chunk(html, 3800) : chunk(toPlainText(text) || t(lang, 'bridge.progress.empty'));
   let lastId = 0;
   for (const part of parts) {
     const body = { chat_id: chatId, text: part, disable_web_page_preview: true };
@@ -687,7 +699,7 @@ async function send(chatId, text, threadId = 0, replyTo = 0) {
       if (!html) throw error;
       log(`html send failed (${String(error.message).slice(0, 120)}); resending as plain text`);
       delete body.parse_mode;
-      body.text = toPlainText(part) || '(пусто)';
+      body.text = toPlainText(part) || t(lang, 'bridge.progress.empty');
       res = await tg('sendMessage', body);
     }
     log(`sent chat=${chatId}${threadId ? ` topic=${threadId}` : ''} msg=${res.message_id} len=${part.length}${html ? ' html' : ''}`);
@@ -759,7 +771,7 @@ async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
 }
 
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
-function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile) {
+function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = 'ru') {
   return new Promise((resolve) => {
     const args = ['--expose-internals', CLI_JS, '--profile', profile, '--json', ...extraArgs];
     if (sessionId) args.push('--session-id', sessionId);
@@ -803,7 +815,7 @@ function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd 
           const ev = JSON.parse(line);
           if (ev.type === 'session' && ev.sessionId) sid = ev.sessionId;
           if (ev.type === 'final' && typeof ev.text === 'string') finalText = ev.text;
-          if (ev.type === 'error') finalText = finalText || `ошибка: ${ev.message || JSON.stringify(ev)}`;
+          if (ev.type === 'error') finalText = finalText || t(lang, 'bridge.error.inline', { msg: ev.message || JSON.stringify(ev) });
           // Every event is forwarded so the bridge can show live progress; a
           // silent turn used to look identical to a hung one.
           if (onEvent) {
@@ -837,7 +849,7 @@ function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd 
           .filter((line) => line.trim() !== '' && !line.trim().startsWith('{'))
           .join('\n')
           .trim();
-        error = errText || outTail.slice(-1200) || `CLI завершился с кодом ${code} без вывода`;
+        error = errText || outTail.slice(-1200) || t(lang, 'bridge.error.cliDied', { code });
       }
       resolve({ sessionId: sid, text: finalText, error });
     });
@@ -1026,7 +1038,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
       if (event.type === 'text' && event.text) {
         const first = String(event.text).replace(/\s+/g, ' ').trim().slice(0, 120);
         if (first) {
-          steps.push(`текст: ${first}`);
+          steps.push(t(lang, 'bridge.progress.text', { text: first }));
           schedule();
         }
       }
@@ -1419,11 +1431,11 @@ ${t(lang, 'help.body')}`,
       }
     } catch {}
   };
-  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd });
+  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
   if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
     delete state.sessions[key];
     log(`session dropped for ${where}: recorded in another directory, starting fresh`);
-    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd });
+    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
   }
   // Provider failover: the headless profile has no failover plugin, so one busy
   // route ("all providers are busy", 503, or a turn that emits nothing at all)
@@ -1441,17 +1453,22 @@ ${t(lang, 'help.body')}`,
     const quotaLike = QUOTA_LIKE.test(result.error);
     // Quota failures never deserve a retry of the same model: the balance is
     // gone, so waiting is pure loss. Anything else gets one retry at most.
-    const reason = quotaLike ? 'квота/баланс исчерпаны' : 'модель не ответила';
+    const reason = quotaLike ? t(lang, 'bridge.fallback.quota') : t(lang, 'bridge.fallback.noAnswer');
     tried.push(`${entry.model}: ${String(result.error).slice(0, 120)}`);
     log(`fallback to ${entry.model} for ${where} reason=${quotaLike ? 'quota' : 'transient'} after: ${String(result.error).slice(0, 120)}`);
     telemetry.model = entry.model;
-    await send(chatId, `↻ ${reason} — работаю на ${entry.model}${entry.free ? ' (free)' : ''}`, threadId);
+    await send(chatId, t(lang, 'bridge.fallback.switched', {
+      reason,
+      model: entry.model,
+      free: entry.free ? ' (free)' : '',
+    }), threadId);
     result = await runTurnLive(text, sessionAtStart, key, {
       onEvent,
       onAbort: () => killTurn(key),
       onHeartbeat: () => progress.heartbeat(),
       extraArgs: ['--patch', entry.patch],
       cwd,
+      lang,
     });
     if (!result.error) break;
   }
@@ -1461,7 +1478,7 @@ ${t(lang, 'help.body')}`,
     result = {
       sessionId: result.sessionId,
       text: '',
-      error: `все модели недоступны.\n${tried.map((line) => `• ${line}`).join('\n')}\n\nПроверь баланс или подожди: /doctor покажет состояние.`,
+      error: t(lang, 'bridge.fallback.allDown', { list: tried.map((line) => `• ${line}`).join('\n') }),
     };
   }
   // A session opened in the desktop UI holds its write handle, so the CLI
@@ -1469,19 +1486,19 @@ ${t(lang, 'help.body')}`,
   // of failing the user's message.
   if (result.error && /already owned by an active write handle/i.test(result.error)) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd });
+    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
     if (result.error && /already owned by an active write handle/i.test(result.error)) {
       delete state.sessions[key];
       saveState();
-      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd });
-      if (!result.error) result.text = `(сессия была занята другим окном — продолжил в новой)\n\n${result.text}`;
+      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang });
+      if (!result.error) result.text = `${t(lang, 'bridge.fallback.sessionBusy')}\n\n${result.text}`;
     }
   }
   stop.done = true;
   await typing;
   // Name the cause once, in a short stable code, so a screenshot of the error is
   // enough to find the fix — and every code has a concrete next step, not "try again".
-  if (result.error) result.error = explainFailure(result.error);
+  if (result.error) result.error = explainFailure(result.error, lang);
   await progress.finish(result);
 
   // Never move a topic onto a different session once it has one. A retry that
@@ -1511,7 +1528,7 @@ ${t(lang, 'help.body')}`,
     return;
   }
   log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);
-  await send(chatId, result.text || '(пустой ответ)', threadId);
+  await send(chatId, result.text || t(lang, 'bridge.progress.emptyReply'), threadId);
 }
 
 /**
@@ -1520,30 +1537,32 @@ ${t(lang, 'help.body')}`,
  * Raw text like `AUTH 403 insufficient_user_quota` means nothing to a person on
  * a phone; the code makes the failure greppable and the hint says what to do.
  */
-function explainFailure(text) {
+function explainFailure(text, lang = 'ru') {
   const raw = String(text);
+  // The regular expressions match the CLI's and the provider's own words, so
+  // they stay as they are; only the hint on the right follows the topic language.
   const cases = [
     [/insufficient_user_quota|insufficient quota|AUTH\b|\b402\b|\bbalance\b|баланс|billing/i,
-      'INSUFFICIENT_QUOTA', 'баланс провайдера пуст. Пополни счёт или оставь free-модели: /prices и /models.'],
+      'INSUFFICIENT_QUOTA', 'bridge.fail.quota'],
     [/Conflict: terminated by other getUpdates|\b409\b/i,
-      'TG_CONFLICT', 'того же бота опрашивает второй процесс. Останови лишний: /doctor, затем /restart.'],
+      'TG_CONFLICT', 'bridge.fail.conflict'],
     [/MISSING_CREDENTIAL|no credentials|not authenticated/i,
-      'MISSING_CREDENTIAL', 'в профиле нет ключа провайдера. Добавь его в приложении DSH и повтори.'],
+      'MISSING_CREDENTIAL', 'bridge.fail.noCredential'],
     [/ENOENT|not recognized|не найден.*dsh|dsh\.cmd/i,
-      'NO_DSH_CLI', 'CLI DeepSeek Harness не найден. Проверь установку приложения (нужен dsh.exe в Programs).'],
+      'NO_DSH_CLI', 'bridge.fail.noCli'],
     [/fetch failed|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|socket hang up|network/i,
-      'NETWORK', 'сеть до провайдера недоступна. Повтори через минуту; если повторяется — проверь VPN/DNS.'],
+      'NETWORK', 'bridge.fail.network'],
     [/EACCES|EPERM|access is denied|отказано в доступе|sandbox|permission denied/i,
-      'SANDBOX_DENY', 'DSH запретил доступ к файлу или каталогу. Проверь путь проекта и права на него.'],
+      'SANDBOX_DENY', 'bridge.fail.sandbox'],
     [/UNKNOWN_MODEL|model not found|no such model/i,
-      'UNKNOWN_MODEL', 'модель из конфига недоступна. Список рабочих: /models.'],
+      'UNKNOWN_MODEL', 'bridge.fail.unknownModel'],
     [/empty response|EMPTY_RESPONSE|no output|пустой ответ/i,
-      'EMPTY_RESPONSE', 'модель ничего не вернула. Повтори или смени модель: /model.'],
+      'EMPTY_RESPONSE', 'bridge.fail.empty'],
   ];
   for (const [re, code, hint] of cases) {
-    if (re.test(raw)) return `${raw}\n\n${code}: ${hint}`;
+    if (re.test(raw)) return `${raw}\n\n${code}: ${t(lang, hint)}`;
   }
-  return `${raw}\n\nTURN_FAILED: повтори запрос; если ошибка та же — /doctor и /logs errors.`;
+  return `${raw}\n\nTURN_FAILED: ${t(lang, 'bridge.fail.generic')}`;
 }
 
 // Per-topic turn queues: one turn at a time inside a topic, different topics run
@@ -1822,14 +1841,14 @@ function continueKeyboard(key, lang = 'ru') {
   };
 }
 
-function approvalKeyboard(requestId) {
+function approvalKeyboard(requestId, lang = 'ru') {
   return {
     inline_keyboard: [
       [
-        { text: '✅ Разрешить', callback_data: `ap:y:${requestId}` },
-        { text: '⛔ Запретить', callback_data: `ap:n:${requestId}` },
+        { text: t(lang, 'bridge.approval.allow'), callback_data: `ap:y:${requestId}` },
+        { text: t(lang, 'bridge.approval.deny'), callback_data: `ap:n:${requestId}` },
       ],
-      [{ text: '♾ Всегда', callback_data: `ap:a:${requestId}` }],
+      [{ text: t(lang, 'bridge.approval.always'), callback_data: `ap:a:${requestId}` }],
     ],
   };
 }
@@ -1843,6 +1862,9 @@ function approvalKeyboard(requestId) {
  */
 function requestApproval(chatId, threadId, key, prompt) {
   const id = String(++approvalSeq);
+  // The language of the topic the approval arrived in: an English chat must not
+  // get Russian buttons on the question that decides whether the agent acts.
+  const lang = langFor(chatId, threadId);
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       if (!approvals.has(id)) return;
@@ -1853,8 +1875,8 @@ function requestApproval(chatId, threadId, key, prompt) {
     approvals.set(id, { chatId, threadId, key, resolve, timer, prompt });
     void tg('sendMessage', {
       chat_id: chatId,
-      text: `❓ Требуется подтверждение\n${prompt}`,
-      reply_markup: approvalKeyboard(id),
+      text: `${t(lang, 'bridge.approval.title')}\n${prompt}`,
+      reply_markup: approvalKeyboard(id, lang),
       ...(threadId > 0 ? { message_thread_id: threadId } : {}),
     }).catch((error) => {
       log(`approval prompt failed: ${error.message}`);
@@ -1872,6 +1894,9 @@ async function handleCallback(query) {
   const messageId = query.message?.message_id;
   const threadId = query.message?.message_thread_id ?? 0;
   const key = sessionKey(chatId, threadId);
+  // One lookup for every answer: a button press carries no message of its own,
+  // so the language comes from the topic the buttons were posted in.
+  const lang = resolveLang(state, key, null, config);
   const answer = (text, show = false) =>
     tg('answerCallbackQuery', { callback_query_id: query.id, text, show_alert: show }).catch(() => {});
 
@@ -1883,33 +1908,32 @@ async function handleCallback(query) {
   if (data === 'stop') {
     const killed = killTurn(key);
     await clearKeyboard();
-    await answer(killed ? 'Останавливаю' : 'Уже нечего останавливать');
+    await answer(t(lang, killed ? 'bridge.cb.stopping' : 'bridge.cb.nothingToStop'));
     log(`stop via button for ${key}: ${killed ? 'killed' : 'nothing'}`);
-    if (killed) await send(chatId, '⏹ Ход остановлен.', threadId);
+    if (killed) await send(chatId, t(lang, 'bridge.cb.turnStopped'), threadId);
     return;
   }
 
   if (data === 'logs') {
-    await answer('Показываю последние строки');
+    await answer(t(lang, 'bridge.cb.showingLog'));
     try {
       const lines = readFileSync(LOG, 'utf8').split(/\r?\n/).filter(Boolean).slice(-12);
-      await send(chatId, lines.join('\n') || '(лог пуст)', threadId);
+      await send(chatId, lines.join('\n') || t(lang, 'bridge.cb.logEmpty'), threadId);
     } catch (error) {
-      await send(chatId, `Не могу прочитать лог: ${error.message}`, threadId);
+      await send(chatId, t(lang, 'bridge.cb.logUnreadable', { err: error.message }), threadId);
     }
     return;
   }
 
   if (data === 'doctor') {
-    await answer('Проверяю');
-    await send(chatId, 'Напиши /doctor — он соберёт полный отчёт.', threadId);
+    await answer(t(lang, 'bridge.cb.checking'));
+    await send(chatId, t(lang, 'bridge.cb.doctorHint'), threadId);
     return;
   }
 
   if (data === 'resume') {
     // Not a retry: the session already holds everything the turn produced.
     // A continuation prompt asks the agent to check the state and go on.
-    const lang = resolveLang(state, key, null, config);
     await clearKeyboard();
     await answer(t(lang, 'btn.continue'));
     log(`resume via button for ${key}`);
@@ -1928,12 +1952,12 @@ async function handleCallback(query) {
   if (data === 'retry') {
     const original = lastPrompt.get(key);
     if (!original) {
-      await answer('Нечего повторять');
+      await answer(t(lang, 'bridge.cb.nothingToRetry'));
       await clearKeyboard();
       return;
     }
     await clearKeyboard();
-    await answer('Повторяю');
+    await answer(t(lang, 'bridge.cb.retrying'));
     log(`retry via button for ${key}`);
     enqueue(key, () => handleMessage({ ...original, message_id: original.message_id }));
     return;
@@ -1943,7 +1967,7 @@ async function handleCallback(query) {
     const [, verdict, requestId] = data.split(':');
     const pending = approvals.get(requestId);
     if (!pending) {
-      await answer('Запрос уже неактуален');
+      await answer(t(lang, 'bridge.cb.approvalStale'));
       await clearKeyboard();
       return;
     }
@@ -1953,12 +1977,12 @@ async function handleCallback(query) {
     const allowed = verdict === 'y' || verdict === 'a';
     const remember = verdict === 'a';
     pending.resolve({ allowed, remember, expired: false });
-    await answer(allowed ? (remember ? 'Разрешено всегда' : 'Разрешено') : 'Запрещено');
+    await answer(t(lang, allowed ? (remember ? 'bridge.cb.allowedAlways' : 'bridge.cb.allowed') : 'bridge.cb.denied'));
     log(`approval ${verdict} for request ${requestId}`);
     return;
   }
 
-  await answer('Неизвестная кнопка');
+  await answer(t(lang, 'bridge.cb.unknown'));
 }
 
 /**
@@ -2040,7 +2064,7 @@ function runTurnLive(task, sessionId, key, options = {}) {
           onEvent(event);
         } catch {}
       }
-    }, options.extraArgs ?? [], options.cwd ?? '', profileOf(key))
+    }, options.extraArgs ?? [], options.cwd ?? '', profileOf(key), options.lang ?? 'ru')
       .then((result) => finish({ ...result, sessionId: result.sessionId || sessionSeen }))
       .catch((error) => finish({ sessionId: sessionSeen, text: '', error: String(error?.message ?? error) }));
   });
