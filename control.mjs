@@ -368,6 +368,21 @@ function recentSessions(cwd, limit, lang = 'ru') {  const root = join(DSH_HOME, 
     .map((row) => ({ ...row, title: titles.get(bareId(row.id))?.title || t(lang, 'ctrl.sessions.untitled') }));
 }
 
+/**
+ * A session's title, read from DSH's own projection cache. `/sessions` already
+ * shows these, and the status card is a worse place to lose one: the card is
+ * what a person screenshots. Empty when the session was never titled.
+ */
+function sessionTitle(id) {
+  const record = readJson(join(DSH_HOME, 'storages', 'session_projcache', 'sessions', `session-${bareId(id)}.json`));
+  const rows = record?.record?.rows ?? record?.rows ?? {};
+  const title = rows.title?.val;
+  if (typeof title === 'string' && title.trim()) return title.trim();
+  const first = rows.titleInput?.val?.first?.text;
+  if (typeof first === 'string' && first.trim()) return first.trim().split('\n')[0].slice(0, 80);
+  return '';
+}
+
 /** Skills directory listing. */
 function skillsOf() {
   const dir = join(DSH_HOME, 'skills');
@@ -494,7 +509,7 @@ export async function handleControl(ctx) {
       // ("how much context is left", "how big is this session").
       const sessionId = state.sessions[key] || '';
       const stats = sessionId ? sessionStats(sessionFile(join(DSH_HOME, 'sessions'), sessionId)) : null;
-      const title = sessionId ? state.titles?.[key] : '';
+      const title = sessionId ? (state.titles?.[key] || sessionTitle(sessionId)) : '';
       const lines = [t(lang, 'ctrl.status.head')];
       lines.push(t(lang, 'ctrl.status.session', { id: sessionId || t(lang, 'ctrl.session.none') }));
       if (title) lines.push(t(lang, 'ctrl.status.title', { title }));

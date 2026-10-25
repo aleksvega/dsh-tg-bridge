@@ -1,5 +1,12 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.6 — 2026-10-25
+
+- The status card names the session ("Название: Отвечай по игре сюда"). The
+  bridge only knew the titles it had set itself, so a session resumed from the
+  desktop, or seeded before the title was written, showed none — while
+  `/sessions` had it all along. It now falls back to DSH's projection cache.
+
 ## 1.7.5 — 2026-10-25
 
 - `/version` adds one line when the modules on disk are newer than the running
