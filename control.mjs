@@ -279,7 +279,7 @@ function bareId(id) {
 }
 
 /** Recent DSH sessions of this workspace, newest first, with their titles. */
-function recentSessions(cwd, limit) {
+function recentSessions(cwd, limit, lang = 'ru') {
   const root = join(DSH_HOME, 'sessions');
   const rows = [];
   let dirs = [];
@@ -340,7 +340,7 @@ function recentSessions(cwd, limit) {
   return pool
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, limit)
-    .map((row) => ({ ...row, title: titles.get(bareId(row.id))?.title || '(без названия)' }));
+    .map((row) => ({ ...row, title: titles.get(bareId(row.id))?.title || t(lang, 'ctrl.sessions.untitled') }));
 }
 
 /** Skills directory listing. */
@@ -436,21 +436,24 @@ export async function handleControl(ctx) {
   switch (effective) {
     case '/status': {
       const head = modelOf(activeProfile);
-      const session = state.sessions[key] || '(ещё нет)';
+      const session = state.sessions[key] || t(lang, 'ctrl.session.none');
       const active = ctx.activeTurns ? ctx.activeTurns.size : 0;
       const lines = [
-        `Профиль: ${activeProfile} (${head.provider}/${head.model})`,
-        `Ветка: ${ctx.threadId || 'общая'}`,
-        `Сессия: ${session}`,
-        `Ходов в работе: ${active}`,
-        `Скиллы: ${skillsOf().length}`,
+        t(lang, 'ctrl.status.profile', { name: activeProfile, route: `${head.provider}/${head.model}` }),
+        t(lang, 'ctrl.status.thread', { name: ctx.threadId || t(lang, 'ctrl.status.threadDefault') }),
+        t(lang, 'ctrl.status.session', { id: session }),
+        t(lang, 'ctrl.status.turns', { n: active }),
+        t(lang, 'ctrl.status.skills', { n: skillsOf().length }),
         `DSH_HOME: ${DSH_HOME}`,
       ];
       // The desktop profile only matters when this install actually has one.
       if (existsSync(join(PROFILES, 'desktop', 'cordis.patch.yml'))) {
         const desk = modelOf('desktop');
         const deskPlugins = pluginsOf('desktop');
-        lines.splice(1, 0, `UI: desktop (${desk.provider}/${desk.model}) — плагинов ${deskPlugins.bundles.length}`);
+        lines.splice(1, 0, t(lang, 'ctrl.status.ui', {
+          route: `${desk.provider}/${desk.model}`,
+          n: deskPlugins.bundles.length,
+        }));
       }
       const currentGoal = goalOf(state, key);
       if (currentGoal) {
@@ -468,8 +471,12 @@ export async function handleControl(ctx) {
       const ids = modelsOf(activeProfile);
       say(
         [
-          ids.length > 0 ? `Модель сейчас: ${head.model}` : `В профиле ${activeProfile} нет списка моделей`,
-          ...(ids.length > 0 ? ['Доступные:', ...ids.map((id) => `  ${id === head.model ? '*' : ' '} ${id}`)] : []),
+          ids.length > 0
+            ? t(lang, 'ctrl.models.current', { model: head.model })
+            : t(lang, 'ctrl.models.none', { name: activeProfile }),
+          ...(ids.length > 0
+            ? [t(lang, 'ctrl.models.available'), ...ids.map((id) => `  ${id === head.model ? '*' : ' '} ${id}`)]
+            : []),
         ].join('\n'),
       );
       return true;
@@ -478,15 +485,19 @@ export async function handleControl(ctx) {
     case '/model': {
       const [wanted = '', scope = ''] = (arg || '').split(/\s+/);
       if (!wanted) {
-        say('Использование: /model <id> [both]  (/models — список)');
+        say(t(lang, 'ctrl.model.usage'));
         return true;
       }
       if (!setModel(activeProfile, wanted)) {
-        say(`Не смог переключить ${activeProfile} на «${wanted}»: в профиле нет строки agent-default-model. /models — список.`);
+        say(t(lang, 'ctrl.model.failed', { name: activeProfile, model: wanted }));
         return true;
       }
       const desktop = scope === 'both' ? setModel('desktop', wanted) : false;
-      say(`Модель ${activeProfile} → ${wanted}${desktop ? ', desktop → ' + wanted : ''}. Действует со следующего хода.`);
+      say(t(lang, 'ctrl.model.switched', {
+        name: activeProfile,
+        model: wanted,
+        desktop: desktop ? t(lang, 'ctrl.model.withDesktop', { model: wanted }) : '',
+      }));
       return true;
     }
 
@@ -557,9 +568,9 @@ export async function handleControl(ctx) {
 
     case '/sessions': {
       const limit = Number.parseInt(arg, 10) > 0 ? Math.min(Number.parseInt(arg, 10), 20) : 8;
-      const rows = recentSessions((state.cwd && state.cwd[key]) || config.cwd, limit);
+      const rows = recentSessions((state.cwd && state.cwd[key]) || config.cwd, limit, lang);
       if (rows.length === 0) {
-        say('Сессий не нашёл.');
+        say(t(lang, 'ctrl.sessions.empty'));
         return true;
       }
       const lines = rows.map((row) => {
@@ -568,19 +579,19 @@ export async function handleControl(ctx) {
         const when = new Date(row.mtime).toISOString().slice(5, 16).replace('T', ' ');
         return `${current} ${when}  ${row.title.slice(0, 48)}\n    /resume ${id}`;
       });
-      say(['Последние сессии:', ...lines].join('\n'));
+      say([t(lang, 'ctrl.sessions.title'), ...lines].join('\n'));
       return true;
     }
 
     case '/resume': {
       const wanted = bareId((arg || '').trim());
       if (!wanted) {
-        say('Использование: /resume <id>  (/sessions — список)');
+        say(t(lang, 'ctrl.resume.usage'));
         return true;
       }
       state.sessions[key] = `session-${wanted}`;
       ctx.saveState();
-      say(`Эта ветка продолжит сессию session-${wanted}.`);
+      say(t(lang, 'ctrl.resume.done', { id: `session-${wanted}` }));
       return true;
     }
 
@@ -590,19 +601,21 @@ export async function handleControl(ctx) {
       const lines = bundles.map((name) => {
         const rowIds = bundleRowIds(target, name);
         const off = rowIds.length > 0 && rowIds.every((id) => disabled.includes(id));
-        return `${off ? '×' : '✓'} ${name}${off ? ' (disabled)' : ''}`;
+        return `${off ? '×' : '✓'} ${name}${off ? t(lang, 'ctrl.plugins.disabledSuffix') : ''}`;
       });
       const orphan = deps.filter((name) => !bundles.includes(name));
       say(
         [
-          `Плагины профиля ${target}: ${bundles.length}`,
+          t(lang, 'ctrl.plugins.title', { name: target, n: bundles.length }),
           ...lines,
-          orphan.length ? `\nУстановлены, но не в bundles:\n${fmt(orphan)}` : '',
-          `\nОтключены строки: ${disabled.length ? disabled.join(', ') : 'нет'}`,
+          orphan.length ? `\n${t(lang, 'ctrl.plugins.orphans')}\n${fmt(orphan)}` : '',
+          `\n${t(lang, 'ctrl.plugins.disabledRows', {
+            list: disabled.length ? disabled.join(', ') : t(lang, 'ctrl.plugins.disabledNone'),
+          })}`,
           // The actions live behind the same command, so the list must say how
           // to reach them — otherwise people keep hunting for `/plugin`.
-          `\nИзменить: /plugins add <пакет> · remove <имя> · disable <id> · enable <id>`,
-          'Профиль: добавь headless или desktop в конце.',
+          `\n${t(lang, 'ctrl.plugins.actions')}`,
+          t(lang, 'ctrl.plugins.profileHint'),
         ]
           .filter(Boolean)
           .join('\n'),
@@ -615,16 +628,22 @@ export async function handleControl(ctx) {
       const target = (rest[0] === 'headless' || rest[0] === 'desktop') && rest.length > 1 ? rest.shift() : 'desktop';
       const value = rest.join(' ').trim();
       if (!action || !value) {
-        say('Использование:\n/plugins add <npm|github|file:>\n/plugins remove <name>\n/plugins disable <id>\n/plugins enable <id>\nПрофиль: допиши headless или desktop.\n\n/plugin — то же самое, старая форма.');
+        say(t(lang, 'ctrl.plugin.usage'));
         return true;
       }
       if (action === 'disable' || action === 'enable') {
         const ok = setDisabled(target, value, action === 'disable');
-        say(ok ? `Строка «${value}» ${action === 'disable' ? 'отключена' : 'включена'} в ${target}. Нужен перезапуск DSH.` : `Строка «${value}» не найдена в ${target}.`);
+        say(ok
+          ? t(lang, 'ctrl.plugin.rowToggled', {
+              id: value,
+              state: t(lang, action === 'disable' ? 'ctrl.plugin.off' : 'ctrl.plugin.on'),
+              profile: target,
+            })
+          : t(lang, 'ctrl.plugin.rowMissing', { id: value, profile: target }));
         return true;
       }
       if (action === 'add') {
-        say(`Ставлю ${value} в ${target}…`);
+        say(t(lang, 'ctrl.plugin.adding', { name: value, profile: target }));
         const result = await dshPlugin(target, ['add', value]);
         const name = (() => {
           try {
@@ -636,21 +655,30 @@ export async function handleControl(ctx) {
         })();
         const meta = readJson(join(PROFILES, target, 'node_modules', name, 'package.json'));
         const bundled = Boolean(meta && (meta.dsh || {}).bundle);
+        const outcome = t(lang, result.code === 0 ? 'ctrl.plugin.installed' : 'ctrl.plugin.pnpmFailed');
         if (bundled && addBundle(target, name)) {
-          say(`${result.code === 0 ? 'Установлен' : 'Ошибка pnpm'} ${name}; добавлен в bundles.\n${result.out.slice(-800)}\nНужен перезапуск DSH.`);
+          say(t(lang, 'ctrl.plugin.addedBundled', { state: outcome, name, out: result.out.slice(-800) }));
         } else {
-          say(`${result.code === 0 ? 'Установлен' : 'Ошибка pnpm'} ${value}.\n${result.out.slice(-800)}${bundled ? '' : '\nБандла в пакете нет — в bundles не добавлял.'}`);
+          say(t(lang, 'ctrl.plugin.added', {
+            state: outcome,
+            name: value,
+            out: `${result.out.slice(-800)}${bundled ? '' : t(lang, 'ctrl.plugin.noBundle')}`,
+          }));
         }
         return true;
       }
       if (action === 'remove') {
-        say(`Удаляю ${value} из ${target}…`);
+        say(t(lang, 'ctrl.plugin.removing', { name: value, profile: target }));
         const result = await dshPlugin(target, ['remove', value]);
         removeBundle(target, value);
-        say(`${result.code === 0 ? 'Удалён' : 'Ошибка pnpm'} ${value}.\n${result.out.slice(-800)}\nНужен перезапуск DSH.`);
+        say(t(lang, 'ctrl.plugin.removed', {
+          state: t(lang, result.code === 0 ? 'ctrl.plugin.installed' : 'ctrl.plugin.pnpmFailed'),
+          name: value,
+          out: result.out.slice(-800),
+        }));
         return true;
       }
-      say('Неизвестное действие. /plugin add|remove|disable|enable');
+      say(t(lang, 'ctrl.plugin.unknownAction'));
       return true;
     }
 
@@ -660,10 +688,14 @@ export async function handleControl(ctx) {
       if (want) {
         const dir = join(DSH_HOME, 'skills', want);
         const body = read(join(dir, 'SKILL.md'));
-        say(body ? `/${want}\n\n${body.slice(0, 3000)}` : `Скилла «${want}» нет.`);
+        say(body
+          ? t(lang, 'ctrl.skills.body', { name: want, body: body.slice(0, 3000) })
+          : t(lang, 'ctrl.skills.none', { name: want }));
         return true;
       }
-      say(rows.length ? `Скиллы (${rows.length}):\n${fmt(rows)}` : 'Скиллов нет.');
+      say(rows.length
+        ? t(lang, 'ctrl.skills.title', { n: rows.length, list: fmt(rows) })
+        : t(lang, 'ctrl.skills.empty'));
       return true;
     }
 
@@ -671,11 +703,13 @@ export async function handleControl(ctx) {
       const text = (arg || '').trim();
       if (!text) {
         const current = soulOf();
-        say(current ? `Персона (${AGENTS}):\n\n${current}` : `Персона пуста. Задать: /soul <текст>\nФайл: ${AGENTS}`);
+        say(current
+          ? t(lang, 'ctrl.soul.title', { path: AGENTS, text: current })
+          : t(lang, 'ctrl.soul.empty', { path: AGENTS }));
         return true;
       }
       setSoul(text);
-      say('Персона обновлена в ~/.dsh/AGENTS.md. Применяется в новых сессиях.');
+      say(t(lang, 'ctrl.soul.saved'));
       return true;
     }
 
@@ -704,11 +738,11 @@ export async function handleControl(ctx) {
 
     case '/app': {
       if (!/^restart\b/.test(arg || '')) {
-        say('Использование: /app restart confirm — перезапустить приложение DSH.');
+        say(t(lang, 'ctrl.app.usage'));
         return true;
       }
       if (arg !== 'restart confirm') {
-        say('Перезапуск приложения оборвёт этот чат. Повтори: /app restart confirm');
+        say(t(lang, 'ctrl.app.confirm'));
         return true;
       }
       // Report the real outcome, not just "restarting": the old version fired
@@ -716,28 +750,32 @@ export async function handleControl(ctx) {
       // so a no-op looked identical to success.
       const before = listPids();
       if (before.length === 0) {
-        say('DSH сейчас не запущен — поднимаю.');
+        say(t(lang, 'ctrl.app.notRunning'));
         spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
         setTimeout(() => {
           const after = listPids();
-          say(after.length ? `DSH запущен: pid ${after.join(', ')}` : 'Не смог запустить DSH — проверь вручную.');
+          say(after.length
+            ? t(lang, 'ctrl.app.started', { pids: after.join(', ') })
+            : t(lang, 'ctrl.app.startFailed'));
         }, 15000);
         return true;
       }
-      say(`Перезапускаю DSH (pid ${before.join(', ')} = ${EXE})…`);
+      say(t(lang, 'ctrl.app.restarting', { pids: before.join(', '), exe: EXE }));
       spawn('taskkill', ['/IM', 'DeepSeek Harness.exe', '/T', '/F'], { windowsHide: true, detached: true }).on('close', async () => {
         const gone = await waitForExit(before, 12000);
         if (!gone) {
-          say('Процесс не завершился по taskkill — DSH, похоже, защищён от завершения. Перезапуск не выполнен.');
+          say(t(lang, 'ctrl.app.stuck'));
           return;
         }
         if (!existsSync(EXE)) {
-          say(`Не нашёл ${EXE} — запусти вручную.`);
+          say(t(lang, 'ctrl.app.noExe', { exe: EXE }));
           return;
         }
         spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
         const up = await waitForStart(15000);
-        say(up.length ? `DSH перезапущен: новый pid ${up.join(', ')}` : 'DSH закрыт, но не поднялся — запусти вручную.');
+        say(up.length
+          ? t(lang, 'ctrl.app.restarted', { pids: up.join(', ') })
+          : t(lang, 'ctrl.app.notUp'));
       });
       return true;
     }
@@ -752,13 +790,13 @@ export async function handleControl(ctx) {
       // `/send <path>` uploads a local file into this topic. Without it the
       // agent could only talk about artifacts, never deliver them.
       const path = (arg || '').trim().replace(/^"|"$/g, '');
-      if (!path) { say('Использование: /send <полный путь к файлу>'); return true; }
-      if (!ctx.sendFile) { say('Отправка файлов недоступна: мост старой версии.'); return true; }
+      if (!path) { say(t(lang, 'ctrl.send.usage')); return true; }
+      if (!ctx.sendFile) { say(t(lang, 'ctrl.send.unsupported')); return true; }
       try {
         await ctx.sendFile(path, basename(path));
         return true;
       } catch (error) {
-        say(`Не смог отправить файл: ${error.message}`);
+        say(t(lang, 'ctrl.send.failed', { err: error.message }));
         return true;
       }
     }
@@ -771,12 +809,18 @@ export async function handleControl(ctx) {
       state.cwd = state.cwd || {};
       if (!wanted) {
         const current = state.cwd[key] || config.cwd;
-        const lines = ['Текущий каталог темы:', current, '', 'Привязать: /cd <путь>', 'Сбросить: /cd reset'];
+        const lines = [
+          t(lang, 'ctrl.cd.current'),
+          current,
+          '',
+          t(lang, 'ctrl.cd.bind'),
+          t(lang, 'ctrl.cd.resetHint'),
+        ];
         try {
           const dirs = readdirSync(config.projectsDir || join(HOME, 'Projects'), { withFileTypes: true })
             .filter((entry) => entry.isDirectory())
             .map((entry) => entry.name);
-          if (dirs.length > 0) lines.push('', 'Проекты:', dirs.slice(0, 20).join(' · '));
+          if (dirs.length > 0) lines.push('', t(lang, 'ctrl.cd.projects'), dirs.slice(0, 20).join(' · '));
         } catch {}
         say(lines.join('\n'));
         return true;
@@ -805,14 +849,14 @@ export async function handleControl(ctx) {
 
     case '/prices': {
       if (!ctx.prices) {
-        say('Прайс недоступен: мост старой версии.');
+        say(t(lang, 'ctrl.prices.unsupported'));
         return true;
       }
       try {
         const text = await ctx.prices(arg);
         say(text);
       } catch (error) {
-        say(`Не смог получить цены: ${error.message}`);
+        say(t(lang, 'ctrl.prices.failed', { err: error.message }));
       }
       return true;
     }
@@ -894,28 +938,29 @@ export async function handleControl(ctx) {
       // the original message, so it explains the form instead of guessing.
       const body = (arg || '').trim();
       if (!ctx.threadId) {
-        say('Открой тему и напиши там: /seed <текст>. В общей ветке засевать нечего.');
+        say(t(lang, 'ctrl.seed.noThread'));
         return true;
       }
       if (!body) {
-        say('Использование: /seed <текст> — засеять эту тему текстом и закрепить его.');
+        say(t(lang, 'ctrl.seed.usage'));
         return true;
       }
       if (!ctx.seedTopic) {
-        say('Посев недоступен: мост старой версии.');
+        say(t(lang, 'ctrl.seed.unsupported'));
         return true;
       }
       const res = await ctx.seedTopic(ctx.chatId, ctx.threadId, body);
-      say(res ? `Тема засеяна и закреплена (сообщение ${res}).` : 'Не смог засеять тему — смотри лог моста.');
+      say(res ? t(lang, 'ctrl.seed.done', { id: res }) : t(lang, 'ctrl.seed.failed'));
       return true;
     }
 
     case '/lang': {
       const wanted = normalizeLang((arg || '').trim());
       if (!wanted) {
-        say(`Язык: ${state.lang?.[key] || config.lang || 'auto'}
-Доступно: ${LANGS.join(', ')}
-Переключить: /lang en`);
+        say(t(lang, 'ctrl.lang.state', {
+          lang: state.lang?.[key] || config.lang || t(lang, 'ctrl.lang.auto'),
+          list: LANGS.join(', '),
+        }));
         return true;
       }
       state.lang = state.lang || {};
@@ -960,22 +1005,22 @@ export async function handleControl(ctx) {
       try {
         pid = Number(readFileSync(join(DSH_HOME, 'tg-bridge', 'bridge.pid'), 'utf8').trim());
       } catch {}
-      add('Мост pid', pid || 'нет файла');
+      add(t(lang, 'ctrl.doctor.bridgePid'), pid || t(lang, 'ctrl.doctor.noPidFile'));
       if (pid) {
         try {
           process.kill(pid, 0);
-          add('Мост жив', 'да');
+          add(t(lang, 'ctrl.doctor.bridgeAlive'), t(lang, 'ctrl.doctor.yes'));
         } catch (error) {
-          add('Мост жив', error.code === 'EPERM' ? 'да (EPERM)' : 'НЕТ');
+          add(t(lang, 'ctrl.doctor.bridgeAlive'), t(lang, error.code === 'EPERM' ? 'ctrl.doctor.yesEperm' : 'ctrl.doctor.no'));
         }
       }
 
       // Telegram reachability + bot identity.
       try {
         const me = await ctx.api?.('getMe');
-        add('Telegram', me?.username ? `ok @${me.username}` : 'ok');
+        add(t(lang, 'ctrl.doctor.telegram'), me?.username ? `ok @${me.username}` : t(lang, 'ctrl.doctor.telegramOk'));
       } catch (error) {
-        add('Telegram', `ОШИБКА ${error.message}`);
+        add(t(lang, 'ctrl.doctor.telegram'), t(lang, 'ctrl.doctor.telegramError', { err: error.message }));
       }
 
       // Conflicts and network errors SINCE THE CURRENT PROCESS STARTED.
@@ -996,9 +1041,9 @@ export async function handleControl(ctx) {
         const since = lines.slice(start).join('\n');
         const conflicts = (since.match(/409|Conflict: terminated/g) ?? []).length;
         const net = (since.match(/poll error|fetch failed|TG_NET/g) ?? []).length;
-        add('409 с последнего старта', String(conflicts));
-        add('сетевых ошибок с последнего старта', String(net));
-        add('строк лога с последнего старта', String(lines.length - start));
+        add(t(lang, 'ctrl.doctor.conflicts'), String(conflicts));
+        add(t(lang, 'ctrl.doctor.netErrors'), String(net));
+        add(t(lang, 'ctrl.doctor.logLines'), String(lines.length - start));
       } catch {}
 
       // Disk space: the silent killer of model downloads and OCR.
@@ -1009,15 +1054,15 @@ export async function handleControl(ctx) {
           timeout: 15000,
         });
         const free = Number(drives) || 0;
-        add('Диск C:', `${(free / 1024 ** 3).toFixed(1)} ГБ свободно`);
+        add(t(lang, 'ctrl.doctor.disk'), t(lang, 'ctrl.doctor.diskFree', { gb: (free / 1024 ** 3).toFixed(1) }));
       } catch {}
 
       // Project directory bound to this topic and whether it exists.
       const cwd = (state.cwd && state.cwd[key]) || config.cwd;
-      add('Каталог темы', `${cwd}${existsSync(cwd) ? '' : ' (НЕТ ТАКОГО)'}`);
+      add(t(lang, 'ctrl.doctor.cwd'), `${cwd}${existsSync(cwd) ? '' : t(lang, 'ctrl.doctor.cwdMissing')}`);
 
-      add('Сессия', state.sessions[key] || '(новая)');
-      say(`Диагностика\n\n${rows.join('\n')}`);
+      add(t(lang, 'ctrl.doctor.session'), state.sessions[key] || t(lang, 'ctrl.doctor.sessionNew'));
+      say(`${t(lang, 'ctrl.doctor.title')}\n\n${rows.join('\n')}`);
       return true;
     }
 
@@ -1029,7 +1074,7 @@ export async function handleControl(ctx) {
       try {
         lines = readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
       } catch (error) {
-        say(`Не могу прочитать лог: ${error.message}`);
+        say(t(lang, 'ctrl.logs.unreadable', { err: error.message }));
         return true;
       }
       const numeric = Number(arg);
@@ -1055,11 +1100,13 @@ export async function handleControl(ctx) {
       }
 
       if (pool.length === 0) {
-        say(filter ? `В логе нет строк с «${filter}».` : 'Лог пуст.');
+        say(filter ? t(lang, 'ctrl.logs.noMatch', { filter }) : t(lang, 'ctrl.logs.empty'));
         return true;
       }
       const tail = pool.slice(-count);
-      const header = filter === 'errors' ? `Ошибки (${tail.length} из ${pool.length})` : `Лог (${tail.length} из ${pool.length})`;
+      const header = filter === 'errors'
+        ? t(lang, 'ctrl.logs.errors', { shown: tail.length, total: pool.length })
+        : t(lang, 'ctrl.logs.title', { shown: tail.length, total: pool.length });
       say(`${header}\n\n${tail.join('\n')}`);
       return true;
     }

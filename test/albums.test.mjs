@@ -4,45 +4,53 @@ import { createAlbumBuffer } from '../albums.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Timing on Windows is coarse (timer resolution is about 15 ms), so every test
+// keeps a wide margin between the quiet window and the gaps it actually sleeps.
+
 test('items of one album arrive as a single batch, in order', async () => {
   const flushed = [];
-  const buffer = createAlbumBuffer({ quietMs: 20, maxMs: 200, onFlush: (items, key) => flushed.push([key, items]) });
+  const buffer = createAlbumBuffer({ quietMs: 60, maxMs: 600, onFlush: (items, key) => flushed.push([key, items]) });
   buffer.push('chat:1', 'a');
-  await sleep(5);
+  await sleep(10);
   buffer.push('chat:1', 'b');
-  await sleep(5);
+  await sleep(10);
   buffer.push('chat:1', 'c');
   assert.equal(buffer.pending(), 1);
-  await sleep(60);
+  await sleep(200);
   assert.equal(buffer.pending(), 0);
   assert.deepEqual(flushed, [['chat:1', ['a', 'b', 'c']]]);
 });
 
 test('different albums flush separately', async () => {
   const flushed = [];
-  const buffer = createAlbumBuffer({ quietMs: 15, maxMs: 200, onFlush: (items, key) => flushed.push([key, items]) });
+  const buffer = createAlbumBuffer({ quietMs: 40, maxMs: 600, onFlush: (items, key) => flushed.push([key, items]) });
   buffer.push('chat:1', 'x');
   buffer.push('chat:2', 'y');
-  await sleep(50);
+  await sleep(200);
   assert.deepEqual(flushed, [['chat:1', ['x']], ['chat:2', ['y']]]);
 });
 
 test('the ceiling cuts off an upload that keeps trickling', async () => {
-  const flushed = [];
-  const buffer = createAlbumBuffer({ quietMs: 40, maxMs: 60, onFlush: (items) => flushed.push(items) });
-  buffer.push('k', 1);
-  await sleep(25);
-  buffer.push('k', 2);
-  await sleep(25);
-  buffer.push('k', 3);
-  await sleep(40);
-  assert.deepEqual(flushed, [[1, 2, 3]]);
+  const order = [];
+  const flushes = [];
+  const buffer = createAlbumBuffer({ quietMs: 500, maxMs: 80, onFlush: (items) => { flushes.push(items.length); order.push(...items); } });
+  const pushed = [];
+  for (let i = 0; i < 8; i += 1) {
+    pushed.push(i);
+    buffer.push('k', i);
+    await sleep(25);
+  }
+  await sleep(600);
+  // The ceiling let the first items go while the upload was still running, and
+  // every item is delivered exactly once, in order, even across those batches.
+  assert.ok(flushes.length >= 2, `expected the ceiling to split the album, got ${flushes.length} batch(es)`);
+  assert.deepEqual(order, pushed);
 });
 
 test('a single item still flushes', async () => {
   const flushed = [];
-  const buffer = createAlbumBuffer({ quietMs: 10, maxMs: 100, onFlush: (items) => flushed.push(items) });
+  const buffer = createAlbumBuffer({ quietMs: 40, maxMs: 600, onFlush: (items) => flushed.push(items) });
   buffer.push('k', 'one');
-  await sleep(40);
+  await sleep(200);
   assert.deepEqual(flushed, [['one']]);
 });
