@@ -36,8 +36,8 @@ test('long reasoning keeps its tail and admits the head is hidden', () => {
   const { html, plain } = progressPanel({ lang: 'ru', thinking });
   assert.match(html, /начало скрыто/);
   assert.match(html, /TAIL-MARKER/);
-  assert.ok(html.includes('a'.repeat(2000)), 'the kept tail must stay long');
-  assert.ok(!html.includes('a'.repeat(2410)), 'the head must be cut, not the tail');
+  assert.ok(html.includes('a'.repeat(1500)), 'the kept tail must stay long');
+  assert.ok(!html.includes('a'.repeat(2010)), 'the head must be cut, not the tail');
   assert.ok(html.length <= 3900, `panel too long: ${html.length}`);
   assert.match(plain, /Размышления · начало скрыто/);
 });
@@ -53,7 +53,18 @@ test('a panel with many steps and thoughts still fits one Telegram message', () 
     cache: '🧠 缓存：42%（21k 来自缓存）',
   });
   assert.ok(html.length <= 3900, `panel too long: ${html.length}`);
-  assert.match(html, /…还有 37 条/);
+  // Both the reasoning and the whole step list are collapsed blocks; a long turn
+  // never grows the chat past this one message.
+  assert.equal(html.match(/<blockquote expandable>/g).length, 2);
+  assert.match(html, /🛠 步骤 · 40 · 前文已省略/);
+  assert.match(html, /command-39-/);
+  assert.doesNotMatch(html.split('<blockquote')[0], /• /, 'steps live in the block, not inline');
+});
+
+test('a short turn keeps its three steps inline, without a second block', () => {
+  const { html } = progressPanel({ lang: 'en', steps: ['bash: a', 'edit: b', 'read: c'] });
+  assert.match(html, /• bash: a\n• edit: b\n• read: c/);
+  assert.doesNotMatch(html, /Steps/);
 });
 
 test('every language labels the block in its own words', () => {

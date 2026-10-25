@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.9.0 — 2026-10-25
+
+- The turn message shows the whole turn: the reasoning block plus, when a turn
+  makes more than three tool calls, the complete step list in a second collapsed
+  block. Short turns keep their three inline steps; long ones no longer end at
+  "…and 37 more" with no way to see them.
+- Both blocks are budgeted against Telegram's 4096-character limit (reasoning
+  2000, steps 1600, panel 3900) and keep their tails with a "beginning hidden"
+  note, so the newest part of the turn is always the part on screen.
+
 ## 1.8.1 — 2026-10-25
 
 - The turn panel respects `plainText: true`: it was sending the reasoning block as

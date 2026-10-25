@@ -16,8 +16,8 @@ blocks.
 - **Project per topic**: `/cd my-app`, and all turns run from that directory.
 - **Goal and checklist per topic**: `/goal`, `/task`; both survive restarts and are prepended to every turn.
 - **Live progress**: one edited message per turn — steps, a timer and the cache hit rate, plus
-  the model's reasoning in a collapsed block you can tap open (no extra messages, the whole
-  trail stays with the turn).
+  the model's reasoning in a collapsed block you can tap open. A long turn adds a second
+  collapsed block with every tool call, so the whole run stays in the chat as one message.
 - **No lost messages**: a journal with acknowledgement and replay.
 - **Fail-fast**: when the quota runs out it switches to a free model right away.
 - **`dsh-tg check`**: diagnostics in one command, no changes to the system.
@@ -268,6 +268,9 @@ a reasoning section you can expand. The block is edited in place every few secon
 rate-limits edits), escaped, and trimmed to its tail when a turn thinks longer than a message
 can hold; the panel never exceeds one message. If the API refuses the markup, the same content
 is retried as plain text.
+
+**The steps.** Three calls fit inline. A turn that makes more moves its complete step list into
+a second collapsed block, so "what did it actually run" is one tap away instead of a count.
 
 **The agent's own notes.** The agent can add a short decision trail:
 
