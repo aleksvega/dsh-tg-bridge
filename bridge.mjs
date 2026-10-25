@@ -2138,7 +2138,7 @@ async function main() {
     // A caption rides along with the file; it must not turn the attachment into
     // a text-only steer, or the file itself is silently dropped.
     const steerMedia = Boolean(msg.voice || msg.audio || msg.photo || msg.document || msg.video || msg.video_note || msg.animation);
-    if ((steerText || steerMedia) && !steerText.startsWith('/') && config.steerDuringTurn !== false && steerAvailable(profileOf(key))) {
+    if ((steerText || steerMedia) && !steerText.startsWith('/') && config.steerDuringTurn !== false && steerAvailable(profileOf(queueKey))) {
       const sessionId = liveSessions.get(queueKey) || state.sessions[queueKey];
       if (activeTurns.has(queueKey) && sessionId) {
         if (steerText && !steerMedia) {
