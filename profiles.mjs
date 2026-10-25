@@ -6,7 +6,7 @@
 // every free-model fallback. A profile is the host's own mechanism, so each
 // overlay file is materialised once as a profile that carries the base
 // headless config plus the overlay's rows.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -21,6 +21,22 @@ function profileNameFor(patchPath) {
 }
 
 /**
+ * The copied profile has no `node_modules` of its own — copying it would
+ * duplicate hundreds of megabytes per overlay. A directory junction to the
+ * base profile's modules keeps the *same* plugins (steer inbox, tool order,
+ * sandbox hooks) instead of silently booting a bare host.
+ */
+function linkModules(dir) {
+  const modules = join(dir, 'node_modules');
+  if (existsSync(modules)) return;
+  try {
+    symlinkSync(join(BASE, 'node_modules'), modules, 'junction');
+  } catch {
+    // Without the link the profile still boots, just without the extra plugins.
+  }
+}
+
+/**
  * A profile directory looks like the base one: the same patch list plus the
  * overlay rows appended at the end (a later row wins), so the turn keeps every
  * sandbox/steer/tool-order setting and only the model changes.
@@ -30,7 +46,10 @@ function ensureProfile(patchPath) {
   const name = profileNameFor(patchPath);
   const dir = join(PROFILES, name);
   const target = join(dir, 'cordis.patch.yml');
-  if (existsSync(target)) return name;
+  if (existsSync(target)) {
+    linkModules(dir);
+    return name;
+  }
   mkdirSync(dir, { recursive: true });
   for (const entry of readdirSync(BASE, { withFileTypes: true })) {
     const from = join(BASE, entry.name);
@@ -52,6 +71,7 @@ function ensureProfile(patchPath) {
     `${base}\n\n# ---- ${basename(patchPath)}: per-turn model overlay ----\n${overlay}\n`,
     'utf8',
   );
+  linkModules(dir);
   return name;
 }
 

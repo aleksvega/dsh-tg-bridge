@@ -1481,7 +1481,9 @@ ${t(lang, 'help.body')}`,
       onAbort: () => killTurn(key),
       onHeartbeat: () => progress.heartbeat(),
       // Same overlay problem as the vision turn: the host CLI has no --patch.
-      profile: ensureProfile(entry.patch),
+      // A patch file that is missing or unreadable must not turn into an empty
+      // --profile argument, so the topic's own profile is the fallback.
+      profile: ensureProfile(entry.patch) || profileOf(key) || config.profile,
       cwd,
       lang,
     });
