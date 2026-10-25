@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Attachments are a first-class part of a running turn, not just typed text.
+  - A caption no longer downgrades a file to a text-only message. `handleMessage`
+    only called the media helper when the message had no text, so every
+    captioned document was silently dropped — idle and mid-turn alike.
+  - Small text files (`.md`, `.json`, `.csv`, `.py`, `.log`, source, config, up
+    to 60 KB) are pasted into the prompt as content, so a steer can use them
+    without a tool round-trip; bigger or binary files keep the path.
+  - Audio sent as a document is transcribed like a voice note; video, video
+    notes and animations are saved under `inbox/` and handed over by path.
+  - A photo steered mid-turn now carries one honest line: a running turn cannot
+    apply the vision overlay, so the model says it cannot see the image instead
+    of quietly ignoring it.
+  - `inlineText()` lives in `media-text.mjs` with six tests.
 - `/reasoning on|off` controls the `💭` decision trail per topic. On by default:
   each turn carries one instruction to leave a line at each decision point. Off
   removes both the instruction and the display, so nothing is written either.

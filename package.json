@@ -47,6 +47,7 @@
     "goals.mjs",
     "goal.mjs",
     "i18n.mjs",
+    "media-text.mjs",
     "prices.mjs",
     "setup.mjs",
     "bot-menu.mjs",

@@ -206,6 +206,19 @@ Attachments work the same way. A voice note is transcribed first and its transcr
 the chat, then the text is steered into the running turn; a photo or a file is downloaded to a
 local path and that path is steered, exactly as an idle turn would hand it over.
 
+What each kind of attachment becomes inside a running turn:
+
+| Sent | Inside the turn |
+|---|---|
+| voice note, audio file, audio sent as a document | transcript, echoed as `🎤 …` before the steer |
+| small text file (`.md`, `.json`, `.csv`, `.py`, `.log`, … up to 60 KB) | the content itself between `<file>` markers — no tool call needed |
+| PDF, archive, binary, anything bigger | its local path under `~/.dsh/tg-bridge/inbox/` |
+| video, video note, animation | its path; the agent can pull frames or sound out with ffmpeg |
+| photo | its path plus one honest line: a running turn cannot apply the vision overlay, so the model says it cannot see the image instead of ignoring it silently |
+
+A caption does not turn the attachment into a text-only message: it is folded into the same
+hand-over, so "why did this fail" plus a `.log` file arrives as one steer.
+
 This needs the plugin from this repository:
 
 ```bash

@@ -106,6 +106,8 @@ const DICT = {
     'prompt.photo': 'Look at the image at {path} and describe it in detail: text (verbatim, keeping its language), interface elements, objects.',
     'prompt.file': 'The user sent a file: {path} ({type}, {size} bytes).',
     'prompt.note': 'The request: {note}',
+    'prompt.fileText': 'The user sent a text file: {path} ({type}, {size} bytes). Its content is between the markers:\n<file>\n{body}\n</file>',
+    'prompt.photoMidTurn': 'The image arrived mid-turn, so only its path is attached: if you cannot open images, say so in one line.',
   },
   ru: {
     'status.working': 'Работаю',
@@ -200,6 +202,8 @@ const DICT = {
     'prompt.photo': 'Посмотри изображение по пути {path} и подробно опиши, что на нём: текст (дословно, с сохранением языка), элементы интерфейса, объекты.',
     'prompt.file': 'Пользователь прислал файл: {path} ({type}, {size} байт).',
     'prompt.note': 'Просьба: {note}',
+    'prompt.fileText': 'Пользователь прислал текстовый файл: {path} ({type}, {size} байт). Содержимое между маркерами:\n<file>\n{body}\n</file>',
+    'prompt.photoMidTurn': 'Картинка пришла во время хода, поэтому приложен только путь: если не можешь открыть изображение, скажи это одной строкой.',
   },
   zh: {
     'status.working': '处理中',
@@ -294,6 +298,8 @@ const DICT = {
     'prompt.photo': '查看路径 {path} 的图片并详细描述：文字（逐字，保留原语言）、界面元素、物体。',
     'prompt.file': '用户发来文件：{path}（{type}，{size} 字节）。',
     'prompt.note': '请求：{note}',
+    'prompt.fileText': '用户发来文本文件：{path}（{type}，{size} 字节）。内容在标记之间：\n<file>\n{body}\n</file>',
+    'prompt.photoMidTurn': '图片是在本轮进行中发来的，只附上了路径：如果无法打开图片，请用一句话说明。',
   },
 };
 

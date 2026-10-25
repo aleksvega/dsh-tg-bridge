@@ -25,6 +25,7 @@ net.setDefaultAutoSelectFamily(false);
 import { noticeIsObsolete } from './queue-notice.mjs';
 import { immediateKind } from './immediate.mjs';
 import { writeSteerJob } from './steer-queue.mjs';
+import { inlineText } from './media-text.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
@@ -1110,11 +1111,18 @@ async function readVoiceIntoText(msg, chatId, threadId, lang) {
  * the vision patch a photo turn needs; a steer cannot apply it to a running
  * turn and leaves it empty.
  */
-async function mediaPrompt(msg, chatId, threadId, lang) {
+async function mediaPrompt(msg, chatId, threadId, lang, opts = {}) {
+  const voiceReady = Boolean(config.voice?.python && config.voice?.script) || Boolean(config.voice?.command);
+  const voiceOn = Boolean(config.voice?.enabled) && voiceReady;
   if (msg.voice || msg.audio) {
-    const voiceReady = Boolean(config.voice?.python && config.voice?.script) || Boolean(config.voice?.command);
-    if (!config.voice?.enabled || !voiceReady) return { text: '', extraArgs: [] };
+    if (!voiceOn) return { text: '', extraArgs: [] };
     return { text: await readVoiceIntoText(msg, chatId, threadId, lang), extraArgs: [] };
+  }
+  // An audio file sent as a document is a voice note with a different wrapper:
+  // transcribe it instead of handing over a path nobody can listen to.
+  if (msg.document?.mime_type?.startsWith('audio/') && voiceOn) {
+    const heard = await readVoiceIntoText({ ...msg, audio: msg.document }, chatId, threadId, lang);
+    return { text: heard, extraArgs: [] };
   }
   // Photo handling: the current default route has no image input, so the turn
   // is run with a `--patch` overlay that points it at a vision model. Without
@@ -1126,8 +1134,12 @@ async function mediaPrompt(msg, chatId, threadId, lang) {
     const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
     writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
     const note = (msg.caption || '').trim();
-    const text = t(lang, 'prompt.photo', { path })
+    let text = t(lang, 'prompt.photo', { path })
       + (note ? ` ${t(lang, 'prompt.note', { note })}` : '');
+    // A steer cannot apply the vision overlay to a turn that is already
+    // running, so the model gets a path and an honest line instead of a
+    // silently unreadable image.
+    if (opts.steer) text += ` ${t(lang, 'prompt.photoMidTurn')}`;
     let extraArgs = [];
     if (config.vision?.patch && existsSync(config.vision.patch)) {
       extraArgs = ['--patch', config.vision.patch];
@@ -1137,11 +1149,11 @@ async function mediaPrompt(msg, chatId, threadId, lang) {
     }
     return { text, extraArgs };
   }
-  // Documents (PDF, zip, source, csv): save under inbox/ and hand the path to
-  // the turn. Before this, msg.document was routed to the voice transcriber and
-  // died with "no audio file", because only audio was recognised.
-  if (msg.document) {
-    const doc = msg.document;
+  // Documents (PDF, zip, source, csv), video and video notes: save under
+  // inbox/ and hand the path to the turn. Text-like files are also pasted in
+  // as content, so a steer can use them without a tool round-trip.
+  const doc = msg.document || msg.video || msg.video_note || msg.animation;
+  if (doc) {
     const safe = (doc.file_name || `file-${Date.now()}`).replace(/[^\w.\-]+/g, '_');
     const inbox = join(DIR, 'inbox');
     mkdirSync(inbox, { recursive: true });
@@ -1151,9 +1163,14 @@ async function mediaPrompt(msg, chatId, threadId, lang) {
     if (!bin.ok) throw new Error(`document download failed: ${bin.status}`);
     writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
     const note = (msg.caption || '').trim();
-    const text = t(lang, 'prompt.file', { path, type: doc.mime_type || 'unknown', size: doc.file_size || '?' })
-      + (note ? ` ${t(lang, 'prompt.note', { note })}` : '');
-    log(`document saved ${path} bytes=${doc.file_size || 0}`);
+    const type = doc.mime_type || 'unknown';
+    const size = doc.file_size || '?';
+    const body = msg.document ? inlineText(path, safe) : '';
+    let text = body
+      ? t(lang, 'prompt.fileText', { path, type, size, body })
+      : t(lang, 'prompt.file', { path, type, size });
+    if (note) text += ` ${t(lang, 'prompt.note', { note })}`;
+    log(`document saved ${path} bytes=${doc.file_size || 0}${body ? ` inline=${body.length}` : ''}`);
     return { text, extraArgs: [] };
   }
   return { text: '', extraArgs: [] };
@@ -1211,10 +1228,14 @@ async function handleMessage(msg) {
   // locally, then treat the resulting text exactly like typed text. The same
   // helper feeds the mid-turn steer path, so an attachment means the same
   // thing whether the turn is idle or already running.
+  //
+  // A file almost always arrives with a caption, so the presence of text must
+  // not be taken as "no attachment": that dropped every captioned document.
   let extraArgs = [];
-  if (!text) {
+  const media = msg.voice || msg.audio || msg.photo || msg.document || msg.video || msg.video_note || msg.animation;
+  if (media) {
     const built = await mediaPrompt(msg, chatId, threadId, lang);
-    text = built.text;
+    if (built.text) text = built.text;
     extraArgs = built.extraArgs;
   }
   if (!text) return;
@@ -1656,7 +1677,7 @@ function watchSteer(job, msg, text, thread, lang) {
  * helper does that before the steer is written.
  */
 async function steerMediaMessage(msg, sessionId, key, thread, lang) {
-  const built = await mediaPrompt(msg, msg.chat.id, thread, lang);
+  const built = await mediaPrompt(msg, msg.chat.id, thread, lang, { steer: true });
   if (!built.text) {
     log('steer media produced no text; nothing injected');
     return;
@@ -1985,11 +2006,13 @@ async function main() {
     // additions too — they are converted to text first, exactly as an idle
     // turn would convert them.
     const steerText = (msg.text || '').trim();
-    const steerMedia = !steerText && Boolean(msg.voice || msg.audio || msg.photo || msg.document);
+    // A caption rides along with the file; it must not turn the attachment into
+    // a text-only steer, or the file itself is silently dropped.
+    const steerMedia = Boolean(msg.voice || msg.audio || msg.photo || msg.document || msg.video || msg.video_note || msg.animation);
     if ((steerText || steerMedia) && !steerText.startsWith('/') && config.steerDuringTurn !== false && steerAvailable(profileOf(key))) {
       const sessionId = liveSessions.get(queueKey) || state.sessions[queueKey];
       if (activeTurns.has(queueKey) && sessionId) {
-        if (steerText) {
+        if (steerText && !steerMedia) {
           try {
             const job = steerRunningTurn(msg, steerText, sessionId, thread);
             log(`steer handled outside the queue: ${job.id}`);
