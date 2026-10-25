@@ -462,6 +462,9 @@ export async function handleControl(ctx) {
         t(lang, 'ctrl.status.thread', { name: ctx.threadId || t(lang, 'ctrl.status.threadDefault') }),
         t(lang, 'ctrl.status.session', { id: session }),
         t(lang, 'ctrl.status.turns', { n: active }),
+        t(lang, 'ctrl.status.notes', {
+          state: reasoningOf(state, config, key) ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
+        }),
         t(lang, 'ctrl.status.skills', { n: skillsOf().length }),
         `DSH_HOME: ${DSH_HOME}`,
       ];
