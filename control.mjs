@@ -75,6 +75,9 @@ const readJson = (path) => {
 };
 const patchPath = (profile) => join(PROFILES, profile, 'cordis.patch.yml');
 const pkgPath = (profile) => join(PROFILES, profile, 'package.json');
+// Written by `ensureProfile()` in profiles.mjs when it materialises a model
+// overlay as a profile of its own.
+const OVERLAY_MARK = ': per-turn model overlay ----';
 
 /** Model ids declared under `llm-pi-ai.providers.<provider>.models` in a patch. */
 function modelsOf(profile) {
@@ -508,6 +511,10 @@ export async function handleControl(ctx) {
       const [action = '', verb = '', template = ''] = String(arg || '').trim().split(/\s+/).filter(Boolean);
       const profiles = readdirSync(PROFILES, { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && existsSync(join(PROFILES, entry.name, 'cordis.patch.yml')))
+        // Overlay profiles are generated per model (photo turns and fallbacks)
+        // and carry a marker row; they are an implementation detail, not a
+        // place a person switches a topic to.
+        .filter((entry) => !read(join(PROFILES, entry.name, 'cordis.patch.yml')).includes(OVERLAY_MARK))
         .map((entry) => entry.name)
         .sort();
       const bound = state.profiles?.[key];
