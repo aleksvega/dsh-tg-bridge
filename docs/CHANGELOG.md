@@ -1,5 +1,17 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.11.0 — 2026-10-25
+
+- The progress message opens with the request echoed back — `⏳ Принял: «…» · 3 с` — instead
+  of a bare spinner. It is the first thing sent after a message arrives, so the person sees
+  their own task named within a second, before the model has produced anything.
+- `say.mjs --note "…"` sends a real short chat message, for decisions that change what the
+  person should expect: a release shipped, a cause found, a blocker. `--thought` stays the
+  decision trail inside the panel, so the chat does not get one message per step.
+- The per-turn instruction now names both channels: 💭 for every significant step, `--note`
+  only for what must be known now.
+- Two more panel tests (122 total).
+
 ## 1.10.1 — 2026-10-25
 
 - Long answers no longer arrive as literal `<b>` and `<code>`. The reply was turned

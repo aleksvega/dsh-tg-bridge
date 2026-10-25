@@ -90,10 +90,17 @@ export function progressPanel({
   // `counter` keeps the reasoning out of the chat: a number in the panel, the
   // log itself in the file that `/thoughts file` sends.
   reasoning = 'block',
+  // The person's own request, echoed back in the head. The panel is the first
+  // thing sent after a message arrives, so this is what makes that first
+  // message say "принял: …" instead of a generic spinner.
+  task = '',
 } = {}) {
+  const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
   const head = final
     ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}`
-    : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}`;
+    : snippet
+      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}`
+      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}`;
   const mind = thoughts.map((line) => `💭 ${line}`);
   const base = [head, ...mind, cache].filter(Boolean).join('\n').length;
 

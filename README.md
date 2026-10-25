@@ -288,6 +288,19 @@ message shows the last two as `💭` lines. The command needs no ids: it falls b
 newest turn's thought file, because tool shells do not inherit the bridge environment.
 `--thought` never sends a Telegram message on its own.
 
+A decision the person must know before the turn ends — a release shipped, a cause found,
+a blocker — goes to the chat as one plain line instead:
+
+```bash
+node ~/.dsh/tg-bridge/say.mjs --note "1.10.1 is on npm; restart to load it"
+```
+
+`--note` sends a real message and takes the same no-ids fallback as `--thought`. The split
+is deliberate: `--thought` is the working trail inside the progress message, `--note` is the
+short line that changes what the reader expects to happen next. The progress message itself
+opens with the request echoed back (`⏳ Принял: «…» · 3 с`), so the first thing the person
+sees after sending names their task rather than a generic spinner.
+
 `/reasoning` is the switch for the 💭 mechanism. It is on by default: every turn carries a
 short instruction to leave one line at each decision point (task clear, cause found, risky
 change, result checked). `/reasoning off` drops the instruction and the `💭` lines for that

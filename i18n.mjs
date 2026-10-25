@@ -15,6 +15,7 @@ export const LANGS = ['en', 'ru', 'zh'];
 const DICT = {
   en: {
     'status.working': 'Working',
+    'status.accepted': 'On it',
     'status.done': 'Done',
     'status.failed': 'Turn failed',
     'status.queued': 'queued',
@@ -70,7 +71,7 @@ const DICT = {
     'profile.badName': 'Name it with lowercase letters, digits and dashes: /profile new my-space from web',
     'profile.set': 'Topic profile → {name} ({route}). Applies from the next turn.',
     'msg.reasoningState': 'Working notes: {state}. Switch with /reasoning on or /reasoning off.',
-    'prompt.reasoning': 'Working notes: at each meaningful step — the task is clear, the cause is found, something risky is about to change, the result is checked — append one line of at most 90 characters with `node {say} --thought "..."`. It shows up as 💭 in the progress message: write the decision, not a retelling. Skip it for one-step work.',
+    'prompt.reasoning': 'Working notes: at each meaningful step — the task is clear, the cause is found, something risky is about to change, the result is checked — append one line of at most 90 characters with `node {say} --thought "..."`. It shows up as 💭 in the progress message: write the decision, not a retelling. Skip it for one-step work. When a decision changes what the person should expect — a release shipped, a cause found, a blocker — send it to the chat as one plain line: `node {say} --note "..."`. The chat line is for what they must know now, not for every step.',
     'cmd.help.title': 'Commands',
     'cmd.help.hint': 'Send any text to start a task. In a forum topic: /cd <project> binds the topic to that project.',
     'cmd.cd.bound': 'Topic bound to project:\n{path}\n\nAll turns run from this directory.',
@@ -389,6 +390,7 @@ const DICT = {
   },
   ru: {
     'status.working': 'Работаю',
+    'status.accepted': 'Принял',
     'status.done': 'Готово',
     'status.failed': 'Ход не удался',
     'status.queued': 'в очереди',
@@ -444,7 +446,7 @@ const DICT = {
     'profile.badName': 'Имя — строчные буквы, цифры и дефис: /profile new my-space from web',
     'profile.set': 'Профиль темы → {name} ({route}). Действует со следующего хода.',
     'msg.reasoningState': 'Заметки по ходу: {state}. Переключить: /reasoning on или /reasoning off.',
-    'prompt.reasoning': 'Заметки по ходу: на каждом значимом шаге — задача ясна, причина найдена, сейчас изменю рискованное, результат проверен — дописывай одну строку до 90 символов через `node {say} --thought "..."`. Она видна как 💭 в сообщении прогресса: пиши решение, а не пересказ. Для работы в один шаг не зови.',
+    'prompt.reasoning': 'Заметки по ходу: на каждом значимом шаге — задача ясна, причина найдена, сейчас изменю рискованное, результат проверен — дописывай одну строку до 90 символов через `node {say} --thought "..."`. Она видна как 💭 в сообщении прогресса: пиши решение, а не пересказ. Для работы в один шаг не зови. Когда решение меняет то, что человек должен знать сразу — выпущена версия, найдена причина, упёрся в блокер — отправь это в чат одной строкой без разметки: `node {say} --note "..."`. В чат — только то, что важно сейчас, не каждый шаг.',
     'cmd.help.title': 'Команды',
     'cmd.help.hint': 'Любой текст — задача агенту. В теме форума: /cd <проект> привяжет тему к проекту.',
     'cmd.cd.bound': 'Тема привязана к проекту:\n{path}\n\nДальше все команды идут отсюда.',
@@ -763,6 +765,7 @@ const DICT = {
   },
   zh: {
     'status.working': '处理中',
+    'status.accepted': '收到',
     'status.done': '完成',
     'status.failed': '运行失败',
     'status.queued': '排队中',
@@ -818,7 +821,7 @@ const DICT = {
     'profile.badName': '名称只能用小写字母、数字和连字符：/profile new my-space from web',
     'profile.set': '话题配置档 → {name}（{route}）。下一轮生效。',
     'msg.reasoningState': '工作记录：{state}。切换：/reasoning on 或 /reasoning off。',
-    'prompt.reasoning': '工作记录：在每个有意义的节点——任务已清楚、原因已找到、即将改动有风险的地方、结果已验证——用 `node {say} --thought "..."` 追加一行，不超过 90 个字符。它会以 💭 出现在进度消息里：写结论，不要复述。一步就能完成的工作不必调用。',
+    'prompt.reasoning': '工作记录：在每个有意义的节点——任务已清楚、原因已找到、即将改动有风险的地方、结果已验证——用 `node {say} --thought "..."` 追加一行，不超过 90 个字符。它会以 💭 出现在进度消息里：写结论，不要复述。一步就能完成的工作不必调用。当某个决定改变对方需要预期的事——版本已发布、找到原因、遇到阻塞——用一行纯文本发到聊天：`node {say} --note "..."`。聊天里只发此刻重要的内容，不是每一步。',
     'cmd.help.title': '命令',
     'cmd.help.hint': '发送任意文本即可开始任务。在论坛话题中：/cd <项目> 将该话题绑定到项目目录。',
     'cmd.cd.bound': '话题已绑定到项目：\n{path}\n\n之后所有操作都在此目录执行。',

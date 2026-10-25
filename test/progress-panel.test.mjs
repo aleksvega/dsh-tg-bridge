@@ -138,3 +138,16 @@ test('counter mode keeps the reasoning out of the chat entirely', () => {
   assert.match(html, /🧠 Размышления · 700 · \/thoughts file/);
   assert.match(plain, /^✅/m);
 });
+
+test('the live head echoes the request, so the first message names the task', () => {
+  const { html } = progressPanel({ lang: 'en', seconds: 2, task: 'fix the split  of long   answers' });
+  assert.match(html, /^⏳ On it: «fix the split of long answers» · 2 s/m);
+});
+
+test('a long request is shortened with an ellipsis, and the final head drops it', () => {
+  const task = 'x'.repeat(80);
+  const live = progressPanel({ lang: 'en', seconds: 1, task }).html;
+  assert.match(live, /«x{48}…»/);
+  const final = progressPanel({ lang: 'en', seconds: 9, final: true, task }).html;
+  assert.doesNotMatch(final, /x{10}/);
+});

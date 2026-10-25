@@ -817,7 +817,7 @@ function killTurn(key) {
  * thinks for ten minutes still leaves one line in the chat — and the whole trail
  * one tap away.
  */
-async function startProgress(chatId, threadId, lang = 'ru') {
+async function startProgress(chatId, threadId, lang = 'ru', task = '') {
   const started = Date.now();
   const panelKey = sessionKey(chatId, threadId);
   const steps = [];
@@ -875,6 +875,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
       // `/thoughts off` keeps the block out of the chat and leaves the counter;
       // the log itself is a file the command sends on demand.
       reasoning: state.thinkBlock?.[panelKey] === 'counter' ? 'counter' : 'block',
+      task,
       cache,
     });
   };
@@ -1376,6 +1377,10 @@ ${t(lang, 'help.body')}`,
   const sessionAtStart = state.sessions[key];
   // Project directory bound to this topic (set with /cd); config.cwd otherwise.
   const cwd = (state.cwd && state.cwd[key]) || config.cwd;
+  // What the person actually wrote, before any injected block: the progress
+  // message echoes it back so the first thing they see names their task, not a
+  // generic spinner.
+  const request = text;
 
   // Desktop-style goal: the topic's goal and task list travel with every turn,
   // so a fresh session after /new still knows what the project is aiming at.
@@ -1391,7 +1396,7 @@ ${t(lang, 'help.body')}`,
 
   // Live progress: one status message per turn, rewritten as the agent works.
   // Without it a long turn and a hung turn looked exactly alike in the chat.
-  const progress = await startProgress(chatId, threadId, lang);
+  const progress = await startProgress(chatId, threadId, lang, request);
   // Turn telemetry for the log: what the agent did, how much it cost, on which
   // model. Without it /logs shows only "in" and "sent" — useless when asking
   // "why did this take 9 minutes".

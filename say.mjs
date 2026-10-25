@@ -8,6 +8,11 @@
 //   node say.mjs --steer <job-id> "text"
 //   node say.mjs --chat <chat-id> [--thread <id>] "text"
 //   node say.mjs --thought "short note"   (no ids needed)
+//   node say.mjs --note "short sentence"  (a real chat message, no ids needed)
+//
+// `--thought` is a note inside the progress message. `--note` is a real chat
+// message: use it for what the person must know now (a release shipped, a cause
+// found, a blocker), not for every step.
 //
 // `--thought` does not send a message: it appends to the turn's thought file,
 // and the live progress message shows the last two notes as 💭 lines.
@@ -44,7 +49,7 @@ function jobOf(id) {
 }
 
 function usage() {
-  console.error('usage: node say.mjs --steer <id> "text" | --chat <id> [--thread <id>] "text" | --thought "text"');
+  console.error('usage: node say.mjs --steer <id> "text" | --chat <id> [--thread <id>] "text" | --thought "text" | --note "text"');
   process.exit(2);
 }
 
@@ -57,6 +62,7 @@ function parse(argv) {
     else if (arg === '--chat') out.chatId = Number(argv[++i] || 0);
     else if (arg === '--thread') out.threadId = Number(argv[++i] || 0);
     else if (arg === '--thought') out.thought = true;
+    else if (arg === '--note') out.note = true;
     else rest.push(arg);
   }
   out.text = rest.join(' ').trim();
@@ -87,7 +93,7 @@ async function main() {
   let jobPath = '';
   // Tool shells do not inherit the bridge's env, so fall back to the thought
   // file the bridge touched at the start of the newest turn.
-  if (!chatId && args.thought) {
+  if (!chatId && (args.thought || args.note)) {
     const active = activeThoughtFile();
     if (active) {
       chatId = active.chatId;
