@@ -84,6 +84,11 @@ const DICT = {
     'menu.restart': 'Restart the agent',
     'menu.help': 'All commands and hints',
     'menu.lang': 'Interface language: en, ru, zh',
+    'msg.voiceDownloadFailed': 'Could not download the voice message: {err}',
+    'msg.voiceNotRecognized': 'Could not make out the voice message{detail}',
+    'prompt.photo': 'Look at the image at {path} and describe it in detail: text (verbatim, keeping its language), interface elements, objects.',
+    'prompt.file': 'The user sent a file: {path} ({type}, {size} bytes).',
+    'prompt.note': 'The request: {note}',
   },
   ru: {
     'status.working': 'Работаю',
@@ -156,6 +161,11 @@ const DICT = {
     'menu.restart': 'Перезапустить агента',
     'menu.help': 'Все команды и подсказки',
     'menu.lang': 'Язык интерфейса: en, ru, zh',
+    'msg.voiceDownloadFailed': 'Не смог скачать голосовое: {err}',
+    'msg.voiceNotRecognized': 'Не распознал голосовое{detail}',
+    'prompt.photo': 'Посмотри изображение по пути {path} и подробно опиши, что на нём: текст (дословно, с сохранением языка), элементы интерфейса, объекты.',
+    'prompt.file': 'Пользователь прислал файл: {path} ({type}, {size} байт).',
+    'prompt.note': 'Просьба: {note}',
   },
   zh: {
     'status.working': '处理中',
@@ -228,6 +238,11 @@ const DICT = {
     'menu.restart': '重启代理',
     'menu.help': '全部命令与提示',
     'menu.lang': '界面语言：en、ru、zh',
+    'msg.voiceDownloadFailed': '语音下载失败：{err}',
+    'msg.voiceNotRecognized': '没能识别这条语音{detail}',
+    'prompt.photo': '查看路径 {path} 的图片并详细描述：文字（逐字，保留原语言）、界面元素、物体。',
+    'prompt.file': '用户发来文件：{path}（{type}，{size} 字节）。',
+    'prompt.note': '请求：{note}',
   },
 };
 
@@ -245,6 +260,11 @@ export function t(lang, key, vars = {}) {
   const table = DICT[lang] || DICT.ru;
   const text = table[key] ?? DICT.ru[key] ?? key;
   return String(text).replace(/\{(\w+)\}/g, (_, name) => (vars[name] ?? `{${name}}`));
+}
+
+/** Keys of one locale — used by the parity test, never by the bridge. */
+export function keysOf(lang) {
+  return Object.keys(DICT[lang] || {});
 }
 
 /** Menu rows for setMyCommands, translated per locale. */

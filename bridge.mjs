@@ -1039,6 +1039,118 @@ async function startProgress(chatId, threadId, lang = 'ru') {
   };
 }
 
+/**
+ * Turn a voice note or an audio file into text, echoing the transcript into the
+ * chat so the person sees what was understood before the answer lands.
+ *
+ * Returns '' when nothing was recognised: the failure is already reported in
+ * the chat by then, so callers only have to stop.
+ */
+async function readVoiceIntoText(msg, chatId, threadId, lang) {
+  // Status line first, then replace it with the transcript. One message that
+  // visibly turns "🎤 Расшифровываю…" into "🎤 <текст>" tells the person the
+  // audio is being read and, when it is done, exactly what was understood —
+  // before the agent's reply lands.
+  let statusId = 0;
+  if (config.voice?.echo !== false) {
+    try {
+      const res = await tg('sendMessage', {
+        chat_id: chatId,
+        text: t(lang, 'msg.transcribing'),
+        disable_web_page_preview: true,
+        ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+        ...(msg.message_id ? { reply_to_message_id: msg.message_id } : {}),
+      });
+      statusId = res.message_id;
+    } catch (error) {
+      log(`voice status failed: ${error.message}`);
+    }
+  }
+  const editOrSend = async (shown, fallback) => {
+    if (statusId) {
+      await tg('editMessageText', { chat_id: chatId, message_id: statusId, text: shown })
+        .catch((err) => log(`voice status edit failed: ${err.message}`));
+    } else if (config.voice?.echo !== false) {
+      await send(chatId, fallback, threadId, msg.message_id);
+    }
+  };
+  let heard = '';
+  let error = '';
+  try {
+    ({ text: heard, error } = await voiceToText(msg, config.voice));
+  } catch (err) {
+    const fail = t(lang, 'msg.voiceDownloadFailed', { err: err.message });
+    await editOrSend(`⚠️ ${fail}`, fail);
+    return '';
+  }
+  if (!heard) {
+    const fail = t(lang, 'msg.voiceNotRecognized', { detail: error ? `: ${error}` : '' });
+    await editOrSend(`⚠️ ${fail}`, fail);
+    return '';
+  }
+  log(`voice -> text len=${heard.length}${error ? ` (warn: ${error})` : ''}`);
+  const preview = heard.length > 1200 ? `${heard.slice(0, 1200)}…` : heard;
+  if (statusId || config.voice?.echo !== false) await editOrSend(`🎤 ${preview}`, `🎤 ${preview}`);
+  return heard;
+}
+
+/**
+ * Photo or file -> the prompt text that hands its path to the turn.
+ *
+ * Every supported attachment becomes the same kind of text here, so a normal
+ * turn and a mid-turn steer describe a file identically. `extraArgs` carries
+ * the vision patch a photo turn needs; a steer cannot apply it to a running
+ * turn and leaves it empty.
+ */
+async function mediaPrompt(msg, chatId, threadId, lang) {
+  if (msg.voice || msg.audio) {
+    const voiceReady = Boolean(config.voice?.python && config.voice?.script) || Boolean(config.voice?.command);
+    if (!config.voice?.enabled || !voiceReady) return { text: '', extraArgs: [] };
+    return { text: await readVoiceIntoText(msg, chatId, threadId, lang), extraArgs: [] };
+  }
+  // Photo handling: the current default route has no image input, so the turn
+  // is run with a `--patch` overlay that points it at a vision model. Without
+  // the overlay every photo ended in "model does not declare image input".
+  if (msg.photo) {
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+    const file = await tg('getFile', { file_id: fileId });
+    const path = join(DIR, `photo-${Date.now()}.jpg`);
+    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+    writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
+    const note = (msg.caption || '').trim();
+    const text = t(lang, 'prompt.photo', { path })
+      + (note ? ` ${t(lang, 'prompt.note', { note })}` : '');
+    let extraArgs = [];
+    if (config.vision?.patch && existsSync(config.vision.patch)) {
+      extraArgs = ['--patch', config.vision.patch];
+      log(`photo turn uses vision patch ${config.vision.patch}`);
+    } else {
+      log('photo turn without vision patch: the default model cannot read images');
+    }
+    return { text, extraArgs };
+  }
+  // Documents (PDF, zip, source, csv): save under inbox/ and hand the path to
+  // the turn. Before this, msg.document was routed to the voice transcriber and
+  // died with "no audio file", because only audio was recognised.
+  if (msg.document) {
+    const doc = msg.document;
+    const safe = (doc.file_name || `file-${Date.now()}`).replace(/[^\w.\-]+/g, '_');
+    const inbox = join(DIR, 'inbox');
+    mkdirSync(inbox, { recursive: true });
+    const path = join(inbox, `${Date.now()}-${safe}`);
+    const file = await tg('getFile', { file_id: doc.file_id });
+    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+    if (!bin.ok) throw new Error(`document download failed: ${bin.status}`);
+    writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
+    const note = (msg.caption || '').trim();
+    const text = t(lang, 'prompt.file', { path, type: doc.mime_type || 'unknown', size: doc.file_size || '?' })
+      + (note ? ` ${t(lang, 'prompt.note', { note })}` : '');
+    log(`document saved ${path} bytes=${doc.file_size || 0}`);
+    return { text, extraArgs: [] };
+  }
+  return { text: '', extraArgs: [] };
+}
+
 async function handleMessage(msg) {
   const chatId = msg.chat.id;
   const from = msg.from?.id;
@@ -1087,104 +1199,15 @@ async function handleMessage(msg) {
     return;
   }
   let text = (msg.text || msg.caption || '').trim();
-  // Voice notes and plain audio files: transcribe locally, then treat the
-  // transcript exactly like typed text (no photo-style "analyze this file"
-  // wrapper — the person spoke the task itself).
-  const voiceReady = Boolean(config.voice?.python && config.voice?.script) || Boolean(config.voice?.command);
-  if (!text && (msg.voice || msg.audio) && config.voice?.enabled && voiceReady) {
-    // Status line first, then replace it with the transcript. One message that
-    // visibly turns "🎤 Расшифровываю…" into "🎤 <текст>" tells the person the
-    // audio is being read and, when it is done, exactly what was understood —
-    // before the agent's reply lands.
-    let statusId = 0;
-    if (config.voice?.echo !== false) {
-      try {
-        const res = await tg('sendMessage', {
-          chat_id: chatId,
-          text: t(lang, 'msg.transcribing'),
-          disable_web_page_preview: true,
-          ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-          ...(msg.message_id ? { reply_to_message_id: msg.message_id } : {}),
-        });
-        statusId = res.message_id;
-      } catch (error) {
-        log(`voice status failed: ${error.message}`);
-      }
-    }
-    try {
-      const { text: heard, error } = await voiceToText(msg, config.voice);
-      if (heard) {
-        text = heard;
-        log(`voice -> text len=${heard.length}${error ? ` (warn: ${error})` : ''}`);
-        const preview = heard.length > 1200 ? `${heard.slice(0, 1200)}…` : heard;
-        const shown = `🎤 ${preview}`;
-        if (statusId) {
-          await tg('editMessageText', {
-            chat_id: chatId,
-            message_id: statusId,
-            text: shown,
-            disable_web_page_preview: true,
-          }).catch((err) => log(`voice status edit failed: ${err.message}`));
-        } else if (config.voice?.echo !== false) {
-          await send(chatId, shown, threadId, msg.message_id);
-        }
-      } else {
-        const fail = `Не распознал голосовое${error ? `: ${error}` : ''}`;
-        if (statusId) {
-          await tg('editMessageText', { chat_id: chatId, message_id: statusId, text: `⚠️ ${fail}` })
-            .catch(() => send(chatId, fail, threadId));
-        } else {
-          await send(chatId, fail, threadId);
-        }
-        return;
-      }
-    } catch (error) {
-      const fail = `Не смог скачать голосовое: ${error.message}`;
-      if (statusId) {
-        await tg('editMessageText', { chat_id: chatId, message_id: statusId, text: `⚠️ ${fail}` })
-          .catch(() => send(chatId, fail, threadId));
-      } else {
-        await send(chatId, fail, threadId);
-      }
-      return;
-    }
-  }
-  // Photo handling: the current default route has no image input, so the turn
-  // is run with a `--patch` overlay that points it at a vision model. Without
-  // the overlay every photo ended in "model does not declare image input".
+  // Voice notes, audio files, photos and documents: transcribe or download
+  // locally, then treat the resulting text exactly like typed text. The same
+  // helper feeds the mid-turn steer path, so an attachment means the same
+  // thing whether the turn is idle or already running.
   let extraArgs = [];
-  if (!text && msg.photo) {
-    const fileId = msg.photo[msg.photo.length - 1].file_id;
-    const file = await tg('getFile', { file_id: fileId });
-    const path = join(DIR, `photo-${Date.now()}.jpg`);
-    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
-    writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
-    const note = (msg.caption || '').trim();
-    text = `Посмотри изображение по пути ${path} и подробно опиши, что на нём: текст (дословно, с сохранением языка), элементы интерфейса, объекты.${note ? ` Просьба пользователя: ${note}` : ''}`;
-    if (config.vision?.patch && existsSync(config.vision.patch)) {
-      extraArgs = ['--patch', config.vision.patch];
-      log(`photo turn uses vision patch ${config.vision.patch}`);
-    } else {
-      log('photo turn without vision patch: the default model cannot read images');
-    }
-  }
-  // Documents (PDF, zip, source, csv): save under inbox/ and hand the path to
-  // the turn. Before this, msg.document was routed to the voice transcriber and
-  // died with "no audio file", because only audio was recognised.
-  if (!text && msg.document) {
-    const doc = msg.document;
-    const safe = (doc.file_name || `file-${Date.now()}`).replace(/[^\w.\-]+/g, '_');
-    const inbox = join(DIR, 'inbox');
-    mkdirSync(inbox, { recursive: true });
-    const path = join(inbox, `${Date.now()}-${safe}`);
-    const file = await tg('getFile', { file_id: doc.file_id });
-    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
-    if (!bin.ok) throw new Error(`document download failed: ${bin.status}`);
-    writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
-    const note = (msg.caption || '').trim();
-    text = `Пользователь прислал файл: ${path} (${doc.mime_type || 'unknown'}, ${doc.file_size || '?'} байт).`
-      + `${note ? ` Просьба: ${note}` : ''}`;
-    log(`document saved ${path} bytes=${doc.file_size || 0}`);
+  if (!text) {
+    const built = await mediaPrompt(msg, chatId, threadId, lang);
+    text = built.text;
+    extraArgs = built.extraArgs;
   }
   if (!text) return;
   log(`in ${where} from=${from} len=${text.length}${msg.is_topic_message ? ' topic-message' : ''}`);
@@ -1610,6 +1633,22 @@ function watchSteer(job, msg, text, thread, lang) {
   setTimeout(() => check(0), 90_000).unref?.();
 }
 
+/**
+ * Attachment sent while a turn is running: transcribe/download it first, then
+ * steer the resulting text into the same turn. Echoing the transcript is the
+ * only confirmation the person gets that the audio was understood, so the
+ * helper does that before the steer is written.
+ */
+async function steerMediaMessage(msg, sessionId, key, thread, lang) {
+  const built = await mediaPrompt(msg, msg.chat.id, thread, lang);
+  if (!built.text) {
+    log('steer media produced no text; nothing injected');
+    return;
+  }
+  if (!activeTurns.has(key)) log(`steer media: turn ended during prep, job will re-queue (${key})`);
+  steerRunningTurn(msg, built.text, sessionId, thread);
+}
+
 function enqueue(key, task, onBusy) {
   const prev = queues.get(key) || Promise.resolve();
   const queued = queues.has(key);
@@ -1926,17 +1965,36 @@ async function main() {
     }
     // A plain message during a running turn is an addition to that work, not a
     // new turn: steer it into the live agent instead of queueing it behind the
-    // very turn it is meant to change.
-    if (msg.text && !msg.text.trimStart().startsWith('/') && config.steerDuringTurn !== false && steerAvailable()) {
+    // very turn it is meant to change. Voice notes, photos and files count as
+    // additions too — they are converted to text first, exactly as an idle
+    // turn would convert them.
+    const steerText = (msg.text || '').trim();
+    const steerMedia = !steerText && Boolean(msg.voice || msg.audio || msg.photo || msg.document);
+    if ((steerText || steerMedia) && !steerText.startsWith('/') && config.steerDuringTurn !== false && steerAvailable()) {
       const sessionId = liveSessions.get(queueKey) || state.sessions[queueKey];
       if (activeTurns.has(queueKey) && sessionId) {
-        try {
-          const job = steerRunningTurn(msg, msg.text.trim(), sessionId, thread);
-          log(`steer handled outside the queue: ${job.id}`);
-          ack(update.update_id);
-        } catch (error) {
-          log(`steer write failed: ${error.message}`);
+        if (steerText) {
+          try {
+            const job = steerRunningTurn(msg, steerText, sessionId, thread);
+            log(`steer handled outside the queue: ${job.id}`);
+            ack(update.update_id);
+          } catch (error) {
+            log(`steer write failed: ${error.message}`);
+          }
+          return;
         }
+        // Transcription and downloads take seconds; the update loop must not
+        // wait for them, and the turn may even finish meanwhile — the steer
+        // watcher then turns the prepared text into a turn of its own.
+        ack(update.update_id);
+        const lang = resolveLang(state, queueKey, msg, config);
+        void steerMediaMessage(msg, sessionId, queueKey, thread, lang).catch((error) => {
+          // The attachment could not be prepared (download, transcription). It
+          // still deserves an answer, so let the normal path take it: it retries
+          // the same work and reports the failure itself.
+          log(`steer media failed, queueing a normal turn: ${error.message}`);
+          enqueue(queueKey, () => handleMessage(msg));
+        });
         return;
       }
     }

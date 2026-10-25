@@ -200,6 +200,10 @@ plugin hands it to the live agent on its next step, and the agent immediately re
 line in the chat: what it is doing now and where it put the addition. If the agent stays silent
 for 90 seconds, the bridge writes one neutral line itself so there is no silence.
 
+Attachments work the same way. A voice note is transcribed first and its transcript is echoed in
+the chat, then the text is steered into the running turn; a photo or a file is downloaded to a
+local path and that path is steered, exactly as an idle turn would hand it over.
+
 This needs the plugin from this repository:
 
 ```bash

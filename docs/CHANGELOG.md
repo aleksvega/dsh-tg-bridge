@@ -1,5 +1,17 @@
 # CHANGELOG — DSH Telegram bridge
 
+## Unreleased
+
+- Steering covers attachments, not just typed text. A voice note sent while a
+  turn runs is transcribed (`🎤 <transcript>` is echoed first) and the transcript
+  is handed to the live agent; a photo or a file is downloaded and its local
+  path is steered. Both go through the same helper an idle turn uses, so the
+  agent sees the same text either way.
+- The voice/photo/document conversion moved out of `handleMessage` into
+  `mediaPrompt()`, which returns `{ text, extraArgs }`. A steer cannot apply the
+  vision patch to a turn that is already running, so a photo steered mid-turn
+  carries only its path.
+
 ## 2026-10-25 — v1.5.4
 
 - Portability: no command depends on one provider any more.
