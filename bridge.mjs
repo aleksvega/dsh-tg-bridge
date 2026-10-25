@@ -1026,8 +1026,15 @@ async function startProgress(chatId, threadId, lang = 'ru') {
     log(`progress message failed: ${error.message}`);
   }
 
+  let lastView = '';
   const edit = async (text, keyboard = undefined, view = null) => {
     if (!messageId) return;
+    // Re-sending identical text counts as an edit on the phone (the block
+    // collapses and the list re-lays-out), so a no-op must not reach Telegram.
+    if (view && keyboard === undefined && view.html === lastView) {
+      dirty = false;
+      return;
+    }
     const payload = {
       chat_id: chatId,
       message_id: messageId,
@@ -1042,6 +1049,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
         if (keyboard !== undefined) body.reply_markup = keyboard ?? { inline_keyboard: [] };
         await tg('editMessageText', body);
       }
+      lastView = view ? view.html : text;
       lastEdit = Date.now();
     } catch (error) {
       // "message is not modified" and rate limits are expected: ignore quietly.
@@ -1057,7 +1065,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
       if (!dirty) return;
       dirty = false;
       await edit('', undefined, panel());
-    }, 3500);
+    }, 5000);
     timer.unref?.();
   }
 

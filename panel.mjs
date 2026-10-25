@@ -79,8 +79,10 @@ export function addStep(steps, line) {
  * Long content lives in Telegram's native `<blockquote expandable>`: collapsed it
  * is one line, tapped it shows the whole trail, and it never floods the chat. Two
  * blocks at most — the model's reasoning and, when a turn makes more than three
- * tool calls, the full step list — so the chat still reads as one message per
- * turn. `plain` is the same content without markup, for the fallback path when
+ * tool calls, the full step list. They appear only in the final edit (`final`):
+ * Telegram re-collapses an expanded block on every edit of its message, so a live
+ * edit that carried blocks would yank the chat away from whoever is reading one.
+ * `plain` is the same content without markup, for the fallback path when
  * the parser refuses a message and for `plainText` installs.
  */
 export function progressPanel({
@@ -92,20 +94,29 @@ export function progressPanel({
   const mind = thoughts.map((line) => `💭 ${line}`);
   const base = [head, ...mind, cache].filter(Boolean).join('\n').length;
 
-  // Up to three steps fit inline and read better there; a longer turn would turn
-  // the panel into a wall of shell commands, so its steps move into a block.
+  // While the turn runs this message is rewritten every few seconds, and
+  // Telegram drops an expanded block on every edit — which is what yanks the
+  // chat away from someone mid-sentence. So a live edit stays short: the last
+  // steps inline, a counter instead of the reasoning, no collapsible content at
+  // all. The two blocks arrive once, in the final edit, which nothing touches
+  // again, so a block can be opened and read in peace.
   const many = steps.length > 3;
-  const inline = many ? [] : steps.map((line) => `• ${line}`);
+  const inline = many
+    ? (final ? [] : steps.slice(-3).map((line) => `• ${line}`))
+    : steps.map((line) => `• ${line}`);
+  const more = !final && many ? t(lang, 'status.more', { n: steps.length - 3 }) : '';
+  const text = String(thinking || '').trim();
+  const live = !final && text ? `🧠 ${t(lang, 'status.thinkTitle')} · ${text.length}` : '';
   const stepsRoom = Math.max(0, Math.min(STEPS_MAX, PANEL_MAX - base - 1200));
-  const all = many
+  const all = many && final
     ? tailOf(steps.map((line) => `• ${line}`).join('\n'), stepsRoom)
     : { text: '', cut: false };
   const stepsLabel = `🛠 ${t(lang, 'status.stepsTitle')} · ${steps.length}`
     + `${all.cut ? ` · ${t(lang, 'status.thinkCut')}` : ''}`;
 
-  const fixed = base + inline.join('\n').length + all.text.length + 120;
+  const fixed = base + inline.join('\n').length + all.text.length + more.length + live.length + 120;
   const room = Math.max(400, Math.min(THINKING_MAX, PANEL_MAX - fixed));
-  const body = tailOf(String(thinking || '').trim(), room);
+  const body = final ? tailOf(text, room) : { text: '', cut: false };
   // A cut block starts mid-sentence; say so and point at the one command that
   // still has the whole text, otherwise the reasoning reads as broken.
   const thinkLabel = `🧠 ${t(lang, 'status.thinkTitle')}`
@@ -114,16 +125,20 @@ export function progressPanel({
   const html = [
     head,
     ...mind.map((line) => escapeHtml(line)),
+    escapeHtml(live),
     body.text ? `<blockquote expandable>${escapeHtml(thinkLabel)}\n${escapeHtml(body.text)}</blockquote>` : '',
     ...inline.map((line) => escapeHtml(line)),
+    escapeHtml(more),
     all.text ? `<blockquote expandable>${escapeHtml(stepsLabel)}\n${escapeHtml(all.text)}</blockquote>` : '',
     escapeHtml(cache),
   ].filter(Boolean).join('\n');
   const plain = [
     head,
     ...mind,
+    live,
     body.text ? `${thinkLabel}\n${body.text}` : '',
     ...inline,
+    more,
     all.text ? `${stepsLabel}\n${all.text}` : '',
     cache,
   ].filter(Boolean).join('\n');

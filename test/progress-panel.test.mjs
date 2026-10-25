@@ -13,6 +13,7 @@ test('reasoning becomes one collapsed native block, escaped', () => {
   const { html } = progressPanel({
     lang: 'ru',
     seconds: 12,
+    final: true,
     thinking: 'Смотрю <script> и & "кавычки"',
     steps: ['bash: npm test'],
   });
@@ -33,7 +34,7 @@ test('the final panel keeps the reasoning and says the turn is done', () => {
 
 test('long reasoning keeps its tail and admits the head is hidden', () => {
   const thinking = `${'a'.repeat(5000)}TAIL-MARKER`;
-  const { html, plain } = progressPanel({ lang: 'ru', thinking });
+  const { html, plain } = progressPanel({ lang: 'ru', final: true, thinking });
   assert.match(html, /начало скрыто/);
   assert.match(html, /TAIL-MARKER/);
   assert.ok(html.includes('a'.repeat(1500)), 'the kept tail must stay long');
@@ -71,14 +72,14 @@ test('a short turn keeps its three steps inline, without a second block', () => 
 
 test('every language labels the block in its own words', () => {
   for (const [lang, label] of [['en', 'Reasoning'], ['ru', 'Размышления'], ['zh', '推理']]) {
-    const { html } = progressPanel({ lang, thinking: 'x' });
+    const { html } = progressPanel({ lang, final: true, thinking: 'x' });
     assert.match(html, new RegExp(`🧠 ${label}`));
   }
 });
 
 test('the plain twin carries the same reasoning without any markup', () => {
   const { html, plain } = progressPanel({
-    lang: 'en', thinking: 'a <b> and c', steps: ['edit: file.mjs'], thoughts: ['decided X'],
+    lang: 'en', final: true, thinking: 'a <b> and c', steps: ['edit: file.mjs'], thoughts: ['decided X'],
   });
   assert.match(html, /&lt;b&gt;/);
   assert.doesNotMatch(plain, /<blockquote/);
@@ -104,4 +105,24 @@ test('repeated steps fold into one line with a count', () => {
   assert.deepEqual(steps, ['pwsh: npm test ×3', 'read: a.mjs', 'pwsh: npm test']);
   addStep(steps, '');
   assert.equal(steps.length, 3, 'an empty line is skipped, not pushed');
+});
+
+test('a live edit carries no collapsible block, only the last steps', () => {
+  // Telegram drops an expanded block on every edit of its message, so a message
+  // that is still being rewritten must not hold one: the reasoning is a counter
+  // until the turn ends, and the steps stay inline.
+  const steps = Array.from({ length: 40 }, (_, i) => `bash: command-${i}`);
+  const { html } = progressPanel({ lang: 'ru', final: false, steps, thinking: 'x'.repeat(900) });
+  assert.doesNotMatch(html, /blockquote/, 'no block while the message is live');
+  assert.match(html, /🧠 Размышления · 900/);
+  assert.match(html, /• bash: command-39/);
+  assert.match(html, /ещё 37/);
+  assert.ok(html.length <= 3900);
+});
+
+test('the final edit is the only one with blocks, and it has both', () => {
+  const steps = Array.from({ length: 40 }, (_, i) => `bash: command-${i}`);
+  const { html } = progressPanel({ lang: 'ru', final: true, steps, thinking: 'x'.repeat(900) });
+  assert.equal(html.match(/<blockquote expandable>/g).length, 2);
+  assert.doesNotMatch(html, /Размышления · 900/);
 });

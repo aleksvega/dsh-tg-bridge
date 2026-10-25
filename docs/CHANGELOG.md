@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.9.3 — 2026-10-25
+
+- Reading a block no longer gets interrupted. Telegram re-collapses an expanded
+  `<blockquote>` on every edit of its message, so tapping the reasoning open and
+  then the next 3.5 s edit landed the chat back on an older message. Blocks now
+  appear only in the final edit of a turn, which nothing edits again; while the
+  turn runs the panel shows a reasoning counter (`🧠 Размышления · 4821`) and the
+  last three steps. Edits are also skipped when the text did not change and the
+  cadence dropped from 3.5 s to 5 s.
+
 ## 1.9.2 — 2026-10-25
 
 - Step lines name the work instead of the shell plumbing: the `cd <dir>` prefix and

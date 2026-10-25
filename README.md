@@ -264,13 +264,17 @@ Two things land in the same progress message, and neither sends a chat message o
 **The model's reasoning.** Every `thinking` block the CLI commits is folded into one
 Telegram `<blockquote expandable>`: collapsed it is a single line, tapped it opens the whole
 trail of the turn, and it stays there after the turn ends — the same way the desktop app shows
-a reasoning section you can expand. The block is edited in place every few seconds (Telegram
-rate-limits edits), escaped, and trimmed to its tail when a turn thinks longer than a message
-can hold; the panel never exceeds one message. If the API refuses the markup, the same content
-is retried as plain text.
+a reasoning section you can expand. The block is written once, in the final edit of the turn,
+and never touched again: Telegram re-collapses an expanded block on every edit of its message,
+which used to yank the chat away from a half-read paragraph. While the turn runs the message
+only gets a counter (`🧠 Размышления · 4821`) and the last three steps, so the live edits stay
+short. Escaped, and trimmed to its tail when a turn thinks longer than a message can hold; the
+panel never exceeds one message. A cut block says `… · /thoughts`, which returns the whole
+text. If the API refuses the markup, the same content is retried as plain text.
 
 **The steps.** Three calls fit inline. A turn that makes more moves its complete step list into
-a second collapsed block, so "what did it actually run" is one tap away instead of a count.
+a second collapsed block, added in that same final edit, so "what did it actually run" is one
+tap away instead of a count.
 
 **The agent's own notes.** The agent can add a short decision trail:
 
