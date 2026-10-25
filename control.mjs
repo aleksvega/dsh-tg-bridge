@@ -76,7 +76,7 @@ const readJson = (path) => {
 const patchPath = (profile) => join(PROFILES, profile, 'cordis.patch.yml');
 const pkgPath = (profile) => join(PROFILES, profile, 'package.json');
 
-/** Model ids declared under `llm-pi-ai.providers.unorouter.models` in a patch. */
+/** Model ids declared under `llm-pi-ai.providers.<provider>.models` in a patch. */
 function modelsOf(profile) {
   const text = read(patchPath(profile));
   const lines = text.split('\n');
