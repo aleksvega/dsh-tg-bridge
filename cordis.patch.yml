@@ -1,0 +1,6 @@
+# DSH bundle: load the Telegram bridge with the harness. The plugin starts one
+# bridge process (skipped when a bridge is already running) and stops it on
+# shutdown. Install with: dsh plugin --profile desktop add dsh-tg-bridge
+- insert:
+    - id: tg-bridge
+      name: dsh-tg-bridge

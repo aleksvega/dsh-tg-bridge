@@ -1,0 +1,21 @@
+{
+  "name": "dsh-steer-inbox",
+  "version": "0.1.0",
+  "description": "Watches ~/.dsh/tg-bridge/steer for JSON jobs and steers the live agent (next-step input) instead of queueing another turn.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "compatibility": {
+      "dsh": ">=0.2.1-rc.1 <0.3.0",
+      "profiles": [
+        "headless",
+        "sdk"
+      ]
+    }
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,10 @@
+# Vision overlay for photo turns.
+#
+# The default headless route (deepseek-v4.1-flash-1017) declares no image input,
+# so `read_image` fails with "model does not declare image input". This overlay
+# is applied ONLY to turns that carry a picture: it points the agent at a
+# vision-capable model from the same provider, leaving text turns untouched.
+- id: agent-default-model
+  config:
+    provider: unorouter
+    model: gemini-3.8-flash

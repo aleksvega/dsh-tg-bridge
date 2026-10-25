@@ -1,0 +1,19 @@
+# Secrets and personal state - never published
+.credentials.yaml
+config.json
+state.json
+done.json
+bridge.pid
+*.log
+pending/
+inbox/
+node_modules/
+
+# Local caches
+__pycache__/
+*.pyc
+.venv/
+
+# OS noise
+Thumbs.db
+.DS_Store

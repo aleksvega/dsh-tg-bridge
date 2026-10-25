@@ -1,0 +1,47 @@
+{
+  "_comment": "Copy to config.json and fill in. Get your chat id from @userinfobot; without it the bridge answers nobody.",
+  "allowedUserIds": [],
+  "profile": "headless",
+  "cwd": "",
+  "turnIdleMs": 120000,
+  "turnTimeoutMs": 0,
+  "busyNoticeMs": 45000,
+  "approvalTimeoutMs": 600000,
+  "generalLobby": true,
+  "topicLog": true,
+  "pinTopicSeed": true,
+  "plainText": false,
+  "servers": {},
+  "fallbackModels": [
+    {
+      "model": "glm-5.3-flash:free",
+      "patch": "./patches/model-glm-5.3-flash_free.yml",
+      "free": true
+    },
+    {
+      "model": "deepseek-v4.1-flash:free",
+      "patch": "./patches/model-deepseek-v4.1-flash_free.yml",
+      "free": true
+    },
+    {
+      "model": "kimi-k3:free",
+      "patch": "./patches/model-kimi-k3_free.yml",
+      "free": true
+    }
+  ],
+  "voice": {
+    "enabled": false,
+    "python": "",
+    "script": "./transcribe.py",
+    "model": "small",
+    "language": "ru",
+    "beam": 1,
+    "threads": 4,
+    "timeoutMs": 180000,
+    "echo": true
+  },
+  "vision": {
+    "patch": "./patches/vision.yml",
+    "model": "gemini-3.8-flash"
+  }
+}

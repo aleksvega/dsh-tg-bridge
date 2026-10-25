@@ -1,0 +1,949 @@
+// dsh-telegram-bridge — control plane.
+//
+// The command surface that makes DSH manageable from Telegram with no UI:
+// profiles, model, sessions, plugins (extensions), skills, persona, restarts.
+// Everything works on the same files DSH itself reads, so a running desktop app
+// and a headless turn see the same state; commands that need a reload say so.
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { t, LANGS, normalizeLang } from './i18n.mjs';
+import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
+
+const HOME = homedir();
+const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
+const PROFILES = join(DSH_HOME, 'profiles');
+const APP = join(process.env.LOCALAPPDATA || '', 'Programs', 'DeepSeek Harness');
+const EXE = join(APP, 'DeepSeek Harness.exe');
+const DSH_CMD = join(APP, 'resources', 'runtime', 'cli', 'bin', 'dsh.cmd');
+const CLI_JS = join(APP, 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js');
+
+/** Live DSH app PIDs (empty when the app is not running). */
+function listPids() {
+  try {
+    const r = spawnSync('tasklist', ['/FI', 'IMAGENAME eq DeepSeek Harness.exe', '/NH', '/FO', 'CSV'], {
+      windowsHide: true,
+      encoding: 'utf8',
+    });
+    return (r.stdout || '')
+      .split(/\r?\n/)
+      .map((line) => /^"DeepSeek Harness\.exe","(\d+)"/.exec(line.trim()))
+      .filter(Boolean)
+      .map((m) => Number(m[1]));
+  } catch {
+    return [];
+  }
+}
+
+/** Poll until every listed pid is gone; true when they all exited. */
+async function waitForExit(pids, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const alive = listPids();
+    if (!pids.some((pid) => alive.includes(pid))) return true;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return false;
+}
+
+/** Poll until at least one DSH pid appears (new or old); returns them. */
+async function waitForStart(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const alive = listPids();
+    if (alive.length > 0) return alive;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return [];
+}
+
+const read = (path) => {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
+};
+const readJson = (path) => {
+  try {
+    return JSON.parse(read(path).replace(/^\uFEFF/, ''));
+  } catch {
+    return null;
+  }
+};
+const patchPath = (profile) => join(PROFILES, profile, 'cordis.patch.yml');
+const pkgPath = (profile) => join(PROFILES, profile, 'package.json');
+
+/** Model ids declared under `llm-pi-ai.providers.unorouter.models` in a patch. */
+function modelsOf(profile) {
+  const text = read(patchPath(profile));
+  const lines = text.split('\n');
+  const ids = [];
+  let inModels = false;
+  for (const line of lines) {
+    if (/^\s{8}models:\s*$/.test(line)) {
+      inModels = true;
+      continue;
+    }
+    if (inModels) {
+      const match = /^\s{10}- id:\s*(\S+)/.exec(line);
+      if (match) ids.push(match[1]);
+      else if (/^\s{0,8}\S/.test(line) && line.trim() && !line.trim().startsWith('- id:')) inModels = false;
+    }
+  }
+  return ids;
+}
+
+/** Current default model of a profile. */
+function modelOf(profile) {
+  const text = read(patchPath(profile));
+  const block = /- id: agent-default-model[\s\S]*?(?=\n- id:|\n- insert:|$)/.exec(text);
+  const model = block && /^\s+model:\s*(\S+)/m.exec(block[0]);
+  const provider = block && /^\s+provider:\s*(\S+)/m.exec(block[0]);
+  return { provider: provider ? provider[1] : '?', model: model ? model[1] : '?' };
+}
+
+/** Rewrite the default model of a profile; returns false for an unknown id. */
+function setModel(profile, wanted) {
+  const ids = modelsOf(profile);
+  if (ids.length > 0 && !ids.includes(wanted)) return false;
+  const path = patchPath(profile);
+  const text = read(path);
+  const re = /(- id: agent-default-model[\s\S]*?^\s+model:\s*)(\S+)/m;
+  if (!re.test(text)) return false;
+  writeFileSync(path, text.replace(re, `$1${wanted}`), 'utf8');
+  return true;
+}
+
+/** Top-level patch entry ids that carry `disabled:` in a profile. */
+function disabledIds(profile) {
+  const text = read(patchPath(profile));
+  const out = [];
+  const entries = text.split(/\n(?=- )/);
+  for (const entry of entries) {
+    const id = /^- id:\s*(\S+)/.exec(entry);
+    // Only a two-space indent is the entry's own key; deeper ones belong to the
+    // nested plugin rows of a group entry and are not the entry being disabled.
+    if (id && /^ {2}disabled:\s*true\s*$/m.test(entry)) out.push(id[1]);
+  }
+  return out;
+}
+
+/**
+ * Enable or disable one loader row of a profile.
+ * The patch is an ordered list where later entries win, so a disable is an
+ * appended `- id: <id>\n  disabled: true`, and an enable removes that key from
+ * the last entry mentioning the id.
+ */
+function setDisabled(profile, id, disabled) {
+  const path = patchPath(profile);
+  const text = read(path);
+  const entries = text.split(/\n(?=- )/);
+  const idx = entries.map((entry, i) => ({ entry, i })).filter(({ entry }) => new RegExp(`^- id:\\s*${id}\\s*$`, 'm').test(entry));
+  if (idx.length === 0) return false;
+  const last = idx[idx.length - 1];
+  if (disabled) {
+    if (/^\s+disabled:\s*true\s*$/m.test(last.entry)) return true;
+    entries.push(`- id: ${id}\n  disabled: true`);
+  } else {
+    entries[last.i] = last.entry.replace(/^\s+disabled:\s*(true|false)\s*\n?/m, '');
+  }
+  writeFileSync(path, entries.join('\n'), 'utf8');
+  return true;
+}
+
+/** Installed packages plus the bundle list of a profile. */
+function pluginsOf(profile) {
+  const pkg = readJson(pkgPath(profile)) || {};
+  const deps = Object.keys(pkg.dependencies || {});
+  const bundles = ((pkg.dsh || {}).profile || {}).bundles || [];
+  const disabled = disabledIds(profile);
+  return { deps, bundles, disabled };
+}
+
+/**
+ * Loader row ids a bundle installs, read from its own patch file.
+ * A bundle package name (`@xmanrui/dsh-im`) is not the row id a profile patch
+ * disables (`xmanrui-dsh-im`), so the mapping has to come from the patch.
+ */
+function bundleRowIds(profile, name) {
+  const dir = join(PROFILES, profile, 'node_modules', name);
+  const pkg = readJson(join(dir, 'package.json'));
+  const patch = ((pkg || {}).dsh || {}).bundle?.patch || './cordis.patch.yml';
+  const text = read(join(dir, patch.replace(/^\.\//, '')));
+  const ids = [];
+  for (const match of text.matchAll(/^\s*-?\s*id:\s*['"]?([A-Za-z0-9_.@/-]+)['"]?\s*$/gm)) ids.push(match[1]);
+  return ids;
+}
+
+/** Add a bundle name to `dsh.profile.bundles` when it is not listed yet. */
+function addBundle(profile, name) {
+  const path = pkgPath(profile);
+  const pkg = readJson(path);
+  if (!pkg) return false;
+  const profileBlock = (pkg.dsh = pkg.dsh || {}).profile || (pkg.dsh.profile = {});
+  const bundles = profileBlock.bundles || (profileBlock.bundles = []);
+  if (bundles.includes(name)) return false;
+  bundles.push(name);
+  writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+  return true;
+}
+
+function removeBundle(profile, name) {
+  const path = pkgPath(profile);
+  const pkg = readJson(path);
+  if (!pkg) return false;
+  const bundles = ((pkg.dsh || {}).profile || {}).bundles || [];
+  const next = bundles.filter((entry) => entry !== name);
+  if (next.length === bundles.length) return false;
+  pkg.dsh.profile.bundles = next;
+  writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+  return true;
+}
+
+/** Run `dsh plugin ...` (which forwards to pnpm) and collect its output. */
+function dshPlugin(profile, args, timeoutMs = 180000) {
+  return new Promise((resolve) => {
+    // Spawning the .cmd shim with shell:false fails with EINVAL on modern Node.
+    // Run the real CLI entry through the Electron binary instead, like the
+    // bridge does for turns; fall back to a plain `dsh` on other platforms.
+    const useExe = process.platform === 'win32' && existsSync(EXE) && existsSync(join(APP, 'resources', 'app.asar'));
+    const child = useExe
+      ? spawn(EXE, ['--expose-internals', CLI_JS, 'plugin', '--profile', profile, ...args], {
+          windowsHide: true,
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        })
+      : spawn('dsh', ['plugin', '--profile', profile, ...args], { windowsHide: true });
+    let out = '';
+    const timer = setTimeout(() => child.kill(), timeoutMs);
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (buf) => {
+      out += buf;
+    });
+    child.stderr.on('data', (buf) => {
+      out += buf;
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, out: out.trim() });
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ code: -1, out: error.message });
+    });
+  });
+}
+
+/** DSH's on-disk folder name for a workspace: `--C-Users-me-work--`. */
+function cwdSlug(cwd) {
+  const parts = String(cwd).replace(/[:\\/]+/g, '\\').split('\\').filter(Boolean);
+  return `--${parts.join('-')}--`;
+}
+
+/** Session ids appear both bare and as `session-<uuid>`; compare the bare form. */
+function bareId(id) {
+  return String(id).replace(/^session-/, '');
+}
+
+/** Recent DSH sessions of this workspace, newest first, with their titles. */
+function recentSessions(cwd, limit) {
+  const root = join(DSH_HOME, 'sessions');
+  const rows = [];
+  let dirs = [];
+  try {
+    dirs = readdirSync(root);
+  } catch {
+    return rows;
+  }
+  for (const dir of dirs) {
+    const path = join(root, dir);
+    let files = [];
+    try {
+      files = readdirSync(path, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of files) {
+      // Layout is <slug>/<session-id>/session.v4.jsonl.zstd, so the session id is
+      // the directory name and the archive one level below it.
+      if (!entry.isDirectory()) continue;
+      const full = join(path, entry.name, 'session.v4.jsonl.zstd');
+      try {
+        rows.push({ cwd: dir, id: entry.name, mtime: statSync(full).mtimeMs });
+      } catch {}
+    }
+  }
+  if (rows.length === 0) return rows;
+  const cacheDir = join(DSH_HOME, 'storages', 'session_projcache', 'sessions');
+  const cacheFiles = (() => {
+    try {
+      return readdirSync(cacheDir);
+    } catch {
+      return [];
+    }
+  })();
+  const titles = new Map();
+  for (const name of cacheFiles) {
+    const record = readJson(join(cacheDir, name));
+    const id = name.replace(/^session-/, '').replace(/\.json$/, '');
+    const rows = record?.record?.rows ?? record?.rows ?? {};
+    const title = rows.title?.val;
+    // Sessions that were never titled still carry their first user message.
+    const firstMessage = rows.titleInput?.val?.first?.text;
+    const cwd = record?.record?.identity?.cwd ?? record?.identity?.cwd;
+    const label =
+      typeof title === 'string' && title.trim()
+        ? title.trim()
+        : typeof firstMessage === 'string' && firstMessage.trim()
+          ? firstMessage.trim().split('\n')[0].slice(0, 80)
+          : '';
+    if (label) titles.set(id, { title: label, cwd });
+  }
+  const live = rows.filter((row) => {
+    const meta = titles.get(bareId(row.id));
+    return meta && (meta.cwd === cwd || row.cwd === cwdSlug(cwd));
+  });
+  const pool = live.length > 0 ? live : rows;
+  return pool
+    .sort((a, b) => b.mtime - a.mtime)
+    .slice(0, limit)
+    .map((row) => ({ ...row, title: titles.get(bareId(row.id))?.title || '(без названия)' }));
+}
+
+/** Skills directory listing. */
+function skillsOf() {
+  const dir = join(DSH_HOME, 'skills');
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+const AGENTS = join(DSH_HOME, 'AGENTS.md');
+const PERSONA_HEADING = '## Persona (DSH soul)';
+
+/** Persona section of the global instructions file. */
+function soulOf() {
+  const text = read(AGENTS);
+  const at = text.indexOf(PERSONA_HEADING);
+  if (at === -1) return '';
+  return text.slice(at + PERSONA_HEADING.length).replace(/^\s*\n/, '').trim();
+}
+
+/** Replace (or create) the persona section, leaving the rest untouched. */
+function setSoul(text) {
+  const body = read(AGENTS);
+  const at = body.indexOf(PERSONA_HEADING);
+  const head = at === -1 ? `${body.trimEnd()}\n\n` : body.slice(0, at).trimEnd() + '\n\n';
+  writeFileSync(AGENTS, `${head}${PERSONA_HEADING}\n\n${text.trim()}\n`, 'utf8');
+}
+
+const fmt = (rows) => rows.map((row) => `  ${row}`).join('\n');
+
+/** Goal + task list as one message; empty list is shown, not hidden. */
+function goalView(goal, lang) {
+  const { done, total } = progressOf(goal);
+  const lines = [t(lang, 'goal.set', { text: goal.text })];
+  if (goal.tasks.length === 0) {
+    lines.push(t(lang, 'task.empty'));
+  } else {
+    goal.tasks.forEach((task, i) => lines.push(`${task.done ? '✅' : '⬜'} ${i + 1}. ${task.text}`));
+    lines.push(t(lang, 'goal.progress', { done, total }));
+  }
+  if (goal.done) lines.push(t(lang, 'goal.closed'));
+  return lines.join('\n');
+}
+
+/**
+ * Handle one control command. Returns true when the message was a control
+ * command and the caller must not run a turn.
+ */
+export const CONTROL_COMMANDS = [
+  'status', 'models', 'model', 'sessions', 'resume', 'plugins', 'plugin',
+  'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
+  'prices', 'help', 'doctor', 'logs', 'lang', 'goal', 'task',
+];
+
+export async function handleControl(ctx) {
+  const { command, arg, send, reply, log, profile, state, key, config, lang } = ctx;
+  const say = (text) => reply(text);
+
+  // One command for one job: `/plugins` is both the list and the way to change
+  // things. Two near-identical names (`/plugin` / `/plugins`) invited the exact
+  // mistake of typing the plural with an action. The singular form stays as an
+  // alias so old instructions and muscle memory keep working.
+  let effective = command;
+  if (effective === '/plugins') {
+    const [maybeAction] = String(arg || '').trim().split(/\s+/);
+    // `/plugins add|remove|disable|enable …` is the same work as `/plugin …`;
+    // the case bodies read `arg`, which already holds the action and its value.
+    if (['add', 'remove', 'disable', 'enable'].includes((maybeAction || '').toLowerCase())) {
+      effective = '/plugin';
+    }
+  }
+
+  switch (effective) {
+    case '/status': {
+      const activeProfile = config.profile || 'headless';
+      const head = modelOf(activeProfile);
+      const session = state.sessions[key] || '(ещё нет)';
+      const active = ctx.activeTurns ? ctx.activeTurns.size : 0;
+      const lines = [
+        `Профиль: ${activeProfile} (${head.provider}/${head.model})`,
+        `Ветка: ${ctx.threadId || 'общая'}`,
+        `Сессия: ${session}`,
+        `Ходов в работе: ${active}`,
+        `Скиллы: ${skillsOf().length}`,
+        `DSH_HOME: ${DSH_HOME}`,
+      ];
+      // The desktop profile only matters when this install actually has one.
+      if (existsSync(join(PROFILES, 'desktop', 'cordis.patch.yml'))) {
+        const desk = modelOf('desktop');
+        const deskPlugins = pluginsOf('desktop');
+        lines.splice(1, 0, `UI: desktop (${desk.provider}/${desk.model}) — плагинов ${deskPlugins.bundles.length}`);
+      }
+      const currentGoal = goalOf(state, key);
+      if (currentGoal) {
+        const { done, total } = progressOf(currentGoal);
+        lines.push(t(lang || 'ru', 'status.goal', {
+          done, total, text: currentGoal.text.length > 60 ? `${currentGoal.text.slice(0, 59)}…` : currentGoal.text,
+        }));
+      }
+      say(lines.join('\n'));
+      return true;
+    }
+
+    case '/models': {
+      const activeProfile = config.profile || 'headless';
+      const head = modelOf(activeProfile);
+      const ids = modelsOf(activeProfile);
+      say(
+        [
+          ids.length > 0 ? `Модель сейчас: ${head.model}` : `В профиле ${activeProfile} нет списка моделей`,
+          ...(ids.length > 0 ? ['Доступные:', ...ids.map((id) => `  ${id === head.model ? '*' : ' '} ${id}`)] : []),
+        ].join('\n'),
+      );
+      return true;
+    }
+
+    case '/model': {
+      const [wanted = '', scope = ''] = (arg || '').split(/\s+/);
+      if (!wanted) {
+        say('Использование: /model <id> [both]  (/models — список)');
+        return true;
+      }
+      const activeProfile = config.profile || 'headless';
+      if (!setModel(activeProfile, wanted)) {
+        say(`Не смог переключить ${activeProfile} на «${wanted}»: в профиле нет строки agent-default-model. /models — список.`);
+        return true;
+      }
+      const desktop = scope === 'both' ? setModel('desktop', wanted) : false;
+      say(`Модель ${activeProfile} → ${wanted}${desktop ? ', desktop → ' + wanted : ''}. Действует со следующего хода.`);
+      return true;
+    }
+
+    case '/sessions': {
+      const limit = Number.parseInt(arg, 10) > 0 ? Math.min(Number.parseInt(arg, 10), 20) : 8;
+      const rows = recentSessions((state.cwd && state.cwd[key]) || config.cwd, limit);
+      if (rows.length === 0) {
+        say('Сессий не нашёл.');
+        return true;
+      }
+      const lines = rows.map((row) => {
+        const id = bareId(row.id);
+        const current = bareId(state.sessions[key] || '') === id ? '*' : ' ';
+        const when = new Date(row.mtime).toISOString().slice(5, 16).replace('T', ' ');
+        return `${current} ${when}  ${row.title.slice(0, 48)}\n    /resume ${id}`;
+      });
+      say(['Последние сессии:', ...lines].join('\n'));
+      return true;
+    }
+
+    case '/resume': {
+      const wanted = bareId((arg || '').trim());
+      if (!wanted) {
+        say('Использование: /resume <id>  (/sessions — список)');
+        return true;
+      }
+      state.sessions[key] = `session-${wanted}`;
+      ctx.saveState();
+      say(`Эта ветка продолжит сессию session-${wanted}.`);
+      return true;
+    }
+
+    case '/plugins': {
+      const target = arg === 'headless' ? 'headless' : 'desktop';
+      const { bundles, disabled, deps } = pluginsOf(target);
+      const lines = bundles.map((name) => {
+        const rowIds = bundleRowIds(target, name);
+        const off = rowIds.length > 0 && rowIds.every((id) => disabled.includes(id));
+        return `${off ? '×' : '✓'} ${name}${off ? ' (disabled)' : ''}`;
+      });
+      const orphan = deps.filter((name) => !bundles.includes(name));
+      say(
+        [
+          `Плагины профиля ${target}: ${bundles.length}`,
+          ...lines,
+          orphan.length ? `\nУстановлены, но не в bundles:\n${fmt(orphan)}` : '',
+          `\nОтключены строки: ${disabled.length ? disabled.join(', ') : 'нет'}`,
+          // The actions live behind the same command, so the list must say how
+          // to reach them — otherwise people keep hunting for `/plugin`.
+          `\nИзменить: /plugins add <пакет> · remove <имя> · disable <id> · enable <id>`,
+          'Профиль: добавь headless или desktop в конце.',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      );
+      return true;
+    }
+
+    case '/plugin': {
+      const [action, ...rest] = (arg || '').split(/\s+/);
+      const target = (rest[0] === 'headless' || rest[0] === 'desktop') && rest.length > 1 ? rest.shift() : 'desktop';
+      const value = rest.join(' ').trim();
+      if (!action || !value) {
+        say('Использование:\n/plugins add <npm|github|file:>\n/plugins remove <name>\n/plugins disable <id>\n/plugins enable <id>\nПрофиль: допиши headless или desktop.\n\n/plugin — то же самое, старая форма.');
+        return true;
+      }
+      if (action === 'disable' || action === 'enable') {
+        const ok = setDisabled(target, value, action === 'disable');
+        say(ok ? `Строка «${value}» ${action === 'disable' ? 'отключена' : 'включена'} в ${target}. Нужен перезапуск DSH.` : `Строка «${value}» не найдена в ${target}.`);
+        return true;
+      }
+      if (action === 'add') {
+        say(`Ставлю ${value} в ${target}…`);
+        const result = await dshPlugin(target, ['add', value]);
+        const name = (() => {
+          try {
+            const pkg = readJson(join(PROFILES, target, 'node_modules', value.split('/').pop(), 'package.json'));
+            return pkg?.name || value;
+          } catch {
+            return value;
+          }
+        })();
+        const meta = readJson(join(PROFILES, target, 'node_modules', name, 'package.json'));
+        const bundled = Boolean(meta && (meta.dsh || {}).bundle);
+        if (bundled && addBundle(target, name)) {
+          say(`${result.code === 0 ? 'Установлен' : 'Ошибка pnpm'} ${name}; добавлен в bundles.\n${result.out.slice(-800)}\nНужен перезапуск DSH.`);
+        } else {
+          say(`${result.code === 0 ? 'Установлен' : 'Ошибка pnpm'} ${value}.\n${result.out.slice(-800)}${bundled ? '' : '\nБандла в пакете нет — в bundles не добавлял.'}`);
+        }
+        return true;
+      }
+      if (action === 'remove') {
+        say(`Удаляю ${value} из ${target}…`);
+        const result = await dshPlugin(target, ['remove', value]);
+        removeBundle(target, value);
+        say(`${result.code === 0 ? 'Удалён' : 'Ошибка pnpm'} ${value}.\n${result.out.slice(-800)}\nНужен перезапуск DSH.`);
+        return true;
+      }
+      say('Неизвестное действие. /plugin add|remove|disable|enable');
+      return true;
+    }
+
+    case '/skills': {
+      const rows = skillsOf();
+      const want = (arg || '').trim();
+      if (want) {
+        const dir = join(DSH_HOME, 'skills', want);
+        const body = read(join(dir, 'SKILL.md'));
+        say(body ? `/${want}\n\n${body.slice(0, 3000)}` : `Скилла «${want}» нет.`);
+        return true;
+      }
+      say(rows.length ? `Скиллы (${rows.length}):\n${fmt(rows)}` : 'Скиллов нет.');
+      return true;
+    }
+
+    case '/soul': {
+      const text = (arg || '').trim();
+      if (!text) {
+        const current = soulOf();
+        say(current ? `Персона (${AGENTS}):\n\n${current}` : `Персона пуста. Задать: /soul <текст>\nФайл: ${AGENTS}`);
+        return true;
+      }
+      setSoul(text);
+      say('Персона обновлена в ~/.dsh/AGENTS.md. Применяется в новых сессиях.');
+      return true;
+    }
+
+    case '/restart': {
+      if (arg !== 'confirm') {
+        say(t(ctx.lang || 'ru', 'cmd.restart.prompt'));
+        return true;
+      }
+      say(t(ctx.lang || 'ru', 'cmd.restart.started'));
+      const bridge = fileURLToPath(new URL('./bridge.mjs', import.meta.url));
+      // Tell the replacement process where to confirm, so the chat does not go
+      // silent after "Перезапускаю мост…" (it did, twice on 2026-10-24).
+      try {
+        writeFileSync(
+          fileURLToPath(new URL('./restart-notice.json', import.meta.url)),
+          JSON.stringify({ chatId: ctx.chatId, threadId: ctx.threadId || 0, at: Date.now() }),
+          'utf8',
+        );
+      } catch (error) {
+        log(`restart notice not written: ${error.message}`);
+      }
+      spawn(process.execPath, [bridge], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      setTimeout(() => process.exit(0), 300);
+      return true;
+    }
+
+    case '/app': {
+      if (!/^restart\b/.test(arg || '')) {
+        say('Использование: /app restart confirm — перезапустить приложение DSH.');
+        return true;
+      }
+      if (arg !== 'restart confirm') {
+        say('Перезапуск приложения оборвёт этот чат. Повтори: /app restart confirm');
+        return true;
+      }
+      // Report the real outcome, not just "restarting": the old version fired
+      // taskkill by image name and never checked whether the process survived,
+      // so a no-op looked identical to success.
+      const before = listPids();
+      if (before.length === 0) {
+        say('DSH сейчас не запущен — поднимаю.');
+        spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+        setTimeout(() => {
+          const after = listPids();
+          say(after.length ? `DSH запущен: pid ${after.join(', ')}` : 'Не смог запустить DSH — проверь вручную.');
+        }, 15000);
+        return true;
+      }
+      say(`Перезапускаю DSH (pid ${before.join(', ')} = ${EXE})…`);
+      spawn('taskkill', ['/IM', 'DeepSeek Harness.exe', '/T', '/F'], { windowsHide: true, detached: true }).on('close', async () => {
+        const gone = await waitForExit(before, 12000);
+        if (!gone) {
+          say('Процесс не завершился по taskkill — DSH, похоже, защищён от завершения. Перезапуск не выполнен.');
+          return;
+        }
+        if (!existsSync(EXE)) {
+          say(`Не нашёл ${EXE} — запусти вручную.`);
+          return;
+        }
+        spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+        const up = await waitForStart(15000);
+        say(up.length ? `DSH перезапущен: новый pid ${up.join(', ')}` : 'DSH закрыт, но не поднялся — запусти вручную.');
+      });
+      return true;
+    }
+
+    case '/stop': {
+      const killed = ctx.stopTurn ? ctx.stopTurn(key) : false;
+      say(killed ? t(ctx.lang || 'ru', 'cmd.stop.killed') : t(ctx.lang || 'ru', 'cmd.stop.nothing'));
+      return true;
+    }
+
+    case '/send': {
+      // `/send <path>` uploads a local file into this topic. Without it the
+      // agent could only talk about artifacts, never deliver them.
+      const path = (arg || '').trim().replace(/^"|"$/g, '');
+      if (!path) { say('Использование: /send <полный путь к файлу>'); return true; }
+      if (!ctx.sendFile) { say('Отправка файлов недоступна: мост старой версии.'); return true; }
+      try {
+        await ctx.sendFile(path, basename(path));
+        return true;
+      } catch (error) {
+        say(`Не смог отправить файл: ${error.message}`);
+        return true;
+      }
+    }
+
+    case '/cd': {
+      // Bind THIS topic to a project directory. Every later turn in the topic
+      // spawns the CLI with that cwd, so "work in my-app" stops
+      // meaning "cd ... in every single command".
+      const wanted = (arg || '').trim().replace(/^"|"$/g, '');
+      state.cwd = state.cwd || {};
+      if (!wanted) {
+        const current = state.cwd[key] || config.cwd;
+        const lines = ['Текущий каталог темы:', current, '', 'Привязать: /cd <путь>', 'Сбросить: /cd reset'];
+        try {
+          const dirs = readdirSync(config.projectsDir || join(HOME, 'Projects'), { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name);
+          if (dirs.length > 0) lines.push('', 'Проекты:', dirs.slice(0, 20).join(' · '));
+        } catch {}
+        say(lines.join('\n'));
+        return true;
+      }
+      if (wanted === 'reset') {
+        delete state.cwd[key];
+        ctx.saveState();
+        say(t(ctx.lang || 'ru', 'cmd.cd.reset'));
+        return true;
+      }
+      let target = wanted;
+      // Bare project name -> resolve under ~/Projects for convenience.
+      if (!/^[A-Za-z]:|^\//.test(target)) {
+        const guess = join(HOME, 'Projects', target);
+        if (existsSync(guess)) target = guess;
+      }
+      if (!existsSync(target)) {
+        say(t(ctx.lang || 'ru', 'cmd.cd.none', { path: target }));
+        return true;
+      }
+      state.cwd[key] = target;
+      ctx.saveState();
+      say(t(ctx.lang || 'ru', 'cmd.cd.bound', { path: target }));
+      return true;
+    }
+
+    case '/prices': {
+      if (!ctx.prices) {
+        say('Прайс недоступен: мост старой версии.');
+        return true;
+      }
+      try {
+        const text = await ctx.prices(arg);
+        say(text);
+      } catch (error) {
+        say(`Не смог получить цены: ${error.message}`);
+      }
+      return true;
+    }
+
+    case '/goal': {
+      const L = lang || 'ru';
+      const body = (arg || '').trim();
+      const current = goalOf(state, key);
+      if (!body) {
+        say(current ? goalView(current, L) : t(L, 'goal.none'));
+        return true;
+      }
+      const word = body.toLowerCase();
+      if (word === 'help' || word === '?') {
+        say(t(L, 'goal.usage'));
+        return true;
+      }
+      if (word === 'done') {
+        const goal = finishGoal(state, key);
+        if (!goal) { say(t(L, 'goal.none')); return true; }
+        ctx.saveState();
+        say(goalView(goal, L));
+        return true;
+      }
+      if (word === 'clear') {
+        say(t(L, clearGoal(state, key) ? 'goal.cleared' : 'goal.none'));
+        if (goalOf(state, key) === null) ctx.saveState();
+        return true;
+      }
+      const goal = setGoal(state, key, body);
+      if (!goal) { say(t(L, 'goal.usage')); return true; }
+      ctx.saveState();
+      say(goalView(goal, L));
+      return true;
+    }
+
+    case '/task': {
+      const L = lang || 'ru';
+      const body = (arg || '').trim();
+      const current = goalOf(state, key);
+      if (!body) {
+        say(current ? goalView(current, L) : t(L, 'task.none'));
+        return true;
+      }
+      if (body.toLowerCase() === 'help' || body.toLowerCase() === '?') {
+        say(t(L, 'task.usage'));
+        return true;
+      }
+      const op = body.match(/^(done|rm|remove)\s+(\d+)$/i);
+      if (op) {
+        const n = Number(op[2]);
+        if (op[1].toLowerCase() === 'done') {
+          say(t(L, doneTask(state, key, n) ? 'task.done' : 'task.bad', { n }));
+        } else {
+          say(t(L, removeTask(state, key, n) ? 'task.removed' : 'task.bad', { n }));
+        }
+        ctx.saveState();
+        return true;
+      }
+      if (!current) setGoal(state, key, t(L, 'goal.default'));
+      const n = addTask(state, key, body);
+      if (!n) { say(t(L, 'task.usage')); return true; }
+      ctx.saveState();
+      say(`${t(L, 'task.added', { n })}\n${goalView(goalOf(state, key), L)}`);
+      return true;
+    }
+
+    case '/new': {
+      delete state.sessions[key];
+      ctx.saveState();
+      say(t(ctx.lang || 'ru', 'cmd.new.done'));
+      return true;
+    }
+
+    case '/seed': {
+      // Repair a topic that was created empty (Telegram keeps the text in the
+      // General chat, so the thread shows a title with nothing under it).
+      // Two forms: `/seed <text>` posts that text; `/seed` alone cannot know
+      // the original message, so it explains the form instead of guessing.
+      const body = (arg || '').trim();
+      if (!ctx.threadId) {
+        say('Открой тему и напиши там: /seed <текст>. В общей ветке засевать нечего.');
+        return true;
+      }
+      if (!body) {
+        say('Использование: /seed <текст> — засеять эту тему текстом и закрепить его.');
+        return true;
+      }
+      if (!ctx.seedTopic) {
+        say('Посев недоступен: мост старой версии.');
+        return true;
+      }
+      const res = await ctx.seedTopic(ctx.chatId, ctx.threadId, body);
+      say(res ? `Тема засеяна и закреплена (сообщение ${res}).` : 'Не смог засеять тему — смотри лог моста.');
+      return true;
+    }
+
+    case '/lang': {
+      const wanted = normalizeLang((arg || '').trim());
+      if (!wanted) {
+        say(`Язык: ${state.lang?.[key] || config.lang || 'auto'}
+Доступно: ${LANGS.join(', ')}
+Переключить: /lang en`);
+        return true;
+      }
+      state.lang = state.lang || {};
+      state.lang[key] = wanted;
+      ctx.saveState();
+      say(t(wanted, 'msg.langSet'));
+      return true;
+    }
+
+    case '/help': {
+      // One translated body keeps the help in step with the menu; the Russian
+      // text stays as the fallback when a key is missing.
+      const helpLang = normalizeLang(state.lang?.[key] || config.lang) || 'ru';
+      say(t(helpLang, 'help.body'));
+      return true;
+    }
+
+    case '/doctor': {
+      // One command that answers "why is it broken?" instead of a conversation.
+      const rows = [];
+      const add = (label, value) => rows.push(`${label}: ${value}`);
+
+      // Bridge process + pid file.
+      let pid = 0;
+      try {
+        pid = Number(readFileSync(join(DSH_HOME, 'tg-bridge', 'bridge.pid'), 'utf8').trim());
+      } catch {}
+      add('Мост pid', pid || 'нет файла');
+      if (pid) {
+        try {
+          process.kill(pid, 0);
+          add('Мост жив', 'да');
+        } catch (error) {
+          add('Мост жив', error.code === 'EPERM' ? 'да (EPERM)' : 'НЕТ');
+        }
+      }
+
+      // Telegram reachability + bot identity.
+      try {
+        const me = await ctx.api?.('getMe');
+        add('Telegram', me?.username ? `ok @${me.username}` : 'ok');
+      } catch (error) {
+        add('Telegram', `ОШИБКА ${error.message}`);
+      }
+
+      // Conflicts and network errors SINCE THE CURRENT PROCESS STARTED.
+      //
+      // Counting the last N lines of the whole file reported 39 conflicts and
+      // 84 network errors while the running bridge had none: those lines
+      // belonged to earlier processes. A diagnostic that cries wolf is worse
+      // than no diagnostic, so the window starts at the last "bridge started".
+      try {
+        const lines = readFileSync(join(DSH_HOME, 'tg-bridge', 'bridge.log'), 'utf8').split(/\r?\n/).filter(Boolean);
+        let start = 0;
+        for (let i = lines.length - 1; i >= 0; i -= 1) {
+          if (lines[i].includes('bridge started')) {
+            start = i;
+            break;
+          }
+        }
+        const since = lines.slice(start).join('\n');
+        const conflicts = (since.match(/409|Conflict: terminated/g) ?? []).length;
+        const net = (since.match(/poll error|fetch failed|TG_NET/g) ?? []).length;
+        add('409 с последнего старта', String(conflicts));
+        add('сетевых ошибок с последнего старта', String(net));
+        add('строк лога с последнего старта', String(lines.length - start));
+      } catch {}
+
+      // Disk space: the silent killer of model downloads and OCR.
+      try {
+        const drives = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', '(Get-PSDrive C).Free'], {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 15000,
+        });
+        const free = Number(drives) || 0;
+        add('Диск C:', `${(free / 1024 ** 3).toFixed(1)} ГБ свободно`);
+      } catch {}
+
+      // Project directory bound to this topic and whether it exists.
+      const cwd = (state.cwd && state.cwd[key]) || config.cwd;
+      add('Каталог темы', `${cwd}${existsSync(cwd) ? '' : ' (НЕТ ТАКОГО)'}`);
+
+      add('Сессия', state.sessions[key] || '(новая)');
+      say(`Диагностика\n\n${rows.join('\n')}`);
+      return true;
+    }
+
+    case '/logs': {
+      // `/logs` — meaningful events, `/logs 100` — more, `/logs <text>` —
+      // filter, `/logs errors` — failures only.
+      const file = join(DSH_HOME, 'tg-bridge', 'bridge.log');
+      let lines = [];
+      try {
+        lines = readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
+      } catch (error) {
+        say(`Не могу прочитать лог: ${error.message}`);
+        return true;
+      }
+      const numeric = Number(arg);
+      const count = Number.isInteger(numeric) && numeric > 0 ? Math.min(numeric, 200) : 30;
+      const filter = Number.isInteger(numeric) ? '' : (arg || '').trim();
+
+      // Delivery chatter ("in 123", "sent chat=...") answers nothing when the
+      // question is "what did the agent do". It stays in the file for delivery
+      // debugging but is hidden from the chat view.
+      const isChatter = (line) =>
+        /\bsent chat=/.test(line)
+        || /\bin \d+ /.test(line)
+        || /bridge started|bot @|replaying \d+ pending|topic \d+ (?:seeded|logged)/.test(line);
+
+      let pool;
+      if (filter === 'errors') {
+        pool = lines.filter((line) => /turn failed|ОШИБКА|error|poll error|409|Conflict|quota|AUTH/i.test(line));
+      } else if (filter) {
+        const needle = filter.toLowerCase();
+        pool = lines.filter((line) => line.toLowerCase().includes(needle));
+      } else {
+        pool = lines.filter((line) => !isChatter(line));
+      }
+
+      if (pool.length === 0) {
+        say(filter ? `В логе нет строк с «${filter}».` : 'Лог пуст.');
+        return true;
+      }
+      const tail = pool.slice(-count);
+      const header = filter === 'errors' ? `Ошибки (${tail.length} из ${pool.length})` : `Лог (${tail.length} из ${pool.length})`;
+      say(`${header}\n\n${tail.join('\n')}`);
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}
+
+export { DSH_HOME, modelOf, modelsOf, pluginsOf, recentSessions, skillsOf, soulOf };

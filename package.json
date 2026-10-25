@@ -1,0 +1,68 @@
+{
+  "name": "dsh-tg-bridge",
+  "version": "1.5.3",
+  "description": "Telegram bridge for DeepSeek Harness: text, voice, photos and project-per-topic sessions without opening the desktop app",
+  "type": "module",
+  "main": "plugin-bridge.mjs",
+  "bin": {
+    "dsh-tg": "./cli.mjs"
+  },
+  "scripts": {
+    "start": "node bridge.mjs",
+    "setup": "node setup.mjs",
+    "check": "node setup.mjs --check",
+    "menu": "node bot-menu.mjs",
+    "doctor": "node bridge-kick.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0 || >=0.2.2-rc.1 <0.3.0-0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aleksvega/dsh-tg-bridge.git"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "telegram",
+    "bridge",
+    "bot",
+    "whisper",
+    "voice"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "files": [
+    "bridge.mjs",
+    "plugin-bridge.mjs",
+    "cordis.patch.yml",
+    "control.mjs",
+    "goals.mjs",
+    "goal.mjs",
+    "i18n.mjs",
+    "prices.mjs",
+    "setup.mjs",
+    "bot-menu.mjs",
+    "bridge-kick.mjs",
+    "bridge-restart-idle.mjs",
+    "restart-after-send.mjs",
+    "transcribe.py",
+    "cli.mjs",
+    "README.md",
+    "LICENSE",
+    "config.example.json",
+    "patches/",
+    "queue-notice.mjs",
+    "immediate.mjs",
+    "say.mjs",
+    "steer-queue.mjs",
+    "plugin/"
+  ]
+}

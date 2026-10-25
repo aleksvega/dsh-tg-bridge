@@ -1,0 +1,4 @@
+- id: agent-default-model
+  config:
+    provider: unorouter
+    model: kimi-k3:free
