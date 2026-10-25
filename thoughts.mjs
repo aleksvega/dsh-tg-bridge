@@ -108,4 +108,55 @@ export function lastTurnText(file, { maxChars = 1500 } = {}) {
   return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
 }
 
+/**
+ * What a `/status` card wants to know about a session: when it started, when it
+ * last did anything, which model answered, how big the context is now, and how
+ * many tokens were billed over the session's whole life.
+ *
+ * `totalTokens` on an assistant message is the size of the prompt that turn sent
+ * (input + cache read), i.e. the current context — not the lifetime total, which
+ * is the sum over every call.
+ */
+export function sessionStats(file) {
+  const empty = { createdAt: 0, lastActivity: 0, model: '', contextTokens: 0, lifetimeTokens: 0, turns: 0 };
+  if (!file || !existsSync(file)) return empty;
+  let buf;
+  try {
+    buf = readFileSync(file);
+  } catch {
+    return empty;
+  }
+  const stats = { ...empty };
+  const starts = frameStarts(buf);
+  for (let i = 0; i < starts.length - 1; i++) {
+    let text = '';
+    try {
+      text = zstdDecompressSync(buf.subarray(starts[i], starts[i + 1])).toString('utf8');
+    } catch {
+      continue;
+    }
+    for (const line of text.split('\n')) {
+      if (!line) continue;
+      let record;
+      try {
+        record = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (record.type === 'session' && record.createdAt) stats.createdAt = record.createdAt;
+      if (record.type === 'turn/start') stats.turns += 1;
+      if (record.time) stats.lastActivity = Math.max(stats.lastActivity, record.time);
+      if (record.type !== 'assistant/message') continue;
+      const usage = record.data?.usage;
+      if (usage) {
+        if (Number.isFinite(usage.totalTokens)) stats.contextTokens = usage.totalTokens;
+        const billed = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) + (usage.cacheReadTokens ?? 0);
+        stats.lifetimeTokens += billed;
+      }
+      if (!stats.model && record.data?.message?.model) stats.model = record.data.message.model;
+    }
+  }
+  return stats;
+}
+
 export { frameStarts };

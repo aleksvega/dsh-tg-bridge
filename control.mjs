@@ -11,7 +11,7 @@ import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
 import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
-import { lastTurnReasoning, lastTurnText, sessionFile } from './thoughts.mjs';
+import { lastTurnReasoning, lastTurnText, sessionFile, sessionStats } from './thoughts.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -296,9 +296,16 @@ function bareId(id) {
   return String(id).replace(/^session-/, '');
 }
 
+/** `2026-10-25 17:11` in the machine's own zone, for the status card. */
+function stamp(ms) {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return '—';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /** Recent DSH sessions of this workspace, newest first, with their titles. */
-function recentSessions(cwd, limit, lang = 'ru') {
-  const root = join(DSH_HOME, 'sessions');
+function recentSessions(cwd, limit, lang = 'ru') {  const root = join(DSH_HOME, 'sessions');
   const rows = [];
   let dirs = [];
   try {
@@ -455,24 +462,44 @@ export async function handleControl(ctx) {
   switch (effective) {
     case '/status': {
       const head = modelOf(activeProfile);
-      const session = state.sessions[key] || t(lang, 'ctrl.session.none');
       const active = ctx.activeTurns ? ctx.activeTurns.size : 0;
-      const lines = [
-        t(lang, 'ctrl.status.profile', { name: activeProfile, route: `${head.provider}/${head.model}` }),
-        t(lang, 'ctrl.status.thread', { name: ctx.threadId || t(lang, 'ctrl.status.threadDefault') }),
-        t(lang, 'ctrl.status.session', { id: session }),
-        t(lang, 'ctrl.status.turns', { n: active }),
-        t(lang, 'ctrl.status.notes', {
-          state: reasoningOf(state, config, key) ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
-        }),
-        t(lang, 'ctrl.status.skills', { n: skillsOf().length }),
-        `DSH_HOME: ${DSH_HOME}`,
-      ];
+      // A card, not a key dump: the identity first, then what the session is
+      // doing, then the environment. Numbers are the ones a person asks for
+      // ("how much context is left", "how big is this session").
+      const sessionId = state.sessions[key] || '';
+      const stats = sessionId ? sessionStats(sessionFile(join(DSH_HOME, 'sessions'), sessionId)) : null;
+      const title = sessionId ? state.titles?.[key] : '';
+      const lines = [t(lang, 'ctrl.status.head')];
+      lines.push(t(lang, 'ctrl.status.session', { id: sessionId ? `${sessionId.slice(0, 8)}…` : t(lang, 'ctrl.session.none') }));
+      if (title) lines.push(t(lang, 'ctrl.status.title', { title }));
+      lines.push(t(lang, 'ctrl.status.profile', { name: activeProfile, route: `${head.provider}/${head.model}` }));
+      lines.push(t(lang, 'ctrl.status.thread', { name: ctx.threadId || t(lang, 'ctrl.status.threadDefault') }));
+      if (stats?.createdAt) lines.push(t(lang, 'ctrl.status.created', { when: stamp(stats.createdAt) }));
+      if (stats?.lastActivity) lines.push(t(lang, 'ctrl.status.activity', { when: stamp(stats.lastActivity) }));
+      if (stats?.contextTokens) {
+        const window = Number(config.contextWindow) || 0;
+        lines.push(window
+          ? t(lang, 'ctrl.status.context', {
+            now: stats.contextTokens.toLocaleString('en-US'),
+            max: window.toLocaleString('en-US'),
+            pct: Math.round((stats.contextTokens / window) * 100),
+          })
+          : t(lang, 'ctrl.status.contextNoWindow', { now: stats.contextTokens.toLocaleString('en-US') }));
+      }
+      if (stats?.lifetimeTokens) {
+        lines.push(t(lang, 'ctrl.status.lifetime', { n: stats.lifetimeTokens.toLocaleString('en-US') }));
+      }
+      if (stats?.turns) lines.push(t(lang, 'ctrl.status.steps', { n: stats.turns }));
+      lines.push(t(lang, 'ctrl.status.turns', { n: active }));
+      lines.push(t(lang, 'ctrl.status.notes', {
+        state: reasoningOf(state, config, key) ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
+      }));
+      lines.push(t(lang, 'ctrl.status.skills', { n: skillsOf().length }));
       // The desktop profile only matters when this install actually has one.
       if (existsSync(join(PROFILES, 'desktop', 'cordis.patch.yml'))) {
         const desk = modelOf('desktop');
         const deskPlugins = pluginsOf('desktop');
-        lines.splice(1, 0, t(lang, 'ctrl.status.ui', {
+        lines.push(t(lang, 'ctrl.status.ui', {
           route: `${desk.provider}/${desk.model}`,
           n: deskPlugins.bundles.length,
         }));
@@ -484,6 +511,7 @@ export async function handleControl(ctx) {
           done, total, text: currentGoal.text.length > 60 ? `${currentGoal.text.slice(0, 59)}…` : currentGoal.text,
         }));
       }
+      lines.push(`DSH_HOME: ${DSH_HOME}`);
       say(lines.join('\n'));
       return true;
     }
@@ -826,10 +854,14 @@ export async function handleControl(ctx) {
       const wanted = (arg || '').trim().replace(/^"|"$/g, '');
       state.cwd = state.cwd || {};
       if (!wanted) {
-        const current = state.cwd[key] || config.cwd;
+        // A topic without its own directory still has one: the bridge default.
+        // Printing an empty line there reads as "nothing is bound".
+        const current = state.cwd[key] || config.cwd || '';
         const lines = [
           t(lang, 'ctrl.cd.current'),
-          current,
+          current
+            ? `${current}${state.cwd[key] ? '' : t(lang, 'ctrl.cd.defaultSuffix')}`
+            : t(lang, 'ctrl.cd.unset'),
           '',
           t(lang, 'ctrl.cd.bind'),
           t(lang, 'ctrl.cd.resetHint'),
@@ -1075,9 +1107,14 @@ export async function handleControl(ctx) {
         add(t(lang, 'ctrl.doctor.disk'), t(lang, 'ctrl.doctor.diskFree', { gb: (free / 1024 ** 3).toFixed(1) }));
       } catch {}
 
-      // Project directory bound to this topic and whether it exists.
-      const cwd = (state.cwd && state.cwd[key]) || config.cwd;
-      add(t(lang, 'ctrl.doctor.cwd'), `${cwd}${existsSync(cwd) ? '' : t(lang, 'ctrl.doctor.cwdMissing')}`);
+      // Project directory bound to this topic and whether it exists. The bridge
+      // default is a fact, not an accident: say when it is being used.
+      const bound = state.cwd && state.cwd[key];
+      const cwd = bound || config.cwd || '';
+      const shown = cwd
+        ? `${cwd}${bound ? '' : t(lang, 'ctrl.doctor.cwdDefault')}${existsSync(cwd) ? '' : t(lang, 'ctrl.doctor.cwdMissing')}`
+        : t(lang, 'ctrl.doctor.cwdUnset');
+      add(t(lang, 'ctrl.doctor.cwd'), shown);
 
       add(t(lang, 'ctrl.doctor.session'), state.sessions[key] || t(lang, 'ctrl.doctor.sessionNew'));
       say(`${t(lang, 'ctrl.doctor.title')}\n\n${rows.join('\n')}`);

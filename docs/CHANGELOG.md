@@ -1,5 +1,24 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.1 — 2026-10-25
+
+- `/status` is a card now, not a key dump: session title, when it was created and
+  last active, how full the context is (`Context: 78,450 / 1,000,000 (8%)`, with
+  the window taken from `contextWindow` in `config.json`), how many tokens the
+  session billed over its whole life, how many turns it holds, and whether the
+  working notes are on. The numbers come from the session log itself
+  (`sessionStats` in `thoughts.mjs`), so they are right even for a session this
+  process does not hold.
+- `/thoughts` no longer dead-ends on a turn that planned nothing (a one-word "ok"
+  has no reasoning part): it says so and shows what that turn answered instead.
+- `/cd` with nothing bound printed an empty line where the directory belongs. It
+  now says the bridge default is in use, or that nothing is set at all, and
+  `/doctor` marks a default directory as inherited rather than silently shown.
+- `sync-runtime.mjs`: one command copies the repo modules over the live bridge
+  directory with a timestamped backup. Several fixes in this release had landed
+  in the repo while the running copy kept the old file, so `npm test` passed and
+  the bot still answered from stale code.
+
 ## 1.7.0 — 2026-10-25
 
 - A command typed during a long turn is answered at once, not after it. The
