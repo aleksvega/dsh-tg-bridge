@@ -1013,16 +1013,19 @@ async function startProgress(chatId, threadId, lang = 'ru') {
     });
   };
 
-  /** Send or edit the panel; a rejected parse falls back to the plain twin. */
+  /** Send or edit the panel; `plainText` and a rejected parse fall back to text. */
   const post = async (method, payload, view, keyboard = undefined) => {
-    const body = { ...payload, text: view.html, parse_mode: 'HTML' };
+    const markup = config.plainText !== true;
+    const body = markup
+      ? { ...payload, text: view.html, parse_mode: 'HTML' }
+      : { ...payload, text: view.plain };
     if (keyboard !== undefined) body.reply_markup = keyboard ?? { inline_keyboard: [] };
+    if (!markup) return tg(method, body);
     try {
       return await tg(method, body);
     } catch (error) {
       log(`${method} html failed (${String(error.message).slice(0, 100)}); retrying as plain text`);
       const plain = { ...payload, text: view.plain };
-      delete plain.parse_mode;
       if (keyboard !== undefined) plain.reply_markup = keyboard ?? { inline_keyboard: [] };
       return tg(method, plain);
     }

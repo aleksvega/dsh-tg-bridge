@@ -1,5 +1,11 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.8.1 — 2026-10-25
+
+- The turn panel respects `plainText: true`: it was sending the reasoning block as
+  HTML regardless, which is exactly what someone who turned markup off does not
+  want. Such an install now gets the same content without the tags.
+
 ## 1.8.0 — 2026-10-25
 
 The settings the desktop app exposes as panels, and the reasoning it streams as a
