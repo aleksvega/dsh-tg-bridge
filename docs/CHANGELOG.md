@@ -1,5 +1,53 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.8.0 — 2026-10-25
+
+The settings the desktop app exposes as panels, and the reasoning it streams as a
+section, reach the chat — each as one edited message instead of a stream of
+notifications.
+
+- **`/agents set model|depth|filter <value> @<tool>`** writes a delegation row in
+  the profile patch: which model a child runs, its `maxDepth`, its tool filter
+  (`deny:` list). A single row needs `@tool`, because a bare list of names is
+  ambiguous with a filter list. An unknown tool is named back with the list of
+  real rows instead of a wrong "depth" error. The patch is written atomically
+  with a rolling `.bak`: it decides every later turn, so a half-written file must
+  never exist.
+- **`/effort`** reads the ids the route itself declares (`reasoningEfforts` in
+  the model catalog), offers exactly those, shows the current one and writes or
+  removes `reasoningEffort`. A value the route does not declare is refused; a
+  route that declares nothing gets the value written with an explicit warning
+  that nobody promised it works.
+- **`/permissions`** lists the sandbox/approval presets in the profile, marks the
+  current one and switches it. On an app-managed profile the table is owned by
+  the bundle and the card says so instead of inventing a config row.
+- **`/preset`** lists the agent presets a profile declares and switches the
+  pinned registry default; a profile that declares none is described, not
+  guessed at.
+- **`/plan`** reads the session's plan projection: whether plan mode is on, what
+  it is waiting for, and how to ask for a plan. It is read-only on purpose —
+  headless cannot dispatch a mode change, and saying "off" when the truth is
+  "unknown" would be worse than saying "unknown".
+- **`/jobs`** is the jobs panel for this bridge: running turns with their topic,
+  the queue depth and the parallelism cap. DSH jobs live inside the per-turn
+  child process and die with it, so a panel that claimed otherwise would lie.
+- **`/remind`** adds, lists, deletes and clears reminders (`+15m`, `+2h`, `+1d`,
+  `HH:MM`). The scheduler is the bridge's own: the headless host exits after each
+  turn, so a DSH schedule would never fire. Entries are per chat, capped at 20,
+  and delivery is a plain message in the topic that asked.
+- **Live reasoning**: the CLI's `thinking` events are folded into the turn's
+  progress message as a native `<blockquote expandable>` — collapsed it is one
+  line, tapped it shows the whole trail, and it stays with the turn after the
+  turn ends. Edits are throttled, text is escaped, long reasoning keeps its tail
+  with a "beginning hidden" note, and a rejected markup falls back to plain text
+  rather than freezing the panel.
+- `profile-edit.mjs` (indent-aware YAML row editor, `.bak`, atomic rename),
+  `reminders.mjs` (parser + schedule helpers) and `panel.mjs` (the turn view) are
+  separate modules with their own tests; the panel was split out because
+  importing `bridge.mjs` claims the pid file and exits when a bridge is running.
+- Six new commands in the menu and `/help` in all three languages; i18n parity is
+  enforced by a test, not by review.
+
 ## 1.7.7 — 2026-10-25
 
 - `/agents` answers the question the desktop sidebar answers: who can this

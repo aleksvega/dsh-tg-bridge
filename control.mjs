@@ -5,14 +5,16 @@
 // Everything works on the same files DSH itself reads, so a running desktop app
 // and a headless turn see the same state; commands that need a reload say so.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
 import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
 import { lastTurnReasoning, lastTurnText, sessionFile, sessionStats } from './thoughts.mjs';
-import { parseModelSelection, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
+import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
+import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
+import { parseReminder, stampAt, upcoming } from './reminders.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -171,6 +173,20 @@ function setDisabled(profile, id, disabled) {
   }
   writeFileSync(path, entries.join('\n'), 'utf8');
   return true;
+}
+
+/**
+ * Replace a profile patch atomically, keeping the previous file as `.bak`.
+ * A turn booting during the write must read either the old or the new file:
+ * the patch decides what every later turn may do, and half a file is a profile
+ * that fails to start.
+ */
+function writePatch(profile, text) {
+  const path = patchPath(profile);
+  try { copyFileSync(path, `${path}.bak`); } catch {}
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync(tmp, text, 'utf8');
+  renameSync(tmp, path);
 }
 
 /** Installed packages plus the bundle list of a profile. */
@@ -460,7 +476,8 @@ function goalView(goal, lang) {
  * command and the caller must not run a turn.
  */
 export const CONTROL_COMMANDS = [
-  'status', 'models', 'model', 'profile', 'agents', 'sessions', 'resume', 'plugins', 'plugin',
+  'status', 'models', 'model', 'effort', 'profile', 'agents', 'preset', 'permissions', 'plan',
+  'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task',
   'thoughts', 'version', 'update',
@@ -713,6 +730,87 @@ export async function handleControl(ctx) {
       const fleet = fleetOf(state.sessions?.[key]);
       const wanted = String(arg || '').trim();
 
+      if (wanted === 'set' || wanted.startsWith('set ')) {
+        // The desktop settings page writes these rows; a person away from the
+        // desk needs the same three knobs that decide what a child costs:
+        // its model, how deep it may delegate, and which tools it may not use.
+        const [, knob = '', ...rest] = wanted.split(/\s+/);
+        let target = rest.join(' ').trim();
+        // The row is named with `@`, not by a bare last word: "subagent" is also
+        // a legitimate tool-filter entry, so a trailing bare name would make
+        // `/agents set filter workflow,subagent` mean something else.
+        const at = /(^|\s)@([\w.-]+)$/.exec(target);
+        if (at && !rows.some((row) => row.toolName === at[2])) {
+          say(t(lang, 'ctrl.agents.setNoRow', {
+            tool: at[2],
+            list: rows.map((row) => `@${row.toolName}`).join(', ') || '—',
+          }));
+          return true;
+        }
+        const only = at ? at[2] : '';
+        if (only) target = target.slice(0, at.index).trim();
+        const match = only
+          ? (row) => new RegExp(`toolName:\\s*['"]?${only.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]?\\s*(\\n|$)`).test(row.text)
+          : undefined;
+        const write = (path, next) => setRowConfig(read(patchPath(profileName)), {
+          pkg: '@deepseek-ai/dsh-tool-subagent', path, value: next, match,
+        });
+        const done = (next) => {
+          if (!next) {
+            // Removing a key that is not there, or writing the value that is
+            // already set: the profile is already in the asked-for state.
+            say(t(lang, 'ctrl.agents.setSame'));
+            return true;
+          }
+          writePatch(profileName, next);
+          const after = agentsOf(profileName).rows;
+          const line = after.map((row) => t(lang, 'ctrl.agents.setLine', {
+            tool: row.toolName,
+            model: row.model || t(lang, 'ctrl.agents.hostModel'),
+            depth: row.maxDepth || t(lang, 'ctrl.agents.hostDepth'),
+            deny: row.toolDeny,
+          })).join('\n');
+          say([t(lang, 'ctrl.agents.setDone', { name: profileName }), line].join('\n'));
+          return true;
+        };
+
+        if (knob === 'model') {
+          if (!target) { say(t(lang, 'ctrl.agents.setUsage')); return true; }
+          const ids = modelsOf(profileName);
+          if (ids.length > 0 && !ids.includes(target)) {
+            say(t(lang, 'ctrl.agents.setUnknownModel', { model: target, list: ids.join(', ') }));
+            return true;
+          }
+          return done(write(['agentOptions', 'model'], target));
+        }
+        if (knob === 'depth') {
+          if (!target) { say(t(lang, 'ctrl.agents.setUsage')); return true; }
+          if (target === 'default' || target === 'host') {
+            return done(unsetRowConfig(read(patchPath(profileName)), {
+              pkg: '@deepseek-ai/dsh-tool-subagent', path: ['maxDepth'], match,
+            }));
+          }
+          if (!/^\d+$/.test(target) || Number(target) < 1 || Number(target) > 10) {
+            say(t(lang, 'ctrl.agents.setBadDepth'));
+            return true;
+          }
+          return done(write(['maxDepth'], Number(target)));
+        }
+        if (knob === 'filter') {
+          if (!target) { say(t(lang, 'ctrl.agents.setUsage')); return true; }
+          if (target === 'none' || target === 'off') {
+            return done(unsetRowConfig(read(patchPath(profileName)), {
+              pkg: '@deepseek-ai/dsh-tool-subagent', path: ['toolFilter'], match,
+            }));
+          }
+          const denied = target.split(',').map((name) => name.trim()).filter(Boolean);
+          if (denied.length === 0) { say(t(lang, 'ctrl.agents.setUsage')); return true; }
+          return done(write(['toolFilter', 'deny'], denied));
+        }
+        say(t(lang, 'ctrl.agents.setUsage'));
+        return true;
+      }
+
       if (wanted) {
         const needle = wanted.replace(/^session-/, '').toLowerCase();
         const child = fleet.children.find((row) => row.id.replace(/^session-/, '').toLowerCase().startsWith(needle)
@@ -769,6 +867,266 @@ export async function handleControl(ctx) {
       }
       lines.push(t(lang, 'ctrl.agents.hint'));
       say(lines.join('\n'));
+      return true;
+    }
+
+    case '/effort': {
+      // Reasoning effort is a provider-owned id on the default model. The route
+      // declares which ones it accepts, so the card offers exactly those.
+      const head = modelOf(activeProfile);
+      const efforts = parseReasoningEfforts(read(patchPath(activeProfile)), head.model);
+      const current = (() => {
+        const block = /- id: agent-default-model[\s\S]*?(?=\n- id:|\n- insert:|$)/.exec(read(patchPath(activeProfile)));
+        const hit = block && /^\s+reasoningEffort:\s*(\S+)/m.exec(block[0]);
+        return hit ? hit[1] : '';
+      })();
+      const wanted = String(arg || '').trim().toLowerCase();
+      if (!wanted) {
+        say([
+          t(lang, 'ctrl.effort.title', { route: `${head.provider}/${head.model}` }),
+          current ? t(lang, 'ctrl.effort.current', { value: current }) : t(lang, 'ctrl.effort.unset'),
+          efforts.length ? t(lang, 'ctrl.effort.options', { list: efforts.join(', ') }) : t(lang, 'ctrl.effort.noOptions'),
+          t(lang, 'ctrl.effort.hint'),
+        ].join('\n'));
+        return true;
+      }
+      if (wanted === 'off' || wanted === 'none' || wanted === 'default') {
+        const next = unsetRowConfig(read(patchPath(activeProfile)), {
+          pkg: '@deepseek-ai/dsh-agent-default-model', path: ['reasoningEffort'],
+        });
+        say(next ? (writePatch(activeProfile, next), t(lang, 'ctrl.effort.cleared')) : t(lang, 'ctrl.effort.already'));
+        return true;
+      }
+      if (efforts.length > 0 && !efforts.includes(wanted)) {
+        say(t(lang, 'ctrl.effort.unknown', { value: wanted, list: efforts.join(', ') }));
+        return true;
+      }
+      const next = setRowConfig(read(patchPath(activeProfile)), {
+        pkg: '@deepseek-ai/dsh-agent-default-model', path: ['reasoningEffort'], value: wanted,
+      });
+      if (!next) { say(t(lang, 'ctrl.effort.already')); return true; }
+      writePatch(activeProfile, next);
+      // With no catalog there is nothing to validate against, and refusing every
+      // value would make the knob useless on such a route. Write it, but say
+      // plainly that nobody promised the provider accepts it.
+      say(efforts.length > 0
+        ? t(lang, 'ctrl.effort.set', { value: wanted, name: activeProfile })
+        : t(lang, 'ctrl.effort.blind', { value: wanted, name: activeProfile }));
+      return true;
+    }
+
+    case '/permissions': {
+      // Sandbox and approval policy decide what a turn may touch. The desktop
+      // shows them as a preset picker; here they are a profile row, so the
+      // switch is honest about being profile-wide: every topic on this profile
+      // changes with it.
+      const table = parsePermissionPresets(read(patchPath(activeProfile)));
+      if (!table) {
+        say(t(lang, 'ctrl.perm.none', { name: activeProfile }));
+        return true;
+      }
+      const wanted = String(arg || '').trim();
+      if (!wanted) {
+        const lines = [
+          t(lang, 'ctrl.perm.title', { name: activeProfile }),
+          table.current
+            ? t(lang, 'ctrl.perm.current', { name: table.current })
+            : t(lang, 'ctrl.perm.noCurrent'),
+        ];
+        for (const preset of table.presets) {
+          const mark = preset.id === table.current ? '*' : ' ';
+          lines.push(`  ${mark} ${preset.id}${preset.sandbox ? ` — ${preset.sandbox}, ${preset.approval || '?'}` : ''}`);
+        }
+        if (table.presets.length === 0) lines.push(t(lang, 'ctrl.perm.noPresets'));
+        lines.push(t(lang, 'ctrl.perm.hint'));
+        say(lines.join('\n'));
+        return true;
+      }
+      if (!table.presets.some((preset) => preset.id === wanted)) {
+        say(t(lang, 'ctrl.perm.unknown', {
+          name: wanted,
+          list: table.presets.map((preset) => preset.id).join(', '),
+        }));
+        return true;
+      }
+      if (wanted === table.current) {
+        say(t(lang, 'ctrl.perm.already', { name: wanted }));
+        return true;
+      }
+      const next = setRowConfig(read(patchPath(activeProfile)), {
+        pkg: '@deepseek-ai/dsh-permission-presets', path: ['defaultPreset'], value: wanted,
+      });
+      if (!next) { say(t(lang, 'ctrl.perm.already', { name: wanted })); return true; }
+      writePatch(activeProfile, next);
+      say(t(lang, 'ctrl.perm.set', { name: wanted, profile: activeProfile }));
+      return true;
+    }
+
+    case '/preset': {
+      // A preset is a composition (persona, instructions, tools); a profile can
+      // carry several and a registry row picks the default one. A profile may
+      // declare presets and no registry row — the desktop app then owns the
+      // choice, and this card must not invent one.
+      const text = read(patchPath(activeProfile));
+      const { presets, selected } = parseAgentPresets(text);
+      const pinned = selected !== '' || /@deepseek-ai\/dsh-agent-preset-registry/.test(text);
+      const wanted = String(arg || '').trim();
+      if (presets.length === 0) {
+        say(t(lang, 'ctrl.preset.none', { name: activeProfile }));
+        return true;
+      }
+      if (!wanted) {
+        const active = selected;
+        const lines = [t(lang, 'ctrl.preset.title', { name: activeProfile })];
+        for (const preset of presets) {
+          lines.push(`  ${preset.id === active ? '*' : ' '} ${preset.id}`);
+        }
+        if (!active) lines.push(t(lang, 'ctrl.preset.unpinned', { name: activeProfile }));
+        lines.push(t(lang, 'ctrl.preset.hint'));
+        say(lines.join('\n'));
+        return true;
+      }
+      if (!presets.some((preset) => preset.id === wanted)) {
+        say(t(lang, 'ctrl.preset.unknown', {
+          name: wanted,
+          list: presets.map((preset) => preset.id).join(', '),
+        }));
+        return true;
+      }
+      if (!pinned) {
+        say(t(lang, 'ctrl.preset.unpinned', { name: activeProfile }));
+        return true;
+      }
+      const next = setRowConfig(text, {
+        pkg: '@deepseek-ai/dsh-agent-preset-registry', path: ['selectedDefault'], value: wanted,
+      });
+      if (!next) { say(t(lang, 'ctrl.preset.already', { name: wanted })); return true; }
+      writePatch(activeProfile, next);
+      say(t(lang, 'ctrl.preset.set', { name: wanted, profile: activeProfile }));
+      return true;
+    }
+
+    case '/plan': {
+      // Plan mode is a session-log switch the host writes, so a Telegram turn
+      // cannot flip it. What this card can do is tell the truth about the state
+      // and give the one instruction that produces a plan without changes.
+      const fleet = fleetOf(state.sessions?.[key]);
+      const lines = [t(lang, 'ctrl.plan.title', { name: activeProfile })];
+      if (!fleet.plan) {
+        lines.push(t(lang, 'ctrl.plan.unknown'));
+      } else {
+        lines.push(t(lang, 'ctrl.plan.state', {
+          state: fleet.plan.active ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
+        }));
+        if (fleet.plan.pending) lines.push(t(lang, 'ctrl.plan.pending'));
+      }
+      lines.push(t(lang, 'ctrl.plan.how'));
+      say(lines.join('\n'));
+      return true;
+    }
+
+    case '/jobs': {
+      // A turn is one short-lived process, so DSH's own job list dies with it.
+      // What survives — and what a person waiting on a reply actually needs —
+      // is the bridge's queue: which topics are running now, for how long, and
+      // how many waits behind them.
+      const snapshot = ctx.jobs ? ctx.jobs() : { active: [], queued: 0, max: 0 };
+      const lines = [t(lang, 'ctrl.jobs.title')];
+      if (snapshot.active.length === 0) {
+        lines.push(t(lang, 'ctrl.jobs.idle'));
+      } else {
+        for (const turn of snapshot.active) {
+          const title = state.titles?.[turn.key] || (turn.key === key ? t(lang, 'ctrl.jobs.thisTopic') : t(lang, 'ctrl.jobs.otherTopic'));
+          const mins = turn.startedAt ? Math.max(1, Math.round((Date.now() - turn.startedAt) / 60000)) : 0;
+          lines.push(t(lang, 'ctrl.jobs.running', { title, mins }));
+        }
+      }
+      lines.push(t(lang, 'ctrl.jobs.queued', { n: snapshot.queued, max: snapshot.max }));
+      lines.push(t(lang, 'ctrl.jobs.hint'));
+      say(lines.join('\n'));
+      return true;
+    }
+
+    case '/remind': {
+      // A reminder is not a turn: the bridge stays alive between messages, so
+      // it owns the clock. A DSH schedule would live inside a one-shot turn and
+      // would never fire.
+      const input = String(arg || '').trim();
+      const now = Date.now();
+      const chatId = String(ctx.chatId || '');
+      state.reminders = Array.isArray(state.reminders) ? state.reminders : [];
+      const mine = state.reminders.filter((row) => String(row.chatId) === chatId);
+      const ahead = upcoming(mine, now);
+
+      const left = (at) => {
+        const minutes = Math.max(1, Math.round((at - now) / 60_000));
+        if (minutes < 60) return t(lang, 'ctrl.remind.inMin', { n: minutes });
+        const hours = Math.round(minutes / 60);
+        if (hours < 24) return t(lang, 'ctrl.remind.inHour', { n: hours });
+        return t(lang, 'ctrl.remind.inDay', { n: Math.round(hours / 24) });
+      };
+
+      if (!input) {
+        if (ahead.length === 0) {
+          say([t(lang, 'ctrl.remind.title'), t(lang, 'ctrl.remind.empty'), t(lang, 'ctrl.remind.hint')].join('\n'));
+          return true;
+        }
+        const lines = [t(lang, 'ctrl.remind.title')];
+        ahead.forEach((row, index) => {
+          lines.push(t(lang, 'ctrl.remind.line', {
+            n: index + 1,
+            when: stampAt(row.at, now),
+            left: left(row.at),
+            text: row.text,
+          }));
+        });
+        lines.push(t(lang, 'ctrl.remind.hint'));
+        say(lines.join('\n'));
+        return true;
+      }
+
+      const [verb = ''] = input.split(/\s+/);
+      if (/^(del|delete|rm|удали|удалить)$/i.test(verb)) {
+        const index = Number.parseInt(input.split(/\s+/)[1], 10);
+        if (!Number.isInteger(index) || index < 1 || index > ahead.length) {
+          say(t(lang, 'ctrl.remind.delUsage'));
+          return true;
+        }
+        const target = ahead[index - 1];
+        state.reminders = state.reminders.filter((row) => row.id !== target.id);
+        ctx.saveState();
+        say(t(lang, 'ctrl.remind.delDone', { n: index, text: target.text }));
+        return true;
+      }
+      if (/^(clear|очисти|очистить)$/i.test(verb)) {
+        const ids = new Set(mine.map((row) => row.id));
+        state.reminders = state.reminders.filter((row) => !ids.has(row.id));
+        ctx.saveState();
+        say(t(lang, 'ctrl.remind.cleared', { n: ids.size }));
+        return true;
+      }
+
+      const parsed = parseReminder(input, now);
+      if (parsed.error) {
+        say(t(lang, `ctrl.remind.${parsed.error}`) + `\n${t(lang, 'ctrl.remind.hint')}`);
+        return true;
+      }
+      if (mine.length >= 20) {
+        say(t(lang, 'ctrl.remind.tooMany'));
+        return true;
+      }
+      state.reminders.push({
+        id: `r${now.toString(36)}${state.reminders.length}`,
+        chatId,
+        threadId: ctx.threadId || 0,
+        key,
+        at: parsed.at,
+        text: parsed.text,
+        lang: lang || 'ru',
+        madeAt: now,
+      });
+      ctx.saveState();
+      say(t(lang, 'ctrl.remind.added', { when: stampAt(parsed.at, now), text: parsed.text }));
       return true;
     }
 

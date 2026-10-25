@@ -15,7 +15,9 @@ blocks.
   included; no second model is needed (a vision overlay stays opt-in).
 - **Project per topic**: `/cd my-app`, and all turns run from that directory.
 - **Goal and checklist per topic**: `/goal`, `/task`; both survive restarts and are prepended to every turn.
-- **Live progress**: "⏳ Working..." with steps, a timer and the cache hit rate at the end.
+- **Live progress**: one edited message per turn — steps, a timer and the cache hit rate, plus
+  the model's reasoning in a collapsed block you can tap open (no extra messages, the whole
+  trail stays with the turn).
 - **No lost messages**: a journal with acknowledgement and replay.
 - **Fail-fast**: when the quota runs out it switches to a free model right away.
 - **`dsh-tg check`**: diagnostics in one command, no changes to the system.
@@ -176,7 +178,9 @@ Send the bot:
 Work:         /cd · /new · /stop · /send · /seed
 Goals:        /goal · /task
 Sessions:     /status · /sessions · /resume
+Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <id> · /prices
+Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Extensions:   /skills · /plugins · /soul
 Diagnostics:  /doctor · /logs [errors|N|text]
@@ -253,10 +257,19 @@ and a line in `~/.dsh/profiles/headless/cordis.patch.yml`:
 The bridge checks the profile itself: if the line is missing, it does not write the task
 (it would just expire) and behaves as before, queueing the message.
 
-### Live thoughts
+### Live thoughts and reasoning
 
-The agent can leave a short decision trail inside the progress message instead of sending
-extra chat messages:
+Two things land in the same progress message, and neither sends a chat message of its own.
+
+**The model's reasoning.** Every `thinking` block the CLI commits is folded into one
+Telegram `<blockquote expandable>`: collapsed it is a single line, tapped it opens the whole
+trail of the turn, and it stays there after the turn ends — the same way the desktop app shows
+a reasoning section you can expand. The block is edited in place every few seconds (Telegram
+rate-limits edits), escaped, and trimmed to its tail when a turn thinks longer than a message
+can hold; the panel never exceeds one message. If the API refuses the markup, the same content
+is retried as plain text.
+
+**The agent's own notes.** The agent can add a short decision trail:
 
 ```bash
 node ~/.dsh/tg-bridge/say.mjs --thought "checking why the watchdog fired twice"
@@ -267,11 +280,12 @@ message shows the last two as `💭` lines. The command needs no ids: it falls b
 newest turn's thought file, because tool shells do not inherit the bridge environment.
 `--thought` never sends a Telegram message on its own.
 
-`/reasoning` is the switch for the whole mechanism. It is on by default: every turn carries a
+`/reasoning` is the switch for the 💭 mechanism. It is on by default: every turn carries a
 short instruction to leave one line at each decision point (task clear, cause found, risky
 change, result checked). `/reasoning off` drops the instruction and the `💭` lines for that
-topic — useful when the step list is all you want. The setting lives in `state.json` per topic,
-so a chatty research topic and a terse deploy topic can differ.
+topic — useful when the step list is all you want. The reasoning block is model output and is
+not switched by it; `/thoughts` copies the last turn's reasoning out as a message. The setting
+lives in `state.json` per topic, so a chatty research topic and a terse deploy topic can differ.
 
 ### Profiles per topic
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.7.7",
+  "version": "1.8.0",
   "description": "Telegram bridge for DeepSeek Harness: text, voice, photos and project-per-topic sessions without opening the desktop app",
   "type": "module",
   "main": "plugin-bridge.mjs",
@@ -45,6 +45,9 @@
     "cordis.patch.yml",
     "control.mjs",
     "agents.mjs",
+    "panel.mjs",
+    "profile-edit.mjs",
+    "reminders.mjs",
     "goals.mjs",
     "goal.mjs",
     "i18n.mjs",

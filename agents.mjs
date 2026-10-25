@@ -119,7 +119,7 @@ export function parseSubagentRows(text) {
       modelProvider: options.provider || '',
       reasoningEffort: options.reasoningEffort || '',
       maxTokens: options.maxTokens || '',
-      maxDepth: typeof config.maxDepth === 'string' ? config.maxDepth : '',
+      maxDepth: /^\d+$/.test(config.maxDepth || '') ? Number(config.maxDepth) : (config.maxDepth || ''),
       backgroundMode: config.backgroundMode || 'one-shot',
       background: config.enableRunInBackground !== 'false',
       persona: body.some((line) => /^\s*persona:\s*\S/.test(line)),
@@ -187,5 +187,116 @@ export function parseSubagentFleet(cache) {
       .sort((a, b) => b.at - a.at)
     : [];
   const policy = rows.subagentModelSelectionPolicy?.val;
-  return { children: list, policy: policy && typeof policy === 'object' ? policy : null };
+  const plan = rows.plan?.val;
+  return {
+    children: list,
+    policy: policy && typeof policy === 'object' ? policy : null,
+    plan: plan && typeof plan === 'object' ? { active: plan.active === true, pending: plan.pending === true } : null,
+  };
+}
+
+/**
+ * Reasoning efforts a provider declares for one model, in declaration order.
+ * The ids are provider-owned (`off`, `minimal` … `max`), so the list has to come
+ * from the route's own catalog: writing an effort the route never declared would
+ * only fail on the next turn.
+ * @param {string} text profile patch
+ * @param {string} modelId model the profile currently runs
+ */
+export function parseReasoningEfforts(text, modelId) {
+  const lines = String(text || '').split(/\r?\n/);
+  const start = lines.findIndex((line) => new RegExp(`^\\s*-\\s*id:\\s*${modelId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`).test(line));
+  if (start < 0) return [];
+  const indent = indentOf(lines[start]);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (!lines[i].trim()) continue;
+    if (indentOf(lines[i]) <= indent) { end = i; break; }
+  }
+  let effortAt = -1;
+  for (let i = start + 1; i < end; i += 1) {
+    if (/^\s*reasoningEfforts:\s*$/.test(lines[i])) { effortAt = i; break; }
+  }
+  if (effortAt < 0) return [];
+  const effortIndent = indentOf(lines[effortAt]);
+  const out = [];
+  for (let i = effortAt + 1; i < end; i += 1) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    if (indentOf(line) <= effortIndent) break;
+    const key = /^\s*([a-z]+):/.exec(line);
+    if (key) out.push(key[1]);
+  }
+  return out;
+}
+
+/**
+ * The permission table of a profile: the presets it declares and the one it
+ * starts in. The bridge runs unattended, so this is the knob that decides
+ * whether a turn may write outside its workspace.
+ * @param {string} text profile patch
+ */
+export function parsePermissionPresets(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const at = lines.findIndex((line) => /^\s*name:\s*['"]?@deepseek-ai\/dsh-permission-presets['"]?\s*$/.test(line));
+  if (at < 0) return null;
+  const { body } = rowAt(lines, at);
+  const configAt = blockStart(body, 'config');
+  if (configAt < 0) return null;
+  const config = blockKeys(body.slice(configAt + 1), indentOf(body[configAt]));
+  const presets = [];
+  const tableAt = blockStart(body, 'presets');
+  if (tableAt >= 0) {
+    const indent = indentOf(body[tableAt]);
+    let current = null;
+    for (let i = tableAt + 1; i < body.length; i += 1) {
+      const line = body[i];
+      if (!line.trim()) continue;
+      if (indentOf(line) <= indent) break;
+      if (indentOf(line) === indent + 2) {
+        const key = /^\s*([\w-]+):\s*$/.exec(line);
+        if (key) {
+          current = { id: key[1], sandbox: '', approval: '' };
+          presets.push(current);
+        }
+        continue;
+      }
+      const pair = /^\s*([a-z]+):\s*(\S+)/.exec(line);
+      if (pair && current) current[pair[1]] = unquote(pair[2]);
+    }
+  }
+  return { presets, current: unquote(config.defaultPreset || '') };
+}
+
+/**
+ * Agent presets a profile declares, plus the one the registry starts in.
+ * Presets are compositions of persona, instructions and tools; only a profile
+ * that mounts them can switch roles at all.
+ * @param {string} text profile patch
+ */
+export function parseAgentPresets(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const presets = [];
+  // The row's own `config:` sits directly under it. `blockStart` picks the LAST
+  // match, which inside a preset row is the config of the last nested plugin —
+  // so this reads the first block at the row's own depth instead.
+  const configAtRow = (body, indent) => {
+    const at = body.findIndex((line) => indentOf(line) === indent + 2 && /^\s*config:\s*$/.test(line));
+    return at >= 0 ? blockKeys(body.slice(at + 1), indent + 2) : {};
+  };
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^\s*name:\s*['"]?@deepseek-ai\/dsh-agent-preset['"]?\s*$/.test(lines[i])) continue;
+    const { indent, body } = rowAt(lines, i);
+    const config = configAtRow(body, indent);
+    const idLine = /^\s*-\s*id:\s*(\S+)\s*$/.exec(lines[i - 1] || '');
+    presets.push({ row: idLine ? idLine[1] : '', id: unquote(config.id || ''), order: Number(unquote(config.order || '0')) || 0 });
+  }
+  let selected = '';
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^\s*name:\s*['"]?@deepseek-ai\/dsh-agent-preset-registry['"]?\s*$/.test(lines[i])) continue;
+    const { indent, body } = rowAt(lines, i);
+    const config = configAtRow(body, indent);
+    selected = unquote(config.selectedDefault || '') || unquote(config.default || '');
+  }
+  return { presets: presets.filter((preset) => preset.id).sort((a, b) => a.order - b.order), selected };
 }

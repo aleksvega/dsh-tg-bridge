@@ -33,6 +33,7 @@ import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
 import { t, resolveLang } from './i18n.mjs';
+import { progressPanel } from './panel.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -169,6 +170,29 @@ setInterval(() => {
     log(`goal job failed: ${error.message}`);
   }
 }, 2000).unref();
+
+// Reminders: a turn is one short-lived process, so the only clock that can
+// outlive a message is this one. A reminder that came due while the bridge was
+// down fires on the first tick after it starts; one created for a topic that
+// has since been deleted still tries, and the delivery error is logged.
+setInterval(() => {
+  try {
+    const now = Date.now();
+    const rows = Array.isArray(state.reminders) ? state.reminders : [];
+    const ready = rows.filter((row) => row && Number(row.at) <= now);
+    if (ready.length === 0) return;
+    const ids = new Set(ready.map((row) => row.id));
+    state.reminders = rows.filter((row) => !ids.has(row.id));
+    saveState();
+    for (const row of ready) {
+      Promise.resolve(send(String(row.chatId), t(row.lang || 'ru', 'ctrl.remind.due', { text: row.text }), Number(row.threadId) || 0))
+        .then(() => log(`reminder ${row.id} delivered`))
+        .catch((error) => log(`reminder ${row.id} delivery failed: ${error.message}`));
+    }
+  } catch (error) {
+    log(`reminder loop failed: ${error.message}`);
+  }
+}, 20_000).unref();
 
 function log(line) {
   const text = `${new Date().toISOString()} ${line}\n`;
@@ -926,10 +950,15 @@ function toolLine(event) {
  * seconds — Telegram rate-limits edits) with the latest step and a counter, and
  * finally turned into a short summary. Errors are edited into the same message
  * so the person always sees one continuous trace instead of scattered notes.
+ *
+ * Reasoning is folded into the same message as a collapsed block, so a turn that
+ * thinks for ten minutes still leaves one line in the chat — and the whole trail
+ * one tap away.
  */
 async function startProgress(chatId, threadId, lang = 'ru') {
   const started = Date.now();
   const steps = [];
+  const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
   const usage = { inputTokens: 0, cacheReadTokens: 0 };
   let messageId = 0;
@@ -965,51 +994,67 @@ async function startProgress(chatId, threadId, lang = 'ru') {
   }, 3000);
   thoughtTimer.unref?.();
 
-  const body = (final = false) => {
-    const seconds = Math.round((Date.now() - started) / 1000);
-    const head = final
-      ? `✅ ${t(lang, 'status.done')} · ${seconds} ${lang === 'en' ? 's' : lang === 'zh' ? '秒' : 'с'}`
-      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${lang === 'en' ? 's' : lang === 'zh' ? '秒' : 'с'}`;
-    // Three recent steps is enough to see the shape of the work; six lines of
-    // shell commands read as noise on a phone.
-    const tail = steps.slice(-3).map((line) => `• ${line}`).join('\n');
-    const more = steps.length > 3 ? `\n${t(lang, 'status.more', { n: steps.length - 3 })}` : '';
-    const mind = thoughts.length ? `\n${thoughts.map((line) => `💭 ${line}`).join('\n')}` : '';
+  const panel = (final = false) => {
     // The cache line belongs to the outcome, not to every intermediate edit.
     const cache = final && usage.cacheReadTokens
-      ? `\n${t(lang, 'status.cacheLine', {
+      ? t(lang, 'status.cacheLine', {
         pct: Math.round((usage.cacheReadTokens / Math.max(1, usage.cacheReadTokens + (usage.inputTokens ?? 0))) * 100),
         k: Math.round(usage.cacheReadTokens / 1000),
-      })}`
+      })
       : '';
-    return (tail ? `${head}${mind}\n${tail}${more}${cache}` : `${head}${mind}${cache}`);
+    return progressPanel({
+      lang,
+      seconds: Math.round((Date.now() - started) / 1000),
+      final,
+      steps,
+      thoughts,
+      thinking: thinkingParts.join('\n\n'),
+      cache,
+    });
+  };
+
+  /** Send or edit the panel; a rejected parse falls back to the plain twin. */
+  const post = async (method, payload, view, keyboard = undefined) => {
+    const body = { ...payload, text: view.html, parse_mode: 'HTML' };
+    if (keyboard !== undefined) body.reply_markup = keyboard ?? { inline_keyboard: [] };
+    try {
+      return await tg(method, body);
+    } catch (error) {
+      log(`${method} html failed (${String(error.message).slice(0, 100)}); retrying as plain text`);
+      const plain = { ...payload, text: view.plain };
+      delete plain.parse_mode;
+      if (keyboard !== undefined) plain.reply_markup = keyboard ?? { inline_keyboard: [] };
+      return tg(method, plain);
+    }
   };
 
   try {
-    const res = await tg('sendMessage', {
+    const res = await post('sendMessage', {
       chat_id: chatId,
-      text: body(),
       disable_web_page_preview: true,
       ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-    });
+    }, panel());
     messageId = res.message_id;
   } catch (error) {
     log(`progress message failed: ${error.message}`);
   }
 
-  const edit = async (text, keyboard = undefined) => {
+  const edit = async (text, keyboard = undefined, view = null) => {
     if (!messageId) return;
+    const payload = {
+      chat_id: chatId,
+      message_id: messageId,
+      disable_web_page_preview: true,
+    };
     try {
-      const payload = {
-        chat_id: chatId,
-        message_id: messageId,
-        text,
-        disable_web_page_preview: true,
-      };
-      // `null` means "remove the buttons"; an object replaces them; `undefined`
-      // leaves the current keyboard alone (intermediate status edits).
-      if (keyboard !== undefined) payload.reply_markup = keyboard ?? { inline_keyboard: [] };
-      await tg('editMessageText', payload);
+      if (view) await post('editMessageText', payload, view, keyboard);
+      else {
+        // Plain text (errors, notes): whatever the caller passes is literal, so
+        // it must not be run through the HTML parser.
+        const body = { ...payload, text };
+        if (keyboard !== undefined) body.reply_markup = keyboard ?? { inline_keyboard: [] };
+        await tg('editMessageText', body);
+      }
       lastEdit = Date.now();
     } catch (error) {
       // "message is not modified" and rate limits are expected: ignore quietly.
@@ -1024,7 +1069,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
       timer = null;
       if (!dirty) return;
       dirty = false;
-      await edit(body());
+      await edit('', undefined, panel());
     }, 3500);
     timer.unref?.();
   }
@@ -1039,6 +1084,21 @@ async function startProgress(chatId, threadId, lang = 'ru') {
     handle(event) {
       if (event.type === 'tool_call') {
         steps.push(toolLine(event));
+        schedule();
+        return;
+      }
+      // The CLI emits one `thinking` event per committed assistant step, so the
+      // panel grows a paragraph at a time — visible while the turn runs, and
+      // still there, collapsed, when it ends.
+      if (event.type === 'thinking' && event.text) {
+        thinkingParts.push(String(event.text));
+        // A turn can think for a long time; only the tail of the stream is ever
+        // shown, so the head is dropped before it becomes a memory leak.
+        if (thinkingParts.join('\n\n').length > 24000) {
+          const kept = thinkingParts.join('\n\n').slice(-24000);
+          thinkingParts.length = 0;
+          thinkingParts.push(kept);
+        }
         schedule();
         return;
       }
@@ -1080,7 +1140,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
         await edit(text, timedOut ? continueKeyboard(sessionKey(chatId, threadId), lang) : errorKeyboard(sessionKey(chatId, threadId), lang));
         return true;
       }
-      await edit(body(true), null);
+      await edit('', null, panel(true));
       return false;
     },
   };
@@ -1386,6 +1446,14 @@ ${t(lang, 'help.body')}`,
       saveState,
       log,
       send,
+      // What `/jobs` shows: the turns that hold a slot right now and how many
+      // wait behind them. `queues` counts a topic that is running too, so the
+      // waiters are the keys without an active turn.
+      jobs: () => ({
+        active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
+        queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
+        max: MAX_PARALLEL,
+      }),
       api: tg,
       sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
       seedTopic: ensureTopicSeed,
