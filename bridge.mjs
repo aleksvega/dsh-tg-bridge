@@ -2090,6 +2090,24 @@ function runTurnLive(task, sessionId, key, options = {}) {
 
 async function main() {
   log('bridge started');
+  // Downloaded photos live in the runtime directory and every album leaves a
+  // few behind. A week is long enough for "look at that picture again" in a
+  // session, short enough that the directory does not grow without a bound.
+  try {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    let pruned = 0;
+    for (const name of readdirSync(DIR)) {
+      if (!/^photo-\d+-\d+\.jpg$/.test(name)) continue;
+      const path = join(DIR, name);
+      if (statSync(path).mtimeMs < cutoff) {
+        unlinkSync(path);
+        pruned++;
+      }
+    }
+    if (pruned) log(`pruned ${pruned} old photo(s)`);
+  } catch (error) {
+    log(`photo prune failed: ${error.message}`);
+  }
   try {
     const me = await tg('getMe');
     botUsername = me.username || '';
