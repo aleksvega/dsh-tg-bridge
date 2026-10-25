@@ -1,5 +1,14 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.3 — 2026-10-25
+
+- Report headers carry one glyph each (📊 status, 🩺 diagnostics, 🗂 sessions,
+  📦 versions, 🧠 reasoning), so a chat full of answers can be scanned the way a
+  dashboard is.
+- `/status` says whether the agent is working right now ("Агент работает: нет
+  (0 ходов)") and prints the full session id, because that id is what people copy
+  into `/resume`.
+
 ## 1.7.2 — 2026-10-25
 
 - A voice note or photo that arrived while a turn was running, but finished

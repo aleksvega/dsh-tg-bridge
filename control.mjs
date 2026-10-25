@@ -470,7 +470,7 @@ export async function handleControl(ctx) {
       const stats = sessionId ? sessionStats(sessionFile(join(DSH_HOME, 'sessions'), sessionId)) : null;
       const title = sessionId ? state.titles?.[key] : '';
       const lines = [t(lang, 'ctrl.status.head')];
-      lines.push(t(lang, 'ctrl.status.session', { id: sessionId ? `${sessionId.slice(0, 8)}…` : t(lang, 'ctrl.session.none') }));
+      lines.push(t(lang, 'ctrl.status.session', { id: sessionId || t(lang, 'ctrl.session.none') }));
       if (title) lines.push(t(lang, 'ctrl.status.title', { title }));
       lines.push(t(lang, 'ctrl.status.profile', { name: activeProfile, route: `${head.provider}/${head.model}` }));
       lines.push(t(lang, 'ctrl.status.thread', { name: ctx.threadId || t(lang, 'ctrl.status.threadDefault') }));
@@ -490,7 +490,10 @@ export async function handleControl(ctx) {
         lines.push(t(lang, 'ctrl.status.lifetime', { n: stats.lifetimeTokens.toLocaleString('en-US') }));
       }
       if (stats?.turns) lines.push(t(lang, 'ctrl.status.steps', { n: stats.turns }));
-      lines.push(t(lang, 'ctrl.status.turns', { n: active }));
+      lines.push(t(lang, 'ctrl.status.turns', {
+        n: active,
+        state: active > 0 ? t(lang, 'ctrl.status.running') : t(lang, 'ctrl.status.idle'),
+      }));
       lines.push(t(lang, 'ctrl.status.notes', {
         state: reasoningOf(state, config, key) ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
       }));
