@@ -1116,13 +1116,22 @@ async function mediaPrompt(msg, chatId, threadId, lang, opts = {}) {
   const voiceOn = Boolean(config.voice?.enabled) && voiceReady;
   if (msg.voice || msg.audio) {
     if (!voiceOn) return { text: '', extraArgs: [] };
-    return { text: await readVoiceIntoText(msg, chatId, threadId, lang), extraArgs: [] };
+    const heard = await readVoiceIntoText(msg, chatId, threadId, lang);
+    const note = (msg.caption || '').trim();
+    return {
+      text: heard + (heard && note ? ` ${t(lang, 'prompt.note', { note })}` : ''),
+      extraArgs: [],
+    };
   }
   // An audio file sent as a document is a voice note with a different wrapper:
   // transcribe it instead of handing over a path nobody can listen to.
   if (msg.document?.mime_type?.startsWith('audio/') && voiceOn) {
     const heard = await readVoiceIntoText({ ...msg, audio: msg.document }, chatId, threadId, lang);
-    return { text: heard, extraArgs: [] };
+    const note = (msg.caption || '').trim();
+    return {
+      text: heard + (heard && note ? ` ${t(lang, 'prompt.note', { note })}` : ''),
+      extraArgs: [],
+    };
   }
   // Photo handling: the current default route has no image input, so the turn
   // is run with a `--patch` overlay that points it at a vision model. Without
