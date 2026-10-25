@@ -172,9 +172,11 @@ Work:         /cd · /new · /stop · /send · /seed
 Goals:        /goal · /task
 Sessions:     /status · /sessions · /resume
 Models:       /models · /model · /prices
+Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Extensions:   /skills · /plugins · /plugin · /soul
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
+Display:      /lang · /reasoning on|off
 ```
 
 ## How it works
@@ -234,6 +236,30 @@ The note is appended to `~/.dsh/tg-bridge/thoughts/<chat>_<thread>.jsonl`; the p
 message shows the last two as `💭` lines. The command needs no ids: it falls back to the
 newest turn's thought file, because tool shells do not inherit the bridge environment.
 `--thought` never sends a Telegram message on its own.
+
+`/reasoning` is the switch for the whole mechanism. It is on by default: every turn carries a
+short instruction to leave one line at each decision point (task clear, cause found, risky
+change, result checked). `/reasoning off` drops the instruction and the `💭` lines for that
+topic — useful when the step list is all you want. The setting lives in `state.json` per topic,
+so a chatty research topic and a terse deploy topic can differ.
+
+### Profiles per topic
+
+The desktop app lets you build several profiles for different kinds of work, each with its own
+plugin set and model. The same switch works from a topic:
+
+```
+/profile                    current profile, available ones, hints
+/profile research           run this topic's turns on another profile
+/profile new research from web
+                            create a profile from a shipped template and bind it
+/profile default            back to the install default
+```
+
+A new profile is written by `dsh <name> --from-default-profile <template> --dump-config`, so
+nothing boots and no plugin is loaded at creation time; dependencies are installed by the
+profile's first turn. The binding is per topic: `/model` then edits that profile's model, and
+`/plugins` manages that profile's rows.
 
 ### Goals and tasks
 

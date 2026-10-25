@@ -204,6 +204,36 @@ function removeBundle(profile, name) {
 }
 
 /** Run `dsh plugin ...` (which forwards to pnpm) and collect its output. */
+/**
+ * Create a profile from a shipped template, the same way the GUI does it:
+ * `dsh <name> --from-default-profile <template>`. `--dump-config` stops right
+ * after the profile tree is written, so nothing boots and no plugin is loaded.
+ * Dependencies are installed on the profile's first turn.
+ */
+function createProfile(name, template, timeoutMs = 180000) {
+  return new Promise((resolve) => {
+    const useExe = process.platform === 'win32' && existsSync(EXE) && existsSync(join(APP, 'resources', 'app.asar'));
+    const args = [name, '--from-default-profile', template, '--dump-config'];
+    const child = useExe
+      ? spawn(EXE, ['--expose-internals', CLI_JS, ...args], {
+          windowsHide: true,
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        })
+      : spawn('dsh', args, { windowsHide: true });
+    const timer = setTimeout(() => child.kill(), timeoutMs);
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', () => {});
+    child.stderr?.on('data', () => {});
+    const done = () => {
+      clearTimeout(timer);
+      resolve(existsSync(join(PROFILES, name, 'cordis.patch.yml')));
+    };
+    child.on('close', done);
+    child.on('error', done);
+  });
+}
+
 function dshPlugin(profile, args, timeoutMs = 180000) {
   return new Promise((resolve) => {
     // Spawning the .cmd shim with shell:false fails with EINVAL on modern Node.
@@ -366,14 +396,28 @@ function goalView(goal, lang) {
  * command and the caller must not run a turn.
  */
 export const CONTROL_COMMANDS = [
-  'status', 'models', 'model', 'sessions', 'resume', 'plugins', 'plugin',
+  'status', 'models', 'model', 'profile', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
-  'prices', 'help', 'doctor', 'logs', 'lang', 'goal', 'task',
+  'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task',
 ];
+
+/**
+ * Working notes ("💭" lines in the progress message) are on unless the topic or
+ * the config says otherwise. Per-topic wins over the install default, so one
+ * topic can keep the trail while another stays terse.
+ */
+export function reasoningOf(state, config, key) {
+  const perTopic = state?.reasoning?.[key];
+  if (typeof perTopic === 'boolean') return perTopic;
+  return config?.reasoning !== false;
+}
 
 export async function handleControl(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang } = ctx;
   const say = (text) => reply(text);
+  // A topic can run on its own profile (its own plugins, model and skills);
+  // without one it follows the install default.
+  const activeProfile = profile || config.profile || 'headless';
 
   // One command for one job: `/plugins` is both the list and the way to change
   // things. Two near-identical names (`/plugin` / `/plugins`) invited the exact
@@ -391,7 +435,6 @@ export async function handleControl(ctx) {
 
   switch (effective) {
     case '/status': {
-      const activeProfile = config.profile || 'headless';
       const head = modelOf(activeProfile);
       const session = state.sessions[key] || '(ещё нет)';
       const active = ctx.activeTurns ? ctx.activeTurns.size : 0;
@@ -421,7 +464,6 @@ export async function handleControl(ctx) {
     }
 
     case '/models': {
-      const activeProfile = config.profile || 'headless';
       const head = modelOf(activeProfile);
       const ids = modelsOf(activeProfile);
       say(
@@ -439,13 +481,77 @@ export async function handleControl(ctx) {
         say('Использование: /model <id> [both]  (/models — список)');
         return true;
       }
-      const activeProfile = config.profile || 'headless';
       if (!setModel(activeProfile, wanted)) {
         say(`Не смог переключить ${activeProfile} на «${wanted}»: в профиле нет строки agent-default-model. /models — список.`);
         return true;
       }
       const desktop = scope === 'both' ? setModel('desktop', wanted) : false;
       say(`Модель ${activeProfile} → ${wanted}${desktop ? ', desktop → ' + wanted : ''}. Действует со следующего хода.`);
+      return true;
+    }
+
+    case '/profile': {
+      // The GUI lets a person build a profile per kind of work; the same switch
+      // belongs here, per topic. A new profile is a copy of a shipped template,
+      // dependencies are installed on its first turn.
+      const [action = '', verb = '', template = ''] = String(arg || '').trim().split(/\s+/).filter(Boolean);
+      const profiles = readdirSync(PROFILES, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && existsSync(join(PROFILES, entry.name, 'cordis.patch.yml')))
+        .map((entry) => entry.name)
+        .sort();
+      const bound = state.profiles?.[key];
+
+      if (!action) {
+        const name = bound ? activeProfile : `${activeProfile}${t(lang, 'profile.default')}`;
+        say([
+          t(lang, 'profile.current', { name }),
+          t(lang, 'profile.available', { list: profiles.join(', ') }),
+          t(lang, 'profile.hint'),
+        ].join('\n'));
+        return true;
+      }
+
+      if (action === 'new') {
+        const from = template || 'headless';
+        if (!verb || !/^[a-z0-9][a-z0-9-]{1,30}$/.test(verb)) {
+          say(t(lang, 'profile.badName'));
+          return true;
+        }
+        if (!profiles.includes(from)) {
+          say(t(lang, 'profile.unknownTemplate', { name: from, list: profiles.join(', ') }));
+          return true;
+        }
+        if (profiles.includes(verb)) {
+          say(t(lang, 'profile.exists', { name: verb }));
+          return true;
+        }
+        if (!(await createProfile(verb, from))) {
+          say(t(lang, 'profile.createFailed', { name: verb }));
+          return true;
+        }
+        state.profiles = state.profiles || {};
+        state.profiles[key] = verb;
+        ctx.saveState();
+        say(t(lang, 'profile.created', { name: verb, template: from }));
+        return true;
+      }
+
+      if (action === 'default') {
+        if (state.profiles) delete state.profiles[key];
+        ctx.saveState();
+        say(t(lang, 'profile.set', { name: config.profile || 'headless', route: 'install default' }));
+        return true;
+      }
+
+      if (!profiles.includes(action)) {
+        say(t(lang, 'profile.unknown', { name: action, list: profiles.join(', ') }));
+        return true;
+      }
+      state.profiles = state.profiles || {};
+      state.profiles[key] = action;
+      ctx.saveState();
+      const head = modelOf(action);
+      say(t(lang, 'profile.set', { name: action, route: `${head.provider}/${head.model}` }));
       return true;
     }
 
@@ -816,6 +922,23 @@ export async function handleControl(ctx) {
       state.lang[key] = wanted;
       ctx.saveState();
       say(t(wanted, 'msg.langSet'));
+      return true;
+    }
+
+    case '/reasoning': {
+      // One switch for "show me the decision trail". Anything but on/off prints
+      // the current state, so a bare /reasoning never guesses.
+      const wanted = String(arg || '').trim().toLowerCase();
+      const on = reasoningOf(state, config, key);
+      if (!['on', 'off'].includes(wanted)) {
+        const word = t(lang, on ? 'msg.stateOn' : 'msg.stateOff');
+        say(t(lang, 'msg.reasoningState', { state: word }));
+        return true;
+      }
+      state.reasoning = state.reasoning || {};
+      state.reasoning[key] = wanted === 'on';
+      ctx.saveState();
+      say(t(lang, wanted === 'on' ? 'msg.reasoningOn' : 'msg.reasoningOff'));
       return true;
     }
 

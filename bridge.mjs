@@ -25,7 +25,7 @@ net.setDefaultAutoSelectFamily(false);
 import { noticeIsObsolete } from './queue-notice.mjs';
 import { immediateKind } from './immediate.mjs';
 import { writeSteerJob } from './steer-queue.mjs';
-import { handleControl, CONTROL_COMMANDS, modelOf } from './control.mjs';
+import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
 import { t, resolveLang } from './i18n.mjs';
@@ -145,6 +145,14 @@ function writeAtomic(path, text) {
 
 function saveState() {
   writeAtomic(STATE, JSON.stringify(state, null, 2));
+}
+
+/**
+ * Which profile runs this topic's turns. `/profile <name>` binds one topic to
+ * its own plugin set and model; every other topic keeps the install default.
+ */
+function profileOf(key) {
+  return (state.profiles && state.profiles[key]) || config.profile || 'headless';
 }
 
 // The agent updates the topic goal list by dropping a job file (goal.mjs);
@@ -749,9 +757,9 @@ async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
 }
 
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
-function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '') {
+function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile) {
   return new Promise((resolve) => {
-    const args = ['--expose-internals', CLI_JS, '--profile', config.profile, '--json', ...extraArgs];
+    const args = ['--expose-internals', CLI_JS, '--profile', profile, '--json', ...extraArgs];
     if (sessionId) args.push('--session-id', sessionId);
     args.push(task);
     const child = spawn(EXE, args, {
@@ -1290,8 +1298,9 @@ ${t(lang, 'help.body')}`,
       api: tg,
       sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
       seedTopic: ensureTopicSeed,
+      profile: profileOf(key),
       prices: (filter) => {
-        const route = modelOf(config.profile || 'headless');
+        const route = modelOf(profileOf(key));
         // A provider page is optional: without `pricesUrl` the answer comes from
         // the public models.dev catalog, so no install is tied to one vendor.
         return renderPrices(filter, {
@@ -1337,13 +1346,20 @@ ${t(lang, 'help.body')}`,
   const topicGoal = goalOf(state, key);
   if (topicGoal) text = `${renderPromptBlock(topicGoal, key, GOAL_CMD)}\n\n---\n\n${text}`;
 
+  // Working notes: the agent writes a 💭 line at each decision point with
+  // `say.mjs --thought`, and the progress message shows the last two. Off means
+  // no instruction at all, so nothing is written and nothing is displayed.
+  if (reasoningOf(state, config, key)) {
+    text = `${t(lang, 'prompt.reasoning', { say: join(DIR, 'say.mjs') })}\n\n---\n\n${text}`;
+  }
+
   // Live progress: one status message per turn, rewritten as the agent works.
   // Without it a long turn and a hung turn looked exactly alike in the chat.
   const progress = await startProgress(chatId, threadId, lang);
   // Turn telemetry for the log: what the agent did, how much it cost, on which
   // model. Without it /logs shows only "in" and "sent" — useless when asking
   // "why did this take 9 minutes".
-  const telemetry = { steps: 0, tools: 0, inputTokens: 0, cacheReadTokens: 0, model: modelOf(config.profile || 'headless').model };
+  const telemetry = { steps: 0, tools: 0, inputTokens: 0, cacheReadTokens: 0, model: modelOf(profileOf(key)).model };
   const onEvent = (event) => {
     try {
       // The id of the session this process actually works in. A new topic has
@@ -1553,15 +1569,15 @@ async function clearBusyNotice(key) {
  * In that case the message queues the old way.
  */
 let steerReady;
-function steerAvailable() {
-  if (steerReady !== undefined) return steerReady;
+function steerAvailable(profile = config.profile || 'headless') {
+  if (steerReady !== undefined && steerReady.profile === profile) return steerReady.ready;
   try {
-    const patch = readFileSync(join(DSH_HOME, 'profiles', config.profile || 'headless', 'cordis.patch.yml'), 'utf8');
-    steerReady = /steer-inbox/.test(patch);
+    const patch = readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
+    steerReady = { profile, ready: /steer-inbox/.test(patch) };
   } catch {
-    steerReady = false;
+    steerReady = { profile, ready: false };
   }
-  return steerReady;
+  return steerReady.ready;
 }
 
 /**
@@ -1906,7 +1922,7 @@ function runTurnLive(task, sessionId, key, options = {}) {
           onEvent(event);
         } catch {}
       }
-    }, options.extraArgs ?? [], options.cwd ?? '')
+    }, options.extraArgs ?? [], options.cwd ?? '', profileOf(key))
       .then((result) => finish({ ...result, sessionId: result.sessionId || sessionSeen }))
       .catch((error) => finish({ sessionId: sessionSeen, text: '', error: String(error?.message ?? error) }));
   });
@@ -1970,7 +1986,7 @@ async function main() {
     // turn would convert them.
     const steerText = (msg.text || '').trim();
     const steerMedia = !steerText && Boolean(msg.voice || msg.audio || msg.photo || msg.document);
-    if ((steerText || steerMedia) && !steerText.startsWith('/') && config.steerDuringTurn !== false && steerAvailable()) {
+    if ((steerText || steerMedia) && !steerText.startsWith('/') && config.steerDuringTurn !== false && steerAvailable(profileOf(key))) {
       const sessionId = liveSessions.get(queueKey) || state.sessions[queueKey];
       if (activeTurns.has(queueKey) && sessionId) {
         if (steerText) {

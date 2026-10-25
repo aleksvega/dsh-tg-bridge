@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- `/reasoning on|off` controls the `💭` decision trail per topic. On by default:
+  each turn carries one instruction to leave a line at each decision point. Off
+  removes both the instruction and the display, so nothing is written either.
+  New i18n keys (`prompt.reasoning`, `msg.reasoning*`) in en/ru/zh.
+- `/profile` ports the app's profile switcher into a topic: list, switch
+  (`/profile research`), create from a shipped template
+  (`/profile new research from web`), and return to the install default
+  (`/profile default`). Turns, `/model`, `/plugins`, `/prices` and steering pick
+  the topic's profile instead of the global one. A created profile is written
+  with `dsh <name> --from-default-profile <template> --dump-config`, so nothing
+  boots at creation time.
+- Fixed a latent bug: `handleControl` destructured `profile` from its context but
+  the bridge never passed it, so every profile-aware command silently used the
+  install default.
 - Steering covers attachments, not just typed text. A voice note sent while a
   turn runs is transcribed (`🎤 <transcript>` is echoed first) and the transcript
   is handed to the live agent; a photo or a file is downloaded and its local

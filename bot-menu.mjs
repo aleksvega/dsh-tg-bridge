@@ -51,6 +51,8 @@ const COMMANDS = [
   { command: 'logs', description: 'Хвост лога моста: /logs 50 или /logs TG_NET' },
   { command: 'help', description: 'Все команды и подсказки' },
   { command: 'lang', description: 'Язык интерфейса: en, ru, zh' },
+  { command: 'reasoning', description: 'Заметки по ходу: /reasoning on|off' },
+  { command: 'profile', description: 'Профиль темы: /profile <имя>, /profile new' },
 ];
 
 /** English menu (language_code: en). Same commands, translated descriptions. */
@@ -77,6 +79,8 @@ const COMMANDS_EN = [
   { command: 'logs', description: 'Bridge log tail: /logs 50 or /logs TG_NET' },
   { command: 'help', description: 'All commands and hints' },
   { command: 'lang', description: 'Interface language: en, ru, zh' },
+  { command: 'reasoning', description: 'Working notes: /reasoning on|off' },
+  { command: 'profile', description: 'Topic profile: /profile <name>, /profile new' },
 ];
 
 /** Chinese menu (language_code: zh-hans). */
@@ -103,6 +107,8 @@ const COMMANDS_ZH = [
   { command: 'logs', description: '桥接日志：/logs 50 或 /logs TG_NET' },
   { command: 'help', description: '全部命令与提示' },
   { command: 'lang', description: '界面语言：en、ru、zh' },
+  { command: 'reasoning', description: '工作记录：/reasoning on|off' },
+  { command: 'profile', description: '话题配置档：/profile <名称>，/profile new' },
 ];
 
 async function api(method, body) {
