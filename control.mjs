@@ -11,7 +11,7 @@ import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
 import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
-import { lastTurnReasoning, lastTurnText, sessionFile, sessionStats } from './thoughts.mjs';
+import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from './thoughts.mjs';
 import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
 import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from './reminders.mjs';
@@ -19,6 +19,8 @@ import { parseReminder, stampAt, upcoming } from './reminders.mjs';
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
 const PROFILES = join(DSH_HOME, 'profiles');
+/** Where a reasoning log is written before it is sent as a document. */
+const THOUGHT_DIR = join(DSH_HOME, 'tg-bridge', 'thoughts');
 const APP = join(process.env.LOCALAPPDATA || '', 'Programs', 'DeepSeek Harness');
 const EXE = join(APP, 'DeepSeek Harness.exe');
 const DSH_CMD = join(APP, 'resources', 'runtime', 'cli', 'bin', 'dsh.cmd');
@@ -1683,15 +1685,73 @@ export async function handleControl(ctx) {
     }
 
     case '/thoughts': {
-      // The reasoning of the last turn, pulled from the session log itself. It
-      // is ephemeral: the reply lives a few minutes and then deletes itself, so
-      // a long plan never turns into chat clutter.
+      // The model's reasoning, read from the session log. Text by default (short,
+      // ephemeral, deletes itself); `file` and `all` write a Markdown log and send
+      // it as a document, because a five-hour turn is megabytes of text that no
+      // chat message can hold; `off` keeps the block out of the panel entirely.
+      const mode = String(arg || '').trim().toLowerCase();
+
+      if (mode === 'off' || mode === 'on') {
+        state.thinkBlock = state.thinkBlock || {};
+        if (mode === 'off') state.thinkBlock[key] = 'counter';
+        else delete state.thinkBlock[key];
+        ctx.saveState?.();
+        say(t(lang, mode === 'off' ? 'ctrl.thoughts.off' : 'ctrl.thoughts.on'));
+        return true;
+      }
+
       const sessionId = ctx.state.sessions?.[key];
       if (!sessionId) {
         say(t(lang, 'ctrl.thoughts.noSession'));
         return true;
       }
       const file = sessionFile(join(DSH_HOME, 'sessions'), sessionId);
+
+      if (mode === 'file' || mode === 'all') {
+        const turns = mode === 'all'
+          ? sessionReasoningSteps(file).map((turn, index) => ({ title: t(lang, 'ctrl.thoughts.turn', { n: index + 1 }), steps: turn.steps }))
+          : [{ steps: lastTurnReasoningSteps(file) }];
+        const steps = turns.reduce((sum, turn) => sum + turn.steps.length, 0);
+        const chars = turns.reduce((sum, turn) => sum + turn.steps.reduce((n, step) => n + step.length, 0), 0);
+        if (!steps) {
+          say(t(lang, 'ctrl.thoughts.none'));
+          return true;
+        }
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const stamp = date.replace(/[ :]/g, '-');
+        const path = join(THOUGHT_DIR, `reasoning-${stamp}-${mode}.md`);
+        try {
+          mkdirSync(THOUGHT_DIR, { recursive: true });
+          writeFileSync(path, reasoningMarkdown({
+            title: t(lang, mode === 'all' ? 'ctrl.thoughts.fileTitleAll' : 'ctrl.thoughts.fileTitleLast'),
+            meta: [date, t(lang, 'ctrl.thoughts.fileMeta', { steps, chars, turns: turns.length })],
+            stepTitle: t(lang, 'ctrl.thoughts.step'),
+            turns,
+          }), 'utf8');
+          // A log is a keepsake, not an archive: a week is plenty and the dir
+          // does not grow without bound.
+          for (const name of readdirSync(THOUGHT_DIR)) {
+            if (!name.startsWith('reasoning-')) continue;
+            const old = join(THOUGHT_DIR, name);
+            try {
+              if (Date.now() - statSync(old).mtimeMs > 7 * 86400000) rmSync(old, { force: true });
+            } catch {}
+          }
+          if (ctx.sendFile) {
+            await ctx.sendFile(path, t(lang, 'ctrl.thoughts.fileCaption', { chars, steps }));
+            return true;
+          }
+          // No file transport in this context (tests): the log still leaves as text.
+          say(`${t(lang, 'ctrl.thoughts.fileCaption', { chars, steps })}\n\n${readFileSync(path, 'utf8').slice(0, 3200)}`);
+          return true;
+        } catch (error) {
+          say(t(lang, 'ctrl.thoughts.fileError', { error: String(error.message).slice(0, 120) }));
+          return true;
+        }
+      }
+
       const text = file ? lastTurnReasoning(file, { maxChars: 20000 }) : '';
       if (!text) {
         // Not every turn plans: a one-word answer has no reasoning part at all.
@@ -1699,8 +1759,8 @@ export async function handleControl(ctx) {
         // looks like a broken command.
         const answered = file ? lastTurnText(file, { maxChars: 1200 }) : '';
         say(answered
-          ? `${t(lang, 'ctrl.thoughts.none')}\n\n${t(lang, 'ctrl.thoughts.lastAnswer')}\n\n${answered}`
-          : t(lang, 'ctrl.thoughts.none'));
+          ? `${t(lang, 'ctrl.thoughts.none')}\n\n${t(lang, 'ctrl.thoughts.lastAnswer')}\n\n${answered}\n\n${t(lang, 'ctrl.thoughts.hint')}`
+          : `${t(lang, 'ctrl.thoughts.none')}\n\n${t(lang, 'ctrl.thoughts.hint')}`);
         return true;
       }
       // A message caps at 4096 characters; a long plan goes out in parts instead
@@ -1709,9 +1769,9 @@ export async function handleControl(ctx) {
       const parts = [];
       for (let at = 0; at < text.length; at += 3600) parts.push(text.slice(at, at + 3600));
       parts.forEach((part, index) => {
-        say(parts.length > 1
-          ? `${title} (${index + 1}/${parts.length})\n\n${part}`
-          : `${title}\n\n${part}`);
+        const last = index === parts.length - 1;
+        const head = parts.length > 1 ? `${title} (${index + 1}/${parts.length})` : title;
+        say(`${head}\n\n${part}${last ? `\n\n${t(lang, 'ctrl.thoughts.hint')}` : ''}`);
       });
       return true;
     }

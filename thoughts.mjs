@@ -98,9 +98,84 @@ function lastTurnBlocks(file) {
   return out;
 }
 
+/**
+ * The last turn's reasoning, complete, one entry per committed assistant step.
+ * Chat text is capped (a five-hour turn would not fit any message); a file has
+ * no such problem, so this keeps everything.
+ */
+export function lastTurnReasoningSteps(file) {
+  return lastTurnBlocks(file)
+    .filter((part) => part.type === 'reasoning' && part.text && part.text.trim())
+    .map((part) => part.text.trim());
+}
+
+/** Reasoning of every turn of the session, oldest first: `[{ steps: [...] }]`. */
+export function sessionReasoningSteps(file) {
+  if (!file || !existsSync(file)) return [];
+  let buf;
+  try {
+    buf = readFileSync(file);
+  } catch {
+    return [];
+  }
+  const starts = frameStarts(buf);
+  const turns = [];
+  let current = null;
+  for (let i = 0; i < starts.length - 1; i++) {
+    let text = '';
+    try {
+      text = zstdDecompressSync(buf.subarray(starts[i], starts[i + 1])).toString('utf8');
+    } catch {
+      continue;
+    }
+    for (const line of text.split('\n')) {
+      if (!line) continue;
+      let record;
+      try {
+        record = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (record.type === 'turn/start') {
+        current = { steps: [] };
+        turns.push(current);
+        continue;
+      }
+      if (record.type !== 'assistant/message') continue;
+      if (!current) {
+        current = { steps: [] };
+        turns.push(current);
+      }
+      for (const part of record.data?.message?.content ?? []) {
+        if (part.type === 'reasoning' && part.text && part.text.trim()) current.steps.push(part.text.trim());
+      }
+    }
+  }
+  return turns;
+}
+
+/**
+ * A reasoning log as a file someone can open in an editor: a header with the
+ * facts, then one section per step. Plain Markdown, because every editor and
+ * Telegram's own preview render it.
+ */
+export function reasoningMarkdown({ title, meta = [], stepTitle = 'Step', turns = [] }) {
+  const lines = [`# ${title}`, ''];
+  for (const line of meta) lines.push(`- ${line}`);
+  lines.push('');
+  const manyTurns = turns.length > 1;
+  turns.forEach((turn, turnIndex) => {
+    if (!turn.steps.length) return;
+    if (manyTurns) lines.push(`## ${turn.title || `${stepTitle} ${turnIndex + 1}`}`, '');
+    turn.steps.forEach((step, index) => {
+      lines.push(`### ${stepTitle} ${index + 1}`, '', step, '');
+    });
+  });
+  return `${lines.join('\n').trim()}\n`;
+}
+
 /** The last turn's own answer text — the fallback when it planned nothing. */
-export function lastTurnText(file, { maxChars = 1500 } = {}) {
-  const text = lastTurnBlocks(file)
+export function lastTurnText(file, { maxChars = 1500 } = {}) {  const text = lastTurnBlocks(file)
     .filter((part) => part.type === 'text' && part.text)
     .map((part) => part.text.trim())
     .join('\n\n')

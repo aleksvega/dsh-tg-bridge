@@ -167,7 +167,7 @@ Send the bot:
 | `/doctor` | report: pid, Telegram, disk, directory, session |
 | `/version` | bridge version, the latest on npm, bridge directory |
 | `/update` | says whether a newer release exists (`/update confirm` installs it) |
-| `/thoughts` | the last turn's reasoning, deleted after a few minutes |
+| `/thoughts [file\|all\|off]` | the last turn's reasoning as a message; `file`/`all` send the full log as a Markdown document, `off` hides the block |
 | `/help` | commands grouped by category |
 | `/cd my-app` | topic bound to the project |
 | `/prices` | model prices and the cost of the current one |
@@ -269,8 +269,9 @@ and never touched again: Telegram re-collapses an expanded block on every edit o
 which used to yank the chat away from a half-read paragraph. While the turn runs the message
 only gets a counter (`🧠 Размышления · 4821`) and the last three steps, so the live edits stay
 short. Escaped, and trimmed to its tail when a turn thinks longer than a message can hold; the
-panel never exceeds one message. A cut block says `… · /thoughts`, which returns the whole
-text. If the API refuses the markup, the same content is retried as plain text.
+panel never exceeds one message. A cut block says `… · начало скрыто · /thoughts file`, which
+sends the whole log as a document. If the API refuses the markup, the same content is retried
+as plain text.
 
 **The steps.** Three calls fit inline. A turn that makes more moves its complete step list into
 a second collapsed block, added in that same final edit, so "what did it actually run" is one
@@ -290,9 +291,20 @@ newest turn's thought file, because tool shells do not inherit the bridge enviro
 `/reasoning` is the switch for the 💭 mechanism. It is on by default: every turn carries a
 short instruction to leave one line at each decision point (task clear, cause found, risky
 change, result checked). `/reasoning off` drops the instruction and the `💭` lines for that
-topic — useful when the step list is all you want. The reasoning block is model output and is
-not switched by it; `/thoughts` copies the last turn's reasoning out as a message. The setting
-lives in `state.json` per topic, so a chatty research topic and a terse deploy topic can differ.
+topic — useful when the step list is all you want. The setting lives in `state.json` per topic,
+so a chatty research topic and a terse deploy topic can differ.
+
+The reasoning block itself is model output; `/thoughts` is what reads it back:
+
+- `/thoughts` — the last turn as a message, in parts, deleted after a few minutes;
+- `/thoughts file` — the **whole** last turn as `reasoning-<date>-file.md`, sent as a document
+  (a five-hour turn is tens of thousands of characters, which no chat message can hold);
+- `/thoughts all` — every turn of the session in one file (a long session is a couple of MB);
+- `/thoughts off` / `on` — keep the block out of the turn panel (the panel then shows
+  `🧠 Размышления · N · /thoughts file`) or bring it back.
+
+The log is built from the session file on demand, so nothing is duplicated while a turn runs.
+Files land in `~/.dsh/tg-bridge/thoughts/` and older ones are pruned after a week.
 
 ### Profiles per topic
 

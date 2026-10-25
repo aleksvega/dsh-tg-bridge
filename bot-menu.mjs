@@ -59,7 +59,7 @@ const COMMANDS = [
   { command: 'plan', description: 'Режим плана: состояние и как получить план без правок' },
   { command: 'jobs', description: 'Что мост выполняет сейчас: ходы и очередь' },
   { command: 'remind', description: 'Напоминание: /remind +15m текст или 09:30 текст' },
-  { command: 'thoughts', description: 'Рассуждения последнего хода (исчезает)' },
+  { command: 'thoughts', description: 'Рассуждения хода: текстом, файлом или выкл' },
   { command: 'version', description: 'Версия моста и последняя на npm' },
   { command: 'update', description: 'Обновить мост из npm: /update confirm' },
 ];
@@ -96,7 +96,7 @@ const COMMANDS_EN = [
   { command: 'plan', description: 'Plan mode: state and how to ask for a plan without edits' },
   { command: 'jobs', description: 'What the bridge runs now: turns and queue' },
   { command: 'remind', description: 'Reminder: /remind +15m text or 09:30 text' },
-  { command: 'thoughts', description: 'Reasoning of the last turn (self-deleting)' },
+  { command: 'thoughts', description: 'Reasoning of the last turn (text, file or off)' },
   { command: 'version', description: 'Bridge version and the latest on npm' },
   { command: 'update', description: 'Update the bridge from npm: /update confirm' },
 ];
@@ -133,7 +133,7 @@ const COMMANDS_ZH = [
   { command: 'plan', description: '计划模式：状态与如何只要计划不改动' },
   { command: 'jobs', description: '桥接器当前在跑：轮次与队列' },
   { command: 'remind', description: '提醒：/remind +15m 文本 或 09:30 文本' },
-  { command: 'thoughts', description: '上一轮的推理（稍后自动消失）' },
+  { command: 'thoughts', description: '本轮推理：文本、文件或关闭' },
   { command: 'version', description: '桥接版本与 npm 上的最新版本' },
   { command: 'update', description: '从 npm 更新桥接：/update confirm' },
 ];

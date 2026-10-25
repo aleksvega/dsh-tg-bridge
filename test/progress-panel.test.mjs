@@ -126,3 +126,15 @@ test('the final edit is the only one with blocks, and it has both', () => {
   assert.equal(html.match(/<blockquote expandable>/g).length, 2);
   assert.doesNotMatch(html, /Размышления · 900/);
 });
+
+test('counter mode keeps the reasoning out of the chat entirely', () => {
+  const { html, plain } = progressPanel({
+    lang: 'ru', final: true, reasoning: 'counter', thinking: 'x'.repeat(700),
+    steps: ['a', 'b', 'c', 'd'],
+  });
+  // The steps keep their own block; the reasoning does not get one.
+  assert.equal(html.match(/<blockquote/g).length, 1);
+  assert.doesNotMatch(html, /🧠 Размышления\n/);
+  assert.match(html, /🧠 Размышления · 700 · \/thoughts file/);
+  assert.match(plain, /^✅/m);
+});

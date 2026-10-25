@@ -87,6 +87,9 @@ export function addStep(steps, line) {
  */
 export function progressPanel({
   lang = 'ru', seconds = 0, final = false, steps = [], thoughts = [], thinking = '', cache = '',
+  // `counter` keeps the reasoning out of the chat: a number in the panel, the
+  // log itself in the file that `/thoughts file` sends.
+  reasoning = 'block',
 } = {}) {
   const head = final
     ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}`
@@ -106,7 +109,9 @@ export function progressPanel({
     : steps.map((line) => `• ${line}`);
   const more = !final && many ? t(lang, 'status.more', { n: steps.length - 3 }) : '';
   const text = String(thinking || '').trim();
-  const live = !final && text ? `🧠 ${t(lang, 'status.thinkTitle')} · ${text.length}` : '';
+  const live = (reasoning === 'counter' && final)
+    ? (text ? `🧠 ${t(lang, 'status.thinkTitle')} · ${text.length} · /thoughts file` : '')
+    : (!final && text ? `🧠 ${t(lang, 'status.thinkTitle')} · ${text.length}` : '');
   const stepsRoom = Math.max(0, Math.min(STEPS_MAX, PANEL_MAX - base - 1200));
   const all = many && final
     ? tailOf(steps.map((line) => `• ${line}`).join('\n'), stepsRoom)
@@ -114,13 +119,15 @@ export function progressPanel({
   const stepsLabel = `🛠 ${t(lang, 'status.stepsTitle')} · ${steps.length}`
     + `${all.cut ? ` · ${t(lang, 'status.thinkCut')}` : ''}`;
 
-  const fixed = base + inline.join('\n').length + all.text.length + more.length + live.length + 120;
+  // The block's own label can carry the cut suffix, so it has to be budgeted too.
+  const labelRoom = `🧠 ${t(lang, 'status.thinkTitle')} · ${t(lang, 'status.thinkCut')} · /thoughts file\n`.length;
+  const fixed = base + inline.join('\n').length + all.text.length + more.length + live.length + labelRoom + 120;
   const room = Math.max(400, Math.min(THINKING_MAX, PANEL_MAX - fixed));
-  const body = final ? tailOf(text, room) : { text: '', cut: false };
+  const body = final && reasoning === 'block' ? tailOf(text, room) : { text: '', cut: false };
   // A cut block starts mid-sentence; say so and point at the one command that
   // still has the whole text, otherwise the reasoning reads as broken.
   const thinkLabel = `🧠 ${t(lang, 'status.thinkTitle')}`
-    + `${body.cut ? ` · ${t(lang, 'status.thinkCut')} · /thoughts` : ''}`;
+    + `${body.cut ? ` · ${t(lang, 'status.thinkCut')} · /thoughts file` : ''}`;
 
   const html = [
     head,

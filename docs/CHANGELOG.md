@@ -1,5 +1,19 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.10.0 — 2026-10-25
+
+- `/thoughts file` sends the **whole** reasoning of the last turn as a Markdown
+  document (`reasoning-<date>-file.md`), and `/thoughts all` does the same for every
+  turn of the session. Measured on a real session: the last turn was 15 steps /
+  30 317 characters, the whole session 164 turns / 1 559 steps / 2.2 MB — fine for a
+  document, impossible for a message.
+- `/thoughts off` keeps the reasoning block out of the turn panel: it shows
+  `🧠 Размышления · N · /thoughts file` instead, and `/thoughts on` brings the block
+  back. The switch is per topic and lives in `state.json`.
+- A cut block now points at `/thoughts file`, and the plain `/thoughts` reply ends
+  with the hint that lists the three modes.
+- Logs are built from the session file on demand and pruned after a week.
+
 ## 1.9.3 — 2026-10-25
 
 - Reading a block no longer gets interrupted. Telegram re-collapses an expanded

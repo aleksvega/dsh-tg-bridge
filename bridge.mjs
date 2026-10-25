@@ -941,6 +941,7 @@ function killTurn(key) {
  */
 async function startProgress(chatId, threadId, lang = 'ru') {
   const started = Date.now();
+  const panelKey = sessionKey(chatId, threadId);
   const steps = [];
   const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
@@ -993,6 +994,9 @@ async function startProgress(chatId, threadId, lang = 'ru') {
       steps,
       thoughts,
       thinking: thinkingParts.join('\n\n'),
+      // `/thoughts off` keeps the block out of the chat and leaves the counter;
+      // the log itself is a file the command sends on demand.
+      reasoning: state.thinkBlock?.[panelKey] === 'counter' ? 'counter' : 'block',
       cache,
     });
   };
