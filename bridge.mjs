@@ -28,6 +28,7 @@ import { writeSteerJob } from './steer-queue.mjs';
 import { inlineText } from './media-text.mjs';
 import { createAlbumBuffer } from './albums.mjs';
 import { turnArgs } from './cli-args.mjs';
+import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
@@ -379,24 +380,6 @@ async function tg(method, body, timeoutMs = 60000, attempts = 3) {
   throw lastError;
 }
 
-function chunk(text, size = 4000) {
-  const out = [];
-  let rest = text;
-  while (rest.length > size) {
-    let cut = rest.lastIndexOf('\n', size);
-    if (cut < size * 0.5) cut = size;
-    out.push(rest.slice(0, cut));
-    rest = rest.slice(cut).replace(/^\n+/, '');
-  }
-  if (rest.length) out.push(rest);
-  return out;
-}
-
-/**
- * Forum topic id of a message, or 0 for the General topic and for private chats.
- * Telegram omits `message_thread_id` for the General topic of a forum, so 0 is
- * the "no topic" marker and must never be sent back as a thread id.
- */
 function threadOf(msg) {
   const id = msg.message_thread_id ?? msg.reply_to_message?.message_thread_id;
   return Number.isInteger(id) && id > 0 ? id : 0;
@@ -591,126 +574,18 @@ function immediateCommandOf(text) {
   return immediateKind(collapsed, rest);
 }
 
-/**
- * Turn model markdown into plain readable text.
- *
- * The bridge sends without `parse_mode`, so every `**bold**`, `### heading` and
- * `` `code` `` reached the person as literal punctuation — the chat looked
- * "filled with junk". Telegram formatting is opt-in per message and a bad
- * entity rejects the whole send, so the safe direction is to strip the markers
- * and keep the words.
- */
-export function toPlainText(input) {
-  let text = String(input ?? '');
-  // Fenced code blocks: keep the body, drop the fence and language tag.
-  text = text.replace(/```[a-zA-Z0-9]*\n?/g, '').replace(/```/g, '');
-  // Inline code and bold/italic/strike markers.
-  text = text.replace(/`([^`]*)`/g, '$1');
-  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '$1');
-  text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
-  text = text.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1$2');
-  text = text.replace(/__([^_]+)__/g, '$1');
-  text = text.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, '$1$2');
-  text = text.replace(/~~([^~]+)~~/g, '$1');
-  // Headings: "### Title" -> "Title".
-  text = text.replace(/^\s{0,3}#{1,6}\s+/gm, '');
-  // Links: [label](url) -> label (url); bare <url> stays as is.
-  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1 ($2)');
-  // Blockquote markers at line start.
-  text = text.replace(/^\s{0,3}>\s?/gm, '');
-  // Bullets keep a dash, but "  - x" indentation is dropped to one level.
-  text = text.replace(/^\s*[-*+]\s+/gm, '— ');
-  // Tables: drop the separator row first (it is pure punctuation), then turn
-  // the remaining rows into one line each with " · " between cells. The
-  // separator pattern uses [ \t] rather than \s so it cannot eat the newline
-  // and glue neighbouring rows together.
-  text = text.replace(/^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/gm, '');
-  text = text.replace(/^[ \t]*\|(.+)\|[ \t]*$/gm, (_match, row) => row.split('|').map((cell) => cell.trim()).filter((cell) => cell !== '').join(' · '));
-  // Collapse the blank runs the removals leave behind.
-  text = text.replace(/\n{3,}/g, '\n\n').trim();
-  return text;
-}
-
-/** Escape the four characters Telegram's HTML parser treats as markup. */
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-/** Inline markdown inside one non-code segment -> Telegram HTML. */
-function inlineHtml(segment) {
-  let text = escapeHtml(segment);
-  // Inline code first: its body must not be touched by the emphasis rules.
-  text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '<b><i>$1</i></b>');
-  text = text.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
-  text = text.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<i>$2</i>');
-  text = text.replace(/__([^_\n]+)__/g, '<b>$1</b>');
-  text = text.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, '$1<i>$2</i>');
-  text = text.replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
-  // Headings become bold lines.
-  text = text.replace(/^[ \t]{0,3}#{1,6}[ \t]+(.+)$/gm, '<b>$1</b>');
-  // Links: [label](url) -> label (url), both already escaped.
-  text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1 ($2)');
-  // Blockquote markers.
-  text = text.replace(/^[ \t]{0,3}&gt;[ \t]?/gm, '');
-  // Bullets.
-  text = text.replace(/^[ \t]*[-*+][ \t]+/gm, '— ');
-  // Tables: drop the separator row, then join cells with a middle dot.
-  text = text.replace(/^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/gm, '');
-  text = text.replace(/^[ \t]*\|(.+)\|[ \t]*$/gm, (_m, row) => row.split('|').map((cell) => cell.trim()).filter(Boolean).join(' · '));
-  return text;
-}
-
-/**
- * Markdown -> Telegram HTML with real <pre><code> blocks.
- *
- * A fenced block is what gives the person a tap-to-copy button in Telegram,
- * which is the whole point for shell commands. Everything else stays plain so
- * a malformed entity cannot reject the message: `send` falls back to stripped
- * text when Telegram refuses to parse.
- */
-export function toTelegramHtml(input) {
-  const source = String(input ?? '');
-  const parts = source.split(/```/);
-  let out = '';
-  parts.forEach((segment, index) => {
-    if (index % 2 === 1) {
-      // Odd indexes are fenced code. The first line may be a language tag.
-      const newline = segment.indexOf('\n');
-      const firstLine = newline === -1 ? '' : segment.slice(0, newline).trim();
-      const isLanguage = /^[a-zA-Z0-9+#.-]{1,20}$/.test(firstLine);
-      const body = isLanguage ? segment.slice(newline + 1) : segment;
-      const language = isLanguage ? firstLine.toLowerCase() : '';
-      const cls = language ? ` class="language-${language}"` : '';
-      out += `<pre><code${cls}>${escapeHtml(body.replace(/\n+$/, ''))}</code></pre>`;
-    } else {
-      out += inlineHtml(segment);
-    }
-  });
-  return out.replace(/\n{3,}/g, '\n\n').trim();
-}
-
-/**
- * Language of a (chat, topic) pair, for the few helpers that have no message to
- * read it from: `send` falls back to this for its empty-text placeholder, and
- * the callback handler uses it for button answers.
- */
-function langFor(chatId, threadId = 0) {
-  return resolveLang(state, sessionKey(chatId, threadId), null, config);
-}
-
 async function send(chatId, text, threadId = 0, replyTo = 0) {
   // Who is reading: the topic's language decides even the fallback line, so an
   // English or Chinese topic never sees a Russian placeholder.
   const lang = langFor(chatId, threadId);
-  const html = config.plainText === true ? '' : toTelegramHtml(text);
-  const parts = html ? chunk(html, 3800) : chunk(toPlainText(text) || t(lang, 'bridge.progress.empty'));
+  const plain = config.plainText === true;
+  const parts = plain
+    ? chunk(toPlainText(text) || t(lang, 'bridge.progress.empty'), 3800)
+    : markdownParts(text);
   let lastId = 0;
   for (const part of parts) {
-    const body = { chat_id: chatId, text: part, disable_web_page_preview: true };
+    const html = plain ? '' : toTelegramHtml(part);
+    const body = { chat_id: chatId, text: html || part, disable_web_page_preview: true };
     if (html) body.parse_mode = 'HTML';
     // Without message_thread_id every reply lands in the General topic, which is
     // the whole point of carrying the thread through.
@@ -720,15 +595,18 @@ async function send(chatId, text, threadId = 0, replyTo = 0) {
     try {
       res = await tg('sendMessage', body);
     } catch (error) {
-      // Bad HTML (a stray < or an unsupported tag) must not swallow the reply:
-      // resend the same part as plain text.
+      // The fallback must start from the markdown, not from the HTML: resending
+      // the markup as plain text is exactly how the person ends up reading
+      // `<b>` and `<code>` instead of a sentence.
       if (!html) throw error;
       log(`html send failed (${String(error.message).slice(0, 120)}); resending as plain text`);
       delete body.parse_mode;
-      body.text = toPlainText(part) || t(lang, 'bridge.progress.empty');
-      res = await tg('sendMessage', body);
+      for (const piece of chunk(toPlainText(part) || t(lang, 'bridge.progress.empty'), 3800)) {
+        body.text = piece;
+        res = await tg('sendMessage', body);
+      }
     }
-    log(`sent chat=${chatId}${threadId ? ` topic=${threadId}` : ''} msg=${res.message_id} len=${part.length}${html ? ' html' : ''}`);
+    log(`sent chat=${chatId}${threadId ? ` topic=${threadId}` : ''} msg=${res.message_id} len=${body.text.length}${html ? ' html' : ''}`);
     lastId = res.message_id;
   }
   return lastId;

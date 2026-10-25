@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.10.1 — 2026-10-25
+
+- Long answers no longer arrive as literal `<b>` and `<code>`. The reply was turned
+  into Telegram HTML first and then cut at 3800 characters, so a cut inside a
+  `<pre><code>` block invalidated every part; Telegram rejected them and the fallback
+  resent the same markup as plain text — which is what the chat showed.
+- The reply is now split as markdown: never inside a fence, with the fence re-opened
+  and its language tag kept, and each part converted on its own.
+- The plain fallback strips tags and entities, so even a rejected formatted message
+  arrives as readable text instead of markup.
+- `format.mjs` holds the conversion and the splitting, with seven tests that pin the
+  old failure (120 in total).
+
 ## 1.10.0 — 2026-10-25
 
 - `/thoughts file` sends the **whole** reasoning of the last turn as a Markdown
