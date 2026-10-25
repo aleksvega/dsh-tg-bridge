@@ -748,8 +748,18 @@ export function menuFor(lang, commands) {
 
 /** Language for a message: topic choice, then config default, then Telegram. */
 export function resolveLang(state, key, msg, config = {}) {
-  const chosen = state?.lang?.[key] || config.lang;
+  const stored = state?.lang?.[key];
+  const chosen = stored || config.lang;
   // A foreign user must land in English, not Russian: Telegram reports the
   // sender's own locale, and everything outside ru/zh/en falls back to en.
-  return normalizeLang(chosen) || normalizeLang(msg?.from?.language_code) || 'en';
+  const resolved = normalizeLang(chosen) || normalizeLang(msg?.from?.language_code) || 'en';
+  // Remember what a topic speaks the first time a real message reveals it. A
+  // button press carries no message of its own, and without this the answer to
+  // that press fell back to the config default (English) while the card right
+  // above it was Russian. Only the first message per topic writes state.
+  if (!stored && key && state && msg?.from?.language_code) {
+    if (!state.lang) state.lang = {};
+    state.lang[key] = resolved;
+  }
+  return resolved;
 }

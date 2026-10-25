@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Photo turns work again, and so does the fallback-model path: both passed
+  `--patch` to `dsh` *after* `--json`, and the launcher hands everything from
+  the first flag it does not know to the app, which rejected it with
+  `unknown option '--patch'` and exited 1 in about five seconds ("CLI exited
+  with code 1 and no output"). Launcher options now come first; `turnArgs()` in
+  `cli-args.mjs` builds the argument list and a test pins the order.
+- A button press answers in the topic's language. A callback carries no message,
+  so `resolveLang` only had the config default there and answered in English
+  under a Russian card ("Send /doctor — it collects the full report."). The
+  first message in a topic now teaches the bridge what it speaks, the choice is
+  kept in `state.lang`, and an explicit `/lang` still wins.
 - The whole surface speaks en / ru / zh, not just the menu and the greeting:
   every `/command` reply in `control.mjs` (98 `ctrl.*` keys) and every runtime
   line in `bridge.mjs` — progress steps, the fallback-model notice, the failure

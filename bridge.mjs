@@ -27,6 +27,7 @@ import { immediateKind } from './immediate.mjs';
 import { writeSteerJob } from './steer-queue.mjs';
 import { inlineText } from './media-text.mjs';
 import { createAlbumBuffer } from './albums.mjs';
+import { turnArgs } from './cli-args.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
@@ -774,14 +775,7 @@ async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
 function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = 'ru') {
   return new Promise((resolve) => {
-    // Launcher options (`--profile`, `--patch`) must come before the app's own
-    // flags. The launcher stops parsing at the first flag it does not know and
-    // hands the rest to the app, so `--json ... --patch x.yml` reached the app
-    // as an unknown option: every photo turn and every fallback-model attempt
-    // died in ~5 s with "CLI exited with code 1 and no output".
-    const args = ['--expose-internals', CLI_JS, '--profile', profile, ...extraArgs, '--json'];
-    if (sessionId) args.push('--session-id', sessionId);
-    args.push(task);
+    const args = turnArgs({ cli: CLI_JS, profile, extraArgs, sessionId, task });
     const child = spawn(EXE, args, {
       // Per-topic project directory: a topic can be bound to one repository so
       // "work in my-app" stops meaning "cd in every command".
