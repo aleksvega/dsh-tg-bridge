@@ -2301,10 +2301,22 @@ async function main() {
 
   // Replay anything the previous process owed an answer. Runs before polling so
   // a crash mid-turn costs one duplicate-free retry, not a lost message.
+  //
+  // One bad entry must not become a restart loop: `accept` throwing here used to
+  // leave the update pending forever, so the bridge replayed it, died, and was
+  // restarted by the supervisor — every ninety seconds, with a stack trace and
+  // nothing else. Drop the entry after reporting it.
   const owed = pendingUpdates();
   if (owed.length > 0) {
     log(`replaying ${owed.length} pending update(s) from the journal`);
-    for (const { update } of owed) accept(update, true);
+    for (const { update } of owed) {
+      try {
+        accept(update, true);
+      } catch (error) {
+        log(`replay of update ${update?.update_id} failed, dropping it: ${error.message}`);
+        ack(update?.update_id);
+      }
+    }
   }
 
   let pollFailures = 0;

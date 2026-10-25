@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.7.4 — 2026-10-25
+
+- `/logs file` sends `bridge.log` as a document instead of pasting a slice of it:
+  when the question is "what exactly happened", the chat is the wrong container.
+- `/logs errors` shows the bridge's own faults. It used to match every tool
+  result line, so a routine non-zero exit buried the four real failures under
+  four hundred lines of work the agent had already reported.
+- A pending update that makes the replay throw is now logged and dropped. Before,
+  it stayed in the journal forever: the bridge replayed it, died, was restarted,
+  replayed it again — a crash loop every ninety seconds with nothing in the chat.
+- `/logs` filtering moved into `filterLogLines()` and is covered by tests
+  (seven new).
+
 ## 1.7.3 — 2026-10-25
 
 - Report headers carry one glyph each (📊 status, 🩺 diagnostics, 🗂 sessions,

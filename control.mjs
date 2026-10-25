@@ -438,6 +438,32 @@ export function reasoningOf(state, config, key) {
   return config?.reasoning !== false;
 }
 
+/**
+ * The chat view of `bridge.log`. Delivery chatter ("sent chat=…") answers
+ * nothing when the question is "what did the agent do", so the default view
+ * hides it — it stays in the file for delivery debugging. `errors` keeps the
+ * bridge's own faults and drops tool results, which are part of the work.
+ */
+export function filterLogLines(lines, filter, count) {
+  const isChatter = (line) =>
+    /\bsent chat=/.test(line)
+    || /\bin \d+ /.test(line)
+    || /bridge started|bot @|replaying \d+ pending|topic \d+ (?:seeded|logged)/.test(line);
+  const isToolLine = (line) => line.includes('tool[') || /\]\s+(?:pwsh|bash|shell)\b/.test(line);
+
+  let pool;
+  if (filter === 'errors') {
+    pool = lines.filter((line) => !isToolLine(line)
+      && /turn failed|FATAL|unhandled|poll error|Conflict|quota|AUTH|exiting code=[1-9]|cannot |failed to/i.test(line));
+  } else if (filter) {
+    const needle = filter.toLowerCase();
+    pool = lines.filter((line) => line.toLowerCase().includes(needle));
+  } else {
+    pool = lines.filter((line) => !isChatter(line));
+  }
+  return { pool, tail: pool.slice(-count) };
+}
+
 export async function handleControl(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang } = ctx;
   const say = (text) => reply(text);
@@ -1126,8 +1152,24 @@ export async function handleControl(ctx) {
 
     case '/logs': {
       // `/logs` — meaningful events, `/logs 100` — more, `/logs <text>` —
-      // filter, `/logs errors` — failures only.
+      // filter, `/logs errors` — failures only, `/logs file` — the whole file
+      // as a document, when the answer needs the part chat cannot hold.
       const file = join(DSH_HOME, 'tg-bridge', 'bridge.log');
+      const wanted = (arg || '').trim();
+      if (/^(file|full|all|файл|файлом|全文|文件)$/i.test(wanted)) {
+        if (!ctx.sendFile) {
+          say(t(lang, 'ctrl.logs.noFileChannel'));
+          return true;
+        }
+        try {
+          await ctx.sendFile(file, t(lang, 'ctrl.logs.fileCaption', {
+            mb: (statSync(file).size / 1024 ** 2).toFixed(1),
+          }));
+        } catch (error) {
+          say(t(lang, 'ctrl.logs.unreadable', { err: error.message }));
+        }
+        return true;
+      }
       let lines = [];
       try {
         lines = readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
@@ -1138,30 +1180,12 @@ export async function handleControl(ctx) {
       const numeric = Number(arg);
       const count = Number.isInteger(numeric) && numeric > 0 ? Math.min(numeric, 200) : 30;
       const filter = Number.isInteger(numeric) ? '' : (arg || '').trim();
-
-      // Delivery chatter ("in 123", "sent chat=...") answers nothing when the
-      // question is "what did the agent do". It stays in the file for delivery
-      // debugging but is hidden from the chat view.
-      const isChatter = (line) =>
-        /\bsent chat=/.test(line)
-        || /\bin \d+ /.test(line)
-        || /bridge started|bot @|replaying \d+ pending|topic \d+ (?:seeded|logged)/.test(line);
-
-      let pool;
-      if (filter === 'errors') {
-        pool = lines.filter((line) => /turn failed|ОШИБКА|error|poll error|409|Conflict|quota|AUTH/i.test(line));
-      } else if (filter) {
-        const needle = filter.toLowerCase();
-        pool = lines.filter((line) => line.toLowerCase().includes(needle));
-      } else {
-        pool = lines.filter((line) => !isChatter(line));
-      }
+      const { pool, tail } = filterLogLines(lines, filter, count);
 
       if (pool.length === 0) {
         say(filter ? t(lang, 'ctrl.logs.noMatch', { filter }) : t(lang, 'ctrl.logs.empty'));
         return true;
       }
-      const tail = pool.slice(-count);
       const header = filter === 'errors'
         ? t(lang, 'ctrl.logs.errors', { shown: tail.length, total: pool.length })
         : t(lang, 'ctrl.logs.title', { shown: tail.length, total: pool.length });
