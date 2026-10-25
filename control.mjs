@@ -1692,7 +1692,7 @@ export async function handleControl(ctx) {
         return true;
       }
       const file = sessionFile(join(DSH_HOME, 'sessions'), sessionId);
-      const text = file ? lastTurnReasoning(file, { maxChars: 4000 }) : '';
+      const text = file ? lastTurnReasoning(file, { maxChars: 20000 }) : '';
       if (!text) {
         // Not every turn plans: a one-word answer has no reasoning part at all.
         // Saying "here is what the last turn answered" beats a dead end that
@@ -1703,7 +1703,16 @@ export async function handleControl(ctx) {
           : t(lang, 'ctrl.thoughts.none'));
         return true;
       }
-      say(t(lang, 'ctrl.thoughts.title', { chars: text.length }) + '\n\n' + text);
+      // A message caps at 4096 characters; a long plan goes out in parts instead
+      // of being cut at the first one with a "…" that hides the rest.
+      const title = t(lang, 'ctrl.thoughts.title', { chars: text.length });
+      const parts = [];
+      for (let at = 0; at < text.length; at += 3600) parts.push(text.slice(at, at + 3600));
+      parts.forEach((part, index) => {
+        say(parts.length > 1
+          ? `${title} (${index + 1}/${parts.length})\n\n${part}`
+          : `${title}\n\n${part}`);
+      });
       return true;
     }
 

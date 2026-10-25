@@ -33,7 +33,7 @@ import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
 import { t, resolveLang } from './i18n.mjs';
-import { progressPanel } from './panel.mjs';
+import { progressPanel, stepLine, addStep } from './panel.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -925,22 +925,6 @@ function killTurn(key) {
   }
 }
 
-/** Short, human one-liner for a tool call, mirroring what Hermes shows. */
-function toolLine(event) {
-  const tool = event.tool || 'tool';
-  const input = event.input ?? {};
-  const pick = input.command ?? input.description ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? '';
-  let text = String(pick).replace(/\s+/g, ' ').trim();
-  if (input.command) {
-    // A shell command is a wall of text; keep the first statement and its
-    // verb, so the line reads "pwsh: git status" instead of the whole script.
-    text = text.split(';')[0].trim();
-    text = text.replace(/^(pwsh|powershell|cmd|bash)(\.exe)?\s+(-\S+\s+)*/i, '');
-    const verb = text.match(/^([A-Za-z0-9_.\-]+(?:\s+[a-z][a-z0-9-]*)?)/);
-    if (verb) text = verb[1];
-  }
-  return text ? `${tool}: ${text.slice(0, 48)}` : tool;
-}
 
 /**
  * One editable status message per turn.
@@ -1086,7 +1070,7 @@ async function startProgress(chatId, threadId, lang = 'ru') {
     },
     handle(event) {
       if (event.type === 'tool_call') {
-        steps.push(toolLine(event));
+        addStep(steps, stepLine(event));
         schedule();
         return;
       }
@@ -1531,7 +1515,7 @@ ${t(lang, 'help.body')}`,
       if (event.type === 'tool_call') {
         telemetry.tools += 1;
         telemetry.steps += 1;
-        log(`  tool[${telemetry.steps}] ${toolLine(event).slice(0, 140)}`);
+        log(`  tool[${telemetry.steps}] ${(stepLine(event) || event.tool || 'tool').slice(0, 140)}`);
       } else if (event.type === 'tool_result') {
         const failed = event.status && event.status !== 'completed';
         log(`  tool[${telemetry.steps}] ${failed ? 'ОШИБКА' : 'ok'} ${String(event.tool || '').slice(0, 40)}`);

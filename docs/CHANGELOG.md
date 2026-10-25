@@ -1,5 +1,17 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.9.2 — 2026-10-25
+
+- Step lines name the work instead of the shell plumbing: the `cd <dir>` prefix and
+  the shell wrapper are dropped and the arguments kept, so a row reads
+  `pwsh: node sync-runtime.mjs` rather than `pwsh: node`. A call that only changed
+  directory is not a step at all, and repeats fold into the line above as `×3`.
+  A 35-row wall of `pwsh: cd` is now six rows of what actually ran.
+- A cut reasoning block says where the rest is (`… · /thoughts`) instead of starting
+  mid-sentence with no explanation.
+- `/thoughts` sends the whole reasoning of the last turn in parts (up to 20k
+  characters) rather than stopping at 4000 with an ellipsis.
+
 ## 1.9.1 — 2026-10-25
 
 - `/remind list` lists the reminders instead of failing as an unreadable time, and

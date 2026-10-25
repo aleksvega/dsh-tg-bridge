@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { progressPanel } from '../panel.mjs';
+import { progressPanel, stepLine, addStep } from '../panel.mjs';
 
 test('a quiet turn is a single status line with no empty block', () => {
   const { html, plain } = progressPanel({ lang: 'ru', seconds: 7 });
@@ -40,6 +40,8 @@ test('long reasoning keeps its tail and admits the head is hidden', () => {
   assert.ok(!html.includes('a'.repeat(2010)), 'the head must be cut, not the tail');
   assert.ok(html.length <= 3900, `panel too long: ${html.length}`);
   assert.match(plain, /Размышления · начало скрыто/);
+  // A cut block points at the command that still has the whole text.
+  assert.match(plain, /начало скрыто · \/thoughts/);
 });
 
 test('a panel with many steps and thoughts still fits one Telegram message', () => {
@@ -82,4 +84,24 @@ test('the plain twin carries the same reasoning without any markup', () => {
   assert.doesNotMatch(plain, /<blockquote/);
   assert.match(plain, /a <b> and c/);
   assert.match(plain, /🧠 Reasoning\na <b> and c/);
+});
+
+test('a step line names the work, not the shell plumbing', () => {
+  assert.equal(
+    stepLine({ tool: 'pwsh', input: { command: "cd 'C:\\work\\repo'\nnode sync-runtime.mjs" } }),
+    'pwsh: node sync-runtime.mjs',
+  );
+  assert.equal(stepLine({ tool: 'pwsh', input: { command: "cd 'x' && npm test" } }), 'pwsh: npm test');
+  assert.equal(stepLine({ tool: 'pwsh', input: { command: "cd 'C:\\very\\long\\path'" } }), '', 'a bare cd is not a step');
+  assert.equal(stepLine({ tool: 'read', input: { file_path: 'C:\\p\\bridge.mjs' } }), 'read: C:\\p\\bridge.mjs');
+  assert.equal(stepLine({ tool: 'pwsh', input: { command: 'x'.repeat(200) } }).length, 'pwsh: '.length + 64);
+});
+
+test('repeated steps fold into one line with a count', () => {
+  const steps = [];
+  for (const line of ['pwsh: npm test', 'pwsh: npm test', 'pwsh: npm test', 'read: a.mjs']) addStep(steps, line);
+  addStep(steps, 'pwsh: npm test');
+  assert.deepEqual(steps, ['pwsh: npm test ×3', 'read: a.mjs', 'pwsh: npm test']);
+  addStep(steps, '');
+  assert.equal(steps.length, 3, 'an empty line is skipped, not pushed');
 });
