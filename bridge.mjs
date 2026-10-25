@@ -26,6 +26,7 @@ import { noticeIsObsolete } from './queue-notice.mjs';
 import { immediateKind } from './immediate.mjs';
 import { writeSteerJob } from './steer-queue.mjs';
 import { inlineText } from './media-text.mjs';
+import { createAlbumBuffer } from './albums.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
@@ -1038,8 +1039,14 @@ async function startProgress(chatId, threadId, lang = 'ru') {
         // «Стоп» for «Повторить»: the person's next move is a retry, not a stop.
         const failedFor = Math.round((Date.now() - started) / 1000);
         const unit = lang === 'en' ? 's' : lang === 'zh' ? '秒' : 'с';
-        const text = `⚠️ ${t(lang, 'status.failed')} · ${failedFor} ${unit}\n${String(result.error).slice(0, 1200)}`;
-        await edit(text, errorKeyboard(sessionKey(chatId, threadId), lang));
+        // A turn stopped by the clock is not a failure to redo: the session and
+        // everything it produced are still there, so the useful button is
+        // «Продолжить», which asks the agent to pick up where it stopped.
+        const timedOut = result.reason === 'timeout';
+        const text = timedOut
+          ? `⏱ ${t(lang, 'msg.turnHardCap', { minutes: result.minutes ?? '?' })}`
+          : `⚠️ ${t(lang, 'status.failed')} · ${failedFor} ${unit}\n${String(result.error).slice(0, 1200)}`;
+        await edit(text, timedOut ? continueKeyboard(sessionKey(chatId, threadId), lang) : errorKeyboard(sessionKey(chatId, threadId), lang));
         return true;
       }
       await edit(body(true), null);
@@ -1104,88 +1111,91 @@ async function readVoiceIntoText(msg, chatId, threadId, lang) {
 }
 
 /**
- * Photo or file -> the prompt text that hands its path to the turn.
+ * Attachments -> the prompt text that hands them to the turn.
  *
+ * Takes a list because Telegram delivers an album as several messages sharing
+ * one `media_group_id`; the bridge collects them and builds a single hand-over.
  * Every supported attachment becomes the same kind of text here, so a normal
  * turn and a mid-turn steer describe a file identically. `extraArgs` carries
  * the vision patch a photo turn needs; a steer cannot apply it to a running
  * turn and leaves it empty.
  */
-async function mediaPrompt(msg, chatId, threadId, lang, opts = {}) {
+async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
+  const list = Array.isArray(msgs) ? msgs : [msgs];
   const voiceReady = Boolean(config.voice?.python && config.voice?.script) || Boolean(config.voice?.command);
   const voiceOn = Boolean(config.voice?.enabled) && voiceReady;
-  if (msg.voice || msg.audio) {
-    if (!voiceOn) return { text: '', extraArgs: [] };
-    const heard = await readVoiceIntoText(msg, chatId, threadId, lang);
-    const note = (msg.caption || '').trim();
-    return {
-      text: heard + (heard && note ? ` ${t(lang, 'prompt.note', { note })}` : ''),
-      extraArgs: [],
-    };
-  }
-  // An audio file sent as a document is a voice note with a different wrapper:
-  // transcribe it instead of handing over a path nobody can listen to.
-  if (msg.document?.mime_type?.startsWith('audio/') && voiceOn) {
-    const heard = await readVoiceIntoText({ ...msg, audio: msg.document }, chatId, threadId, lang);
-    const note = (msg.caption || '').trim();
-    return {
-      text: heard + (heard && note ? ` ${t(lang, 'prompt.note', { note })}` : ''),
-      extraArgs: [],
-    };
-  }
-  // Photo handling: the current default route has no image input, so the turn
-  // is run with a `--patch` overlay that points it at a vision model. Without
-  // the overlay every photo ended in "model does not declare image input".
-  if (msg.photo) {
-    const fileId = msg.photo[msg.photo.length - 1].file_id;
-    const file = await tg('getFile', { file_id: fileId });
-    const path = join(DIR, `photo-${Date.now()}.jpg`);
-    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
-    writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
-    const note = (msg.caption || '').trim();
-    let text = t(lang, 'prompt.photo', { path })
-      + (note ? ` ${t(lang, 'prompt.note', { note })}` : '');
-    // A steer cannot apply the vision overlay to a turn that is already
-    // running, so the model gets a path and an honest line instead of a
-    // silently unreadable image.
-    if (opts.steer) text += ` ${t(lang, 'prompt.photoMidTurn')}`;
-    let extraArgs = [];
-    if (config.vision?.patch && existsSync(config.vision.patch)) {
-      extraArgs = ['--patch', config.vision.patch];
-      log(`photo turn uses vision patch ${config.vision.patch}`);
-    } else {
-      log('photo turn without vision patch: the default model cannot read images');
+  const parts = [];
+  let extraArgs = [];
+  let caption = '';
+  let photo = false;
+  for (const msg of list) {
+    if (!caption && (msg.caption || '').trim()) caption = msg.caption.trim();
+    if (msg.voice || msg.audio) {
+      if (!voiceOn) {
+        log('audio ignored: voice transcription is off or misconfigured');
+        continue;
+      }
+      const heard = await readVoiceIntoText(msg, chatId, threadId, lang);
+      if (heard) parts.push(heard);
+      continue;
     }
-    return { text, extraArgs };
-  }
-  // Documents (PDF, zip, source, csv), video and video notes: save under
-  // inbox/ and hand the path to the turn. Text-like files are also pasted in
-  // as content, so a steer can use them without a tool round-trip.
-  const doc = msg.document || msg.video || msg.video_note || msg.animation;
-  if (doc) {
+    // An audio file sent as a document is a voice note with a different
+    // wrapper: transcribe it instead of handing over a path nobody can listen to.
+    if (msg.document?.mime_type?.startsWith('audio/') && voiceOn) {
+      const heard = await readVoiceIntoText({ ...msg, audio: msg.document }, chatId, threadId, lang);
+      if (heard) parts.push(heard);
+      continue;
+    }
+    // Photo handling: the current default route has no image input, so the turn
+    // is run with a `--patch` overlay that points it at a vision model. Without
+    // the overlay every photo ended in "model does not declare image input".
+    if (msg.photo) {
+      const fileId = msg.photo[msg.photo.length - 1].file_id;
+      const file = await tg('getFile', { file_id: fileId });
+      const path = join(DIR, `photo-${Date.now()}-${parts.length}.jpg`);
+      const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+      writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
+      parts.push(t(lang, 'prompt.photo', { path }));
+      photo = true;
+      if (config.vision?.patch && existsSync(config.vision.patch)) {
+        extraArgs = ['--patch', config.vision.patch];
+        log(`photo turn uses vision patch ${config.vision.patch}`);
+      } else {
+        log('photo turn without vision patch: the default model cannot read images');
+      }
+      continue;
+    }
+    // Documents (PDF, zip, source, csv), video and video notes: save under
+    // inbox/ and hand the path to the turn. Text-like files are also pasted in
+    // as content, so a steer can use them without a tool round-trip.
+    const doc = msg.document || msg.video || msg.video_note || msg.animation;
+    if (!doc) continue;
     const safe = (doc.file_name || `file-${Date.now()}`).replace(/[^\w.\-]+/g, '_');
     const inbox = join(DIR, 'inbox');
     mkdirSync(inbox, { recursive: true });
-    const path = join(inbox, `${Date.now()}-${safe}`);
+    const path = join(inbox, `${Date.now()}-${parts.length}-${safe}`);
     const file = await tg('getFile', { file_id: doc.file_id });
     const bin = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
     if (!bin.ok) throw new Error(`document download failed: ${bin.status}`);
     writeFileSync(path, Buffer.from(await bin.arrayBuffer()));
-    const note = (msg.caption || '').trim();
     const type = doc.mime_type || 'unknown';
     const size = doc.file_size || '?';
     const body = msg.document ? inlineText(path, safe) : '';
-    let text = body
+    parts.push(body
       ? t(lang, 'prompt.fileText', { path, type, size, body })
-      : t(lang, 'prompt.file', { path, type, size });
-    if (note) text += ` ${t(lang, 'prompt.note', { note })}`;
+      : t(lang, 'prompt.file', { path, type, size }));
     log(`document saved ${path} bytes=${doc.file_size || 0}${body ? ` inline=${body.length}` : ''}`);
-    return { text, extraArgs: [] };
   }
-  return { text: '', extraArgs: [] };
+  let text = parts.filter(Boolean).join('\n\n');
+  // A steer cannot apply the vision overlay to a turn that is already running,
+  // so the model gets a path and an honest line instead of a silently
+  // unreadable image.
+  if (text && photo && opts.steer) text += `\n\n${t(lang, 'prompt.photoMidTurn')}`;
+  if (text && caption) text += `\n\n${t(lang, 'prompt.note', { note: caption })}`;
+  return { text, extraArgs };
 }
 
-async function handleMessage(msg) {
+async function handleMessage(msg, album = null) {
   const chatId = msg.chat.id;
   const from = msg.from?.id;
 
@@ -1196,7 +1206,8 @@ async function handleMessage(msg) {
     return;
   }
   // 2. Service messages (topic created, pins, joins) carry no task text.
-  if (!msg.text && !msg.caption && !msg.voice && !msg.audio && !msg.photo && !msg.document) {
+  const attachments = album && album.length ? album : [msg];
+  if (!msg.text && !msg.caption && !attachments.some((m) => m.voice || m.audio || m.photo || m.document || m.video || m.video_note || m.animation)) {
     log(`ignored service message chat=${chatId} thread=${msg.message_thread_id ?? 0}`);
     return;
   }
@@ -1241,9 +1252,8 @@ async function handleMessage(msg) {
   // A file almost always arrives with a caption, so the presence of text must
   // not be taken as "no attachment": that dropped every captioned document.
   let extraArgs = [];
-  const media = msg.voice || msg.audio || msg.photo || msg.document || msg.video || msg.video_note || msg.animation;
-  if (media) {
-    const built = await mediaPrompt(msg, chatId, threadId, lang);
+  if (!msg.text && attachments.some((m) => m.voice || m.audio || m.photo || m.document || m.video || m.video_note || m.animation)) {
+    const built = await mediaPrompt(attachments, chatId, threadId, lang);
     if (built.text) text = built.text;
     extraArgs = built.extraArgs;
   }
@@ -1685,14 +1695,59 @@ function watchSteer(job, msg, text, thread, lang) {
  * only confirmation the person gets that the audio was understood, so the
  * helper does that before the steer is written.
  */
-async function steerMediaMessage(msg, sessionId, key, thread, lang) {
-  const built = await mediaPrompt(msg, msg.chat.id, thread, lang, { steer: true });
+async function steerMediaMessage(msgs, sessionId, key, thread, lang) {
+  const list = Array.isArray(msgs) ? msgs : [msgs];
+  const first = list[0];
+  const built = await mediaPrompt(list, first.chat.id, thread, lang, { steer: true });
   if (!built.text) {
     log('steer media produced no text; nothing injected');
     return;
   }
   if (!activeTurns.has(key)) log(`steer media: turn ended during prep, job will re-queue (${key})`);
-  steerRunningTurn(msg, built.text, sessionId, thread);
+  steerRunningTurn(first, built.text, sessionId, thread);
+}
+
+// ------------------------------------------------------------------ albums
+//
+// Telegram delivers an album as one update per file, a few hundred ms apart,
+// all sharing a `media_group_id`. Left alone, ten photos became ten steers (or
+// ten turns): the person picked ten files and meant one request. Collect the
+// group and hand it over once.
+
+/** Quiet time after the last item before the album is handed over. */
+const ALBUM_QUIET_MS = 1200;
+/** Hard ceiling: a slow upload must not hold the batch forever. */
+const ALBUM_MAX_MS = 4000;
+
+const albumBuffer = createAlbumBuffer({
+  quietMs: ALBUM_QUIET_MS,
+  maxMs: ALBUM_MAX_MS,
+  onFlush: (msgs) => {
+    void deliverAlbum(msgs);
+  },
+});
+
+function bufferAlbum(msg) {
+  albumBuffer.push(`${msg.chat.id}:${threadOf(msg)}:${msg.media_group_id}`, msg);
+}
+
+/** One album -> one steer when a turn runs, otherwise one turn. */
+async function deliverAlbum(msgs) {
+  const first = msgs[0];
+  const key = sessionKey(first.chat.id, threadOf(first));
+  const thread = threadOf(first);
+  const lang = resolveLang(state, key, first, config);
+  const sessionId = liveSessions.get(key) || state.sessions[key];
+  log(`album ${first.media_group_id}: ${msgs.length} item(s) in ${key}`);
+  if (config.steerDuringTurn !== false && steerAvailable(profileOf(key)) && activeTurns.has(key) && sessionId) {
+    try {
+      await steerMediaMessage(msgs, sessionId, key, thread, lang);
+      return;
+    } catch (error) {
+      log(`album steer failed, queueing a normal turn: ${error.message}`);
+    }
+  }
+  enqueue(key, () => handleMessage(first, msgs));
 }
 
 function enqueue(key, task, onBusy) {
@@ -1749,6 +1804,18 @@ function errorKeyboard(key, lang = 'ru') {
     inline_keyboard: [
       [
         { text: `🔁 ${t(lang, 'btn.retry')}`, callback_data: 'retry' },
+        { text: `🩺 ${t(lang, 'btn.doctor')}`, callback_data: 'doctor' },
+      ],
+    ],
+  };
+}
+
+/** A turn stopped by the clock: the work is not lost, so offer to go on. */
+function continueKeyboard(key, lang = 'ru') {
+  return {
+    inline_keyboard: [
+      [
+        { text: `⏵ ${t(lang, 'btn.continue')}`, callback_data: 'resume' },
         { text: `🩺 ${t(lang, 'btn.doctor')}`, callback_data: 'doctor' },
       ],
     ],
@@ -1836,6 +1903,25 @@ async function handleCallback(query) {
   if (data === 'doctor') {
     await answer('Проверяю');
     await send(chatId, 'Напиши /doctor — он соберёт полный отчёт.', threadId);
+    return;
+  }
+
+  if (data === 'resume') {
+    // Not a retry: the session already holds everything the turn produced.
+    // A continuation prompt asks the agent to check the state and go on.
+    const lang = resolveLang(state, key, null, config);
+    await clearKeyboard();
+    await answer(t(lang, 'btn.continue'));
+    log(`resume via button for ${key}`);
+    const thread = threadId || 0;
+    enqueue(key, () => handleMessage({
+      chat: { id: chatId },
+      from: { id: config.allowedUserIds[0] },
+      message_id: 0,
+      message_thread_id: thread || undefined,
+      is_topic_message: thread > 0,
+      text: t(lang, 'prompt.continueTurn'),
+    }));
     return;
   }
 
@@ -1932,7 +2018,9 @@ function runTurnLive(task, sessionId, key, options = {}) {
       finish({
         sessionId: sessionSeen,
         text: '',
-        error: `ход превысил ${Math.round(hardMs / 60000)} мин и был прерван.`,
+        reason: 'timeout',
+        minutes: Math.round(hardMs / 60000),
+        error: `turn exceeded ${Math.round(hardMs / 60000)} min`,
       });
       if (options.onAbort) options.onAbort();
     }, hardMs) : null;
@@ -2007,6 +2095,14 @@ async function main() {
         .then(() => handleMessage(msg))
         .then(() => ack(update.update_id))
         .catch((error) => log(`command ${immediate} failed: ${error.message}`));
+      return;
+    }
+    // Telegram splits an album into one update per file, all sharing a
+    // `media_group_id`. Buffering them for a moment turns "ten photos" into one
+    // hand-over instead of ten steers or ten turns.
+    if (msg.media_group_id) {
+      ack(update.update_id);
+      bufferAlbum(msg);
       return;
     }
     // A plain message during a running turn is an addition to that work, not a

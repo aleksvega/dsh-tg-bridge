@@ -219,6 +219,18 @@ What each kind of attachment becomes inside a running turn:
 A caption does not turn the attachment into a text-only message: it is folded into the same
 hand-over, so "why did this fail" plus a `.log` file arrives as one steer.
 
+An album is one request, not ten. Telegram delivers it as one update per file, all sharing a
+`media_group_id`; the bridge collects the group (1.2 s of quiet after the last item, at most
+4 s) and hands it over once — one steer into a running turn, one turn when the topic is idle.
+
+### When a turn hits the time ceiling
+
+`turnTimeoutMs` (default 30 min, this install 75) is a ceiling, not a target: if a turn reaches
+it, the bridge stops it with `⏱` instead of letting one runaway loop own the topic for hours.
+Nothing is lost — the session and every file the turn produced stay in place — so the message
+carries **⏵ Continue**, which asks the agent to check the state and go on from where it stopped.
+That is deliberately not the same as **Retry**, which would redo the whole task from the start.
+
 This needs the plugin from this repository:
 
 ```bash

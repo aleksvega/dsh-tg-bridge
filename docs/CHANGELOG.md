@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- An album is one hand-over, not ten. Telegram sends one update per file with a
+  shared `media_group_id`; `albums.mjs` collects the group (1.2 s quiet, 4 s
+  ceiling) and delivers it as one steer into a running turn or one turn when the
+  topic is idle. Four tests cover ordering, separate albums, the ceiling and a
+  single-item group.
+- A turn stopped by the time ceiling is now a pause, not a dead end: the status
+  message shows `⏱` with the localised explanation and a **Continue** button,
+  which enqueues a continuation prompt in the same session instead of re-running
+  the whole task from scratch (that is what Retry does). `runTurnLive` reports
+  `reason: 'timeout'` so the button choice is made on a fact, not on parsing an
+  error string.
 - Attachments are a first-class part of a running turn, not just typed text.
   - A caption no longer downgrades a file to a text-only message. `handleMessage`
     only called the media helper when the message had no text, so every
