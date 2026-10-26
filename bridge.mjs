@@ -31,6 +31,8 @@ import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf, reasoningOf } from './control.mjs';
+import { bridgeVersion, installRelease, npmLatestAsync } from './control.mjs';
+import { dueForCheck, updateState } from './update-policy.mjs';
 import { drainGoalJobs, goalOf, progressOf, renderPromptBlock, toggleTask } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
 import { t, resolveLang } from './i18n.mjs';
@@ -747,6 +749,22 @@ function immediateCommandOf(text) {
  */
 function langFor(chatId, threadId = 0) {
   return resolveLang(state, sessionKey(chatId, threadId), null, config);
+}
+
+/**
+ * Where a release notice goes: the last chat a turn ran in.
+ *
+ * `state.sessions[key]` is a session id, not a record, so the order is by last
+ * use — the bridge records it in `state.lastKey` whenever it starts a turn. With
+ * no session at all (a fresh install that never talked) a notice is pointless,
+ * and nothing is sent.
+ */
+function lastTurnTarget() {
+  const key = typeof state.lastKey === 'string' ? state.lastKey : '';
+  const [chat, thread] = key.split(':');
+  const chatId = Number(chat);
+  if (!Number.isInteger(chatId) || chatId <= 0) return null;
+  return { chatId, threadId: Number(thread) || 0 };
 }
 
 async function send(chatId, text, threadId = 0, replyTo = 0) {
@@ -1566,6 +1584,12 @@ ${t(lang, 'help.body')}`,
   // (two messages a few seconds apart, or a copy-paste), and the late writer
   // then attached a fresh session id to a conversation that already had one.
   const sessionAtStart = state.sessions[key];
+  // Remember the topic a turn is running in: it is where a release notice goes,
+  // since a notice is about the install and the install serves every topic.
+  if (state.lastKey !== key) {
+    state.lastKey = key;
+    saveState();
+  }
   // Project directory bound to this topic (set with /cd); config.cwd otherwise.
   const cwd = (state.cwd && state.cwd[key]) || config.cwd;
   // What the person actually wrote, before any injected block: the progress
@@ -2509,7 +2533,53 @@ async function main() {
   }
 
   let pollFailures = 0;
+  // Release and failure notices ride the poll loop's own idle: they are one
+  // message every few hours at most, and a timer would keep the process awake
+  // for nothing. The first check runs a few minutes after a start, so a
+  // restarting machine does not hit the registry on every boot.
+  const notice = { mode: '', startAt: Date.now() + 3 * 60 * 1000 };
+  const noticeMode = () => (state.update && typeof state.update.mode === 'string' ? state.update.mode : 'check');
+  /** Where a notice goes: the chat that last ran a turn. */
+  const noticeTarget = () => lastTurnTarget();
+  const maybeNotice = async () => {
+    try {
+      const target = noticeTarget();
+      if (!target) return;
+      const mode = noticeMode();
+      const checkedAt = Number(state.update?.checkedAt) || 0;
+      if (mode === 'off' || !dueForCheck({ mode, checkedAt, now: Date.now() })) return;
+      // One attempt per interval, even if it fails: an offline laptop must not
+      // retry the registry on every poll.
+      state.update = { ...(state.update || {}), checkedAt: Date.now() };
+      saveState();
+      const latest = await npmLatestAsync();
+      if (!latest) return;
+      const lang = langFor(target.chatId, target.threadId);
+      const result = updateState({ installed: bridgeVersion(), latest, mode, notified: state.update?.notified || '' });
+      if (result.auto) {
+        // The files change, the running process does not: the person still says
+        // when the new code loads, so a bad release never arrives mid-chat.
+        const backup = installRelease(latest);
+        state.update = { ...(state.update || {}), notified: latest };
+        saveState();
+        await send(target.chatId, t(lang, 'ctrl.update.done', { v: latest }) + '\n' + t(lang, 'ctrl.update.backup', { path: join(DIR, backup) }), target.threadId);
+        return;
+      }
+      if (!result.notify) return;
+      state.update = { ...(state.update || {}), notified: latest };
+      saveState();
+      await send(target.chatId, t(lang, 'ctrl.subscribe.notice', { v: latest }), target.threadId);
+    } catch (error) {
+      log(`update notice skipped: ${error.message}`);
+    }
+  };
   for (;;) {
+    if (Date.now() >= notice.startAt) {
+      notice.startAt = Date.now() + 15 * 60 * 1000;
+      if (notice.mode !== noticeMode()) notice.startAt = Date.now() + 3 * 60 * 1000;
+      notice.mode = noticeMode();
+      void maybeNotice();
+    }
     try {
       // `callback_query` is required for inline buttons: without it Telegram
       // never delivers button presses, so «Стоп» would draw but do nothing.

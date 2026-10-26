@@ -17,6 +17,7 @@ import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from './reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from './agentsets.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
+import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -602,7 +603,7 @@ export const CONTROL_COMMANDS = [
   'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task', 'tasks',
-  'thoughts', 'version', 'update', 'agentset',
+  'thoughts', 'version', 'update', 'agentset', 'subscribe',
 ];
 
 /**
@@ -1940,9 +1941,20 @@ export async function handleControl(ctx) {
       // touched unless the release is newer, and the running process keeps its
       // old modules until the next `/restart confirm` — so a bad release never
       // takes the chat down by itself.
-      if (String(arg).trim() === 'confirm') {
-        const installed = bridgeVersion();
-        const latest = npmLatest('dsh-tg-bridge');
+      const policy = updatePolicy(state);
+      const installed = bridgeVersion();
+      const latest = npmLatest('dsh-tg-bridge');
+      const sub = String(arg).trim().toLowerCase();
+      if (['off', 'check', 'auto'].includes(sub)) {
+        const change = modeChange({ installed, latest, command: sub });
+        if (change.store) {
+          Object.assign(policy, change.store);
+          saveState();
+        }
+        say(change.text);
+        return true;
+      }
+      if (sub === 'confirm') {
         if (!latest) {
           say(t(lang, 'ctrl.update.offline'));
           return true;
@@ -1951,55 +1963,44 @@ export async function handleControl(ctx) {
           say(t(lang, 'ctrl.update.current', { v: installed }));
           return true;
         }
-        const root = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
         say(t(lang, 'ctrl.update.running', { v: latest }));
-        // `npm install dsh-tg-bridge@x` inside the bridge's own directory would
-        // drop a nested node_modules/dsh-tg-bridge and leave the running files
-        // alone, so the release is fetched into a temp dir and its files are
-        // copied over the top. Config, state and logs stay untouched.
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const backup = join(root, `update-backup-${stamp}`);
-        const work = join(tmpdir(), `dsh-tg-bridge-${stamp}`);
-        const r = spawnSync(
-          'npm',
-          ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', work, `dsh-tg-bridge@${latest}`],
-          { encoding: 'utf8', shell: true, timeout: 240000, windowsHide: true },
-        );
-        const tail = `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/).slice(-6).join('\n');
-        if (r.status !== 0) {
-          say(t(lang, 'ctrl.update.failed', { code: r.status ?? '?' }) + (tail ? `\n\n${tail}` : ''));
-          return true;
-        }
+        let backup = '';
         try {
-          mkdirSync(backup, { recursive: true });
-          for (const name of readdirSync(join(work, 'package'))) {
-            const from = join(work, 'package', name);
-            const to = join(root, name);
-            if (existsSync(to)) copyFileSync(to, join(backup, name));
-            copyFileSync(from, to);
-          }
+          backup = installRelease(latest);
         } catch (error) {
-          say(t(lang, 'ctrl.update.failed', { code: 'copy' }) + `\n\n${error.message}`);
+          say(t(lang, 'ctrl.update.failed', { code: 'npm' }) + `\n\n${String(error.message).slice(-700)}`);
           return true;
-        } finally {
-          try {
-            rmSync(work, { recursive: true, force: true });
-          } catch {}
         }
-        say(t(lang, 'ctrl.update.done', { v: latest }));
+        // The files on disk are the new ones now; this process still runs the
+        // old code, so the way back is one folder name.
+        policy.notified = latest;
+        saveState();
+        say(t(lang, 'ctrl.update.done', { v: latest }) + `\n${t(lang, 'ctrl.update.backup', { path: join(bridgeRoot(), backup) })}`);
         return true;
       }
+      // No argument: where this install stands, in one sentence.
+      say(describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified })));
+      return true;
+    }
+
+    case '/subscribe': {
+      // A notice per new release, at most once per release, and nothing when the
+      // registry does not answer. Not a command menu entry: it is one line, and
+      // a person who turns it off should not have to find it again in /help.
+      const policy = updatePolicy(state);
       const installed = bridgeVersion();
       const latest = npmLatest('dsh-tg-bridge');
-      if (!latest) {
-        say(t(lang, 'ctrl.update.offline'));
+      const [on] = String(arg).trim().split(/\s+/);
+      if (on === 'on' || on === 'off') {
+        policy.mode = on === 'on' ? 'check' : 'off';
+        policy.pinned = on === 'off' ? installed : '';
+        policy.notified = latest;
+        saveState();
+        say(t(lang, on === 'on' ? 'ctrl.subscribe.on' : 'ctrl.subscribe.off', { v: installed || '?' }));
         return true;
       }
-      if (installed && installed === latest) {
-        say(t(lang, 'ctrl.update.current', { v: installed }));
-        return true;
-      }
-      say(t(lang, 'ctrl.update.available', { from: installed || '?', to: latest }));
+      const where = policy.mode === 'off' ? t(lang, 'ctrl.subscribe.stateOff') : t(lang, 'ctrl.subscribe.stateOn');
+      say(`${t(lang, 'ctrl.subscribe.title')}\n${where}\n${describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified }))}`);
       return true;
     }
 
@@ -2168,6 +2169,59 @@ export async function handleControl(ctx) {
   }
 }
 
+/**
+ * The install-wide update settings: a mode, which release was already announced,
+ * when npm was last asked and the version a person chose to stay on. They live
+ * in state.json, not in a topic, because it is the install that updates.
+ */
+function updatePolicy(state) {
+  if (!state.update || typeof state.update !== 'object') state.update = { ...UPDATE_DEFAULTS };
+  return state.update;
+}
+
+/** Where this install's files live. */
+function bridgeRoot() {
+  return process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
+}
+
+/**
+ * Replace this install's files with the given release, fetched from npm into a
+ * temp dir and copied over the top: `npm install` inside the bridge's own
+ * directory would drop a nested node_modules and leave the running files alone.
+ * Everything else in the directory (config, state, logs, backups) is left where
+ * it is. Returns the directory name the old files were saved under.
+ */
+function installRelease(version) {
+  const root = bridgeRoot();
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backup = `update-backup-${stamp}`;
+  const work = join(tmpdir(), `dsh-tg-bridge-${stamp}`);
+  try {
+    const r = spawnSync('npm', ['install', '--no-save', '--no-audit', '--no-fund', '--prefix', work, `dsh-tg-bridge@${version}`], {
+      encoding: 'utf8',
+      shell: true,
+      timeout: 240000,
+      windowsHide: true,
+    });
+    if (r.status !== 0) {
+      const tail = `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/).slice(-6).join('\n');
+      throw new Error(`npm exited ${r.status ?? '?'}${tail ? `\n${tail}` : ''}`);
+    }
+    mkdirSync(join(root, backup), { recursive: true });
+    for (const name of readdirSync(join(work, 'package'))) {
+      const from = join(work, 'package', name);
+      const to = join(root, name);
+      if (existsSync(to)) copyFileSync(to, join(backup, name));
+      copyFileSync(from, to);
+    }
+    return backup;
+  } finally {
+    try {
+      rmSync(work, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 /** Version of the bridge this process runs, read from its own package.json. */
 function bridgeVersion() {
   const root = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
@@ -2202,4 +2256,42 @@ function npmLatest(name) {
   }
 }
 
-export { DSH_HOME, modelOf, modelsOf, pluginsOf, recentSessions, skillsOf, soulOf, bridgeVersion, npmLatest };
+/**
+ * The same question, asked without blocking the event loop.
+ *
+ * The command surface may block for a second (`spawnSync` is simpler and the
+ * person is waiting anyway); the poll loop may not, because a stalled `npm view`
+ * there would also stop `getUpdates`.
+ */
+function npmLatestAsync(name = 'dsh-tg-bridge') {
+  return new Promise((resolve) => {
+    let out = '';
+    let child;
+    try {
+      child = spawn('npm', ['view', name, 'version'], { shell: true, windowsHide: true });
+    } catch {
+      resolve('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {}
+      resolve('');
+    }, 45000);
+    child.stdout.on('data', (d) => {
+      out += d;
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve('');
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const version = out.trim().split(/\s+/).pop() || '';
+      resolve(code === 0 && /^\d/.test(version) ? version : '');
+    });
+  });
+}
+
+export { DSH_HOME, modelOf, modelsOf, pluginsOf, recentSessions, skillsOf, soulOf, bridgeVersion, npmLatest, npmLatestAsync, installRelease };

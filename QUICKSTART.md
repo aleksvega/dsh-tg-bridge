@@ -83,7 +83,7 @@ Everything below is typed in the chat, not in a terminal.
 | See what it is doing | it posts a live progress message; `/thoughts` toggles the 💭 notes |
 | A plan you can tick off | `/goal <what done looks like>`, then `/task <step>`, then `/tasks` to tap items |
 | Stop a long answer | `/stop` |
-| Restart after an update | `/restart confirm` |
+| Update the bridge | `/update` shows where you stand. By default it tells you once about a new release; `/update confirm` installs it and `/restart confirm` loads it. `/update off` stays on the version you have. |
 | Everything it can do | `/help` |
 
 `/lang` pins the reply language; without it the bridge answers in the language you

@@ -1,5 +1,40 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.14.0
+
+- **New: updates have a policy.** The npm tag `latest` is a label, not an
+  updater — installing pins a version on disk and nothing moves until something
+  moves it. Now `/update` answers where the install stands, and takes a mode:
+  `check` (the default: one message per new release), `auto` (the release installs
+  by itself), `off` (no checks, nothing installs), and `confirm` (install now).
+  The mode is per install, not per topic, because it is the install that updates.
+- In every mode the running process keeps its modules until `/restart confirm`,
+  so a bad release never arrives in the middle of a chat. `confirm` and `auto`
+  leave the replaced files in `update-backup-<date>`, and `/update` prints that
+  path: one folder is the way back.
+- `/update off` pins the version it runs; `/update auto` refuses to be switched on
+  top of a pending update, since that would mean two updates at once, one of them
+  unattended.
+- `/subscribe on|off` is the same switch said plainly, for people who do not want
+  to read `/update` first. It is not in the Telegram menu: a person who turned it
+  off should not have to look for it there again.
+- The check rides the poll loop's idle and asks npm at most once a day (`check`)
+  or once an hour (`auto`). The first check runs three minutes after a start so a
+  restarting machine does not hit the registry on every boot.
+- Docs brought back in line with the code: `/models`, `/plugin`, `/tasks`,
+  `/subscribe` and the whole `Sets:` and `Updates:` groups are in the README, in
+  `/help` in all three languages, and in the Telegram menu; `/models` and
+  `/plugin` were missing from the menu entirely.
+
+## 1.13.2
+
+- `QUICKSTART.md`: from no Telegram account to an answering bot in twelve steps,
+  with a table of what actually goes wrong and what each symptom means. It ships
+  in the package and is linked from the top of the README.
+- `skills/dsh-tg-bridge-onboarding/SKILL.md`: the same path as a skill, so an
+  agent next to a newcomer can ask three questions, run the install and verify it
+  by asking the person to send `hi` — not by reading logs.
+
 ## 1.13.1
 
 - **Fix: the npm package could not start.** `format.mjs` was imported by

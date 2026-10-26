@@ -185,17 +185,48 @@ Send the bot:
 
 ```
 Work:         /cd · /new · /stop · /send · /seed
-Goals:        /goal · /task
+Goals:        /goal · /task · /tasks
 Sessions:     /status · /sessions · /resume
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
-Models:       /model · /model <id> · /prices
+Models:       /model · /model <id> · /models · /prices
 Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
-Extensions:   /skills · /plugins · /soul
+Sets:         /agentset · /agentset use|off|new|copy|rm · /agentset model <v>
+Extensions:   /skills · /plugins · /plugin disable|enable <id> · /soul
+Updates:      /version · /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
-Display:      /lang · /reasoning on|off
+Display:      /lang · /reasoning on|off · /thoughts
 ```
+
+Every command answers `/help` in the chat, in the language you write in. The
+Telegram menu shows the same list, minus `/subscribe`: it is one line, and a
+person who turns it off should not have to find it in a menu again.
+
+## Updates
+
+The npm tag `latest` is a label, not an updater: installing a package pins the
+version on disk, and nothing moves until something moves it. Three modes, one
+per install (a global setting, since it is the install that updates, not a
+topic):
+
+| `/update …` | What happens |
+|---|---|
+| *(none)* | one line: what runs here, what is published, which mode is set |
+| `check` (default) | one message per new release, at most once a day of checking |
+| `auto` | the new release is fetched and installed by itself; `/restart confirm` loads it |
+| `off` | no notices, no checks; `/version` still reports what is published |
+| `confirm` | install now, keeping a copy of the old files in `update-backup-<date>` |
+
+In every mode the running process keeps its modules until `/restart confirm`,
+so a bad release never arrives in the middle of a chat. `/update off` pins the
+install to the version it runs; `npx dsh-tg@latest setup` is how you follow
+releases again.
+
+Failure notices are not a thing here on purpose: the bridge cannot report a bug
+to its own author, and a message about "something failed" that nobody can act on
+is noise. What it does send is the release notice above, and only to the chat
+that last ran a turn.
 
 ## How it works
 
