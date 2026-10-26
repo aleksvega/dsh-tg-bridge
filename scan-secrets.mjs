@@ -2,8 +2,8 @@
 //
 // Why this file exists: `jev-gate` does ask Jev "has_secrets", but only when
 // someone runs it by hand, and it describes the diff to a remote model instead
-// of deciding locally. A machine id, a chat id, a token or a "C:\Users\<name>"
-// path is not a judgement call — it is a string match — so this check is
+// of deciding locally. A machine id, a chat id, a token or a personal Windows
+// home path is not a judgement call — it is a string match — so this check is
 // deterministic, offline and free, and it runs on every push through a git hook
 // (`install-hooks.mjs`).
 //
