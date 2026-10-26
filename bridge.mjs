@@ -38,6 +38,8 @@ import { progressPanel, stepLine, addStep } from './panel.mjs';
 import { AgentsetStore } from './agentsets.mjs';
 import { profileValues, resolveSettings, settingsChip } from './settings.mjs';
 import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from './agents.mjs';
+import { drainAsetJobs } from './aset-jobs.mjs';
+import { materialiseProfile, pruneDerived } from './aset-profile.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -174,23 +176,17 @@ function settingsChipOf(key) {
   try {
     const id = state.agentsets?.[key];
     if (!id) return '';
-    const set = new AgentsetStore(join(DIR, 'agentsets.json')).load().get(id);
+    const store = new AgentsetStore(join(DIR, 'agentsets.json')).load();
+    const set = store.get(id);
     if (!set) return '';
     const profile = profileOf(key);
     const patch = readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
-    const model = modelOf(profile);
-    const row = profileValues({
-      model,
-      permissions: parsePermissionPresets(patch)?.presets?.find((p) => p.sandbox)?.id || '',
-      preset: parseAgentPresets(patch)?.selected || '',
-      effort: '',
-    });
     const resolved = resolveSettings({
       set,
       override: state.settings?.[key] || null,
-      profile: row,
+      profile: profileValues(profileRowOf(profile, patch)),
       models: modelsOf(profile),
-      efforts: parseReasoningEfforts(patch, set.model || row.model) || [],
+      efforts: parseReasoningEfforts(patch, set.model || modelOf(profile).model) || [],
       permissions: parsePermissionPresets(patch)?.presets?.map((p) => p.id) || [],
       presets: parseAgentPresets(patch)?.presets?.map((p) => p.id) || [],
     });
@@ -198,6 +194,79 @@ function settingsChipOf(key) {
   } catch {
     return '';
   }
+}
+
+/** What the profile itself says, as `resolveSettings` wants it. */
+function profileRowOf(profile, patch = '') {
+  const text = patch || readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
+  const model = modelOf(profile);
+  const named = parsePermissionPresets(text);
+  return profileValues({
+    model,
+    // The preset the table actually starts in, not just the first row: a
+    // profile whose default is read-only must not read as workspace-write.
+    permissions: /defaultPreset:\s*(\S+)/.exec(text)?.[1] || named?.presets?.find((p) => p.sandbox)?.id || '',
+    preset: parseAgentPresets(text)?.selected || '',
+    effort: '',
+  });
+}
+
+/**
+ * The profile a turn actually runs under. A bound set becomes a profile of its
+ * own (`aset-profile.mjs`), because DSH has no per-topic override; without a set
+ * the answer is the topic's or the install's profile, unchanged.
+ * `keep` tells the sweep every profile still in use.
+ */
+function turnProfileOf(key) {
+  const base = profileOf(key);
+  try {
+    const id = state.agentsets?.[key];
+    if (!id) return base;
+    const store = new AgentsetStore(join(DIR, 'agentsets.json')).load();
+    const set = store.get(id);
+    if (!set) return base;
+    const derived = materialiseProfile(set, base);
+    if (!derived) return base;
+    const keep = Object.keys(state.agentsets || {})
+      .map((topic) => {
+        const bound = state.agentsets[topic];
+        const other = store.get(bound);
+        return other ? materialiseProfile(other, profileOf(topic)) : '';
+      })
+      .filter(Boolean);
+    pruneDerived(keep);
+    return derived;
+  } catch (error) {
+    // A broken store must not cost the turn: the profile runs as it would have.
+    log(`aset profile failed for ${key}: ${error.message}`);
+    return base;
+  }
+}
+
+/**
+ * Bind, unbind or edit a set for one topic — the single implementation behind
+ * `/agentset`, the card's buttons and the job a running turn drops.
+ */
+function applyAsetJob(job) {
+  const { chatId, threadId = 0, action = 'use', id = '', field = '', value } = job || {};
+  if (!chatId) return { ok: false, text: 'no chat' };
+  const key = sessionKey(String(chatId), Number(threadId) || 0);
+  const store = new AgentsetStore(join(DIR, 'agentsets.json')).load();
+  if (!state.agentsets) state.agentsets = {};
+  if (action === 'off') {
+    if (!state.agentsets[key]) return { ok: true, changed: false, text: 'no set bound' };
+    delete state.agentsets[key];
+    if (state.settings) delete state.settings[key];
+    return { ok: true, changed: true, text: 'set off' };
+  }
+  const set = store.get(id);
+  if (!set) return { ok: false, text: `no set ${id}` };
+  if (action === 'use') {
+    state.agentsets[key] = id;
+    return { ok: true, changed: true, text: `bound ${id}`, setId: id };
+  }
+  if (action === 'edit') return { ok: false, text: 'edit goes through /agentset' };
+  return { ok: false, text: `unknown action ${action}` };
 }
 
 // The agent updates the topic goal list by dropping a job file (goal.mjs);
@@ -208,6 +277,26 @@ setInterval(() => {
     if (drainGoalJobs(state, GOAL_DIR, join(GOAL_DIR, 'done'))) saveState();
   } catch (error) {
     log(`goal job failed: ${error.message}`);
+  }
+}, 2000).unref();
+
+// `/agentset` dropped as a job by a running turn (aset-jobs.mjs). The apply
+// function is the same one that answers `/agentset` in the chat, so a job and a
+// typed command cannot drift apart.
+const ASET_DIR = join(DIR, 'aset-jobs');
+setInterval(() => {
+  try {
+    const results = drainAsetJobs(DIR, (job) => applyAsetJob(job));
+    for (const result of results) {
+      log(`aset job ${result.job?.setId || result.job?.id || '?'} -> ${result.ok ? 'ok' : 'refused'}`);
+      if (result.changed) saveState();
+      if (result.job?.chatId) {
+        Promise.resolve(send(String(result.job.chatId), result.text, Number(result.job.threadId) || 0))
+          .catch((error) => log(`aset job answer failed: ${error.message}`));
+      }
+    }
+  } catch (error) {
+    log(`aset job failed: ${error.message}`);
   }
 }, 2000).unref();
 
@@ -1308,6 +1397,9 @@ async function handleMessage(msg, album = null) {
   }
   if (!text) return;
   log(`in ${where} from=${from} len=${text.length}${msg.is_topic_message ? ' topic-message' : ''}`);
+  // A bound set replaces the profile for this turn only: the media route above
+  // still wins, because it carries a per-turn model the person chose out loud.
+  if (!turnProfile) turnProfile = turnProfileOf(key);
 
   // A brand-new forum topic starts empty: the title says what the person wants
   // but the thread itself has no message, so scrolling back shows a blank
