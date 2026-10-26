@@ -7,6 +7,9 @@ Each forum topic is a separate project with its own session and its own working
 directory. Replies arrive with progress, a "Stop" button and copyable code
 blocks.
 
+Never made a bot? [QUICKSTART.md](QUICKSTART.md) takes you from "no account" to
+a bot that answers, one step at a time.
+
 ## Features
 
 - **Text**: a regular task goes to the agent, the answer comes back in the same topic.
@@ -146,6 +149,9 @@ If the bridge is already installed, `setup` restarts it on the new code and rein
 the command menu.
 
 ## Troubleshooting
+
+Starting from nothing, or helping someone who is: [QUICKSTART.md](QUICKSTART.md)
+has the same answers with the terminal output they will actually see.
 
 Error replies end with a code, which tells you what to fix:
 

@@ -22,11 +22,10 @@ const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 // setup.mjs, the watchdog and /doctor all work on this one directory, so the
 // config must be written here and a checkout elsewhere must be mirrored here.
 const RUNTIME = join(DSH_HOME, 'tg-bridge');
-const RUNTIME_FILES = [
-  'bridge.mjs', 'control.mjs', 'i18n.mjs', 'bot-menu.mjs', 'prices.mjs',
-  'transcribe.py', 'setup.mjs', 'bridge-kick.mjs', 'bridge-restart-idle.mjs',
-  'restart-after-send.mjs', 'config.example.json', 'profiles.mjs',
-];
+// Whatever the package ships. This was a hand-kept list until it silently fell
+// behind the code: a file it did not name was not copied, and the bridge then
+// started from a directory that could not import what it needed.
+const RUNTIME_FILES = (pkg.files || []).filter((entry) => !entry.endsWith('/'));
 
 /**
  * Mirror this checkout into the runtime directory.
@@ -37,6 +36,7 @@ const RUNTIME_FILES = [
  */
 function syncRuntime() {
   if (resolve(DIR) === resolve(RUNTIME)) return;
+  mkdirSync(RUNTIME, { recursive: true });
   for (const file of RUNTIME_FILES) {
     if (existsSync(join(DIR, file))) copyFileSync(join(DIR, file), join(RUNTIME, file));
   }

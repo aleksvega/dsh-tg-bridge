@@ -67,6 +67,7 @@
     "transcribe.py",
     "cli.mjs",
     "README.md",
+    "QUICKSTART.md",
     "LICENSE",
     "config.example.json",
     "queue-notice.mjs",
@@ -88,6 +89,7 @@
     "install.ps1",
     "install.sh",
     "INJECTION-AND-REPLIES.md",
-    "SECURITY.md"
+    "SECURITY.md",
+    "skills/"
   ]
 }

@@ -69,9 +69,14 @@ admin in a group, Node older than 20) and what the message looks like.
 - `setup.mjs` exists and checks the token, but it prints a log, not a checklist
   with a "waiting for your first message" step.
 - No `/onboarding` command; the chat has `/help` and `/doctor`.
-- No skill tied to this repo.
 - The marketplace listing text is written but not verified against a fresh
   profile.
+
+**Since this plan was written:** `QUICKSTART.md` and
+`skills/dsh-tg-bridge-onboarding/SKILL.md` exist and are in the package, and a
+check that would have caught the 1.13.0 install failure (a shipped module that
+imports an unpublished one) now runs in the test suite. Still open: the
+marketplace checklist and `/onboarding` in the chat.
 
 ## Order of work
 
