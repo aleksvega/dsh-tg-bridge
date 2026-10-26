@@ -94,13 +94,17 @@ export function progressPanel({
   // thing sent after a message arrives, so this is what makes that first
   // message say "принял: …" instead of a generic spinner.
   task = '',
+  // Which settings this topic actually overrides, e.g. "Reviewer · glm-5.3/high".
+  // It rides in the head, so the panel budget above counts it automatically.
+  chip = '',
 } = {}) {
   const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
+  const mark = String(chip).trim() ? ` · ${String(chip).trim()}` : '';
   const head = final
-    ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}`
+    ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}${mark}`
     : snippet
-      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}`
-      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}`;
+      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${mark}`
+      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${mark}`;
   const mind = thoughts.map((line) => `💭 ${line}`);
   const base = [head, ...mind, cache].filter(Boolean).join('\n').length;
 

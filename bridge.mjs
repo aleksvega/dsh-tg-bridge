@@ -30,11 +30,14 @@ import { createAlbumBuffer } from './albums.mjs';
 import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { ensureProfile } from './profiles.mjs';
-import { handleControl, CONTROL_COMMANDS, modelOf, reasoningOf } from './control.mjs';
+import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf, reasoningOf } from './control.mjs';
 import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
 import { t, resolveLang } from './i18n.mjs';
 import { progressPanel, stepLine, addStep } from './panel.mjs';
+import { AgentsetStore } from './agentsets.mjs';
+import { profileValues, resolveSettings, settingsChip } from './settings.mjs';
+import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from './agents.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -159,6 +162,42 @@ function saveState() {
  */
 function profileOf(key) {
   return (state.profiles && state.profiles[key]) || config.profile || 'headless';
+}
+
+/**
+ * One line for the progress head saying which settings this topic overrides.
+ * Empty for every install that never binds a set: the panel stays as it was.
+ * An unreadable agentsets.json must not cost the turn its panel, so this never
+ * throws.
+ */
+function settingsChipOf(key) {
+  try {
+    const id = state.agentsets?.[key];
+    if (!id) return '';
+    const set = new AgentsetStore(join(DIR, 'agentsets.json')).load().get(id);
+    if (!set) return '';
+    const profile = profileOf(key);
+    const patch = readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
+    const model = modelOf(profile);
+    const row = profileValues({
+      model,
+      permissions: parsePermissionPresets(patch)?.presets?.find((p) => p.sandbox)?.id || '',
+      preset: parseAgentPresets(patch)?.selected || '',
+      effort: '',
+    });
+    const resolved = resolveSettings({
+      set,
+      override: state.settings?.[key] || null,
+      profile: row,
+      models: modelsOf(profile),
+      efforts: parseReasoningEfforts(patch, set.model || row.model) || [],
+      permissions: parsePermissionPresets(patch)?.presets?.map((p) => p.id) || [],
+      presets: parseAgentPresets(patch)?.presets?.map((p) => p.id) || [],
+    });
+    return settingsChip(resolved, { name: set.name || set.id });
+  } catch {
+    return '';
+  }
 }
 
 // The agent updates the topic goal list by dropping a job file (goal.mjs);
@@ -839,7 +878,7 @@ function killTurn(key) {
  * thinks for ten minutes still leaves one line in the chat — and the whole trail
  * one tap away.
  */
-async function startProgress(chatId, threadId, lang = 'ru', task = '') {
+async function startProgress(chatId, threadId, lang = 'ru', task = '', chip = '') {
   const started = Date.now();
   const panelKey = sessionKey(chatId, threadId);
   const steps = [];
@@ -898,6 +937,7 @@ async function startProgress(chatId, threadId, lang = 'ru', task = '') {
       // the log itself is a file the command sends on demand.
       reasoning: state.thinkBlock?.[panelKey] === 'counter' ? 'counter' : 'block',
       task,
+      chip,
       cache,
     });
   };
@@ -1418,7 +1458,7 @@ ${t(lang, 'help.body')}`,
 
   // Live progress: one status message per turn, rewritten as the agent works.
   // Without it a long turn and a hung turn looked exactly alike in the chat.
-  const progress = await startProgress(chatId, threadId, lang, request);
+  const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key));
   // Turn telemetry for the log: what the agent did, how much it cost, on which
   // model. Without it /logs shows only "in" and "sent" — useless when asking
   // "why did this take 9 minutes".

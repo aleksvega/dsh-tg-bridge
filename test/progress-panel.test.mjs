@@ -64,6 +64,26 @@ test('a panel with many steps and thoughts still fits one Telegram message', () 
   assert.doesNotMatch(html.split('<blockquote')[0], /• /, 'steps live in the block, not inline');
 });
 
+test('a set chip rides in the head and stays inside the budget', () => {
+  const plain = progressPanel({ lang: 'en', seconds: 7, task: 'do the thing' });
+  assert.doesNotMatch(plain.html, /Reviewer/);
+  const chipped = progressPanel({ lang: 'en', seconds: 7, task: 'do the thing', chip: 'Reviewer · glm-5.3/high · read-only' });
+  assert.match(chipped.html.split('\n')[0], /Reviewer · glm-5\.3\/high · read-only/);
+  const done = progressPanel({ lang: 'en', seconds: 9, final: true, chip: 'Fast' });
+  assert.match(done.html.split('\n')[0], /^✅ .* · 9 s · Fast$/);
+
+  const big = progressPanel({
+    lang: 'en',
+    seconds: 3600,
+    final: true,
+    steps: Array.from({ length: 60 }, (_, i) => `bash: command-${i}-${'x'.repeat(48)}`),
+    thinking: 'reasoning '.repeat(20000),
+    chip: 'Reviewer · glm-5.3/high',
+  });
+  assert.ok(big.html.length <= 3900, `panel with a chip too long: ${big.html.length}`);
+  assert.match(big.html, /Reviewer/);
+});
+
 test('a short turn keeps its three steps inline, without a second block', () => {
   const { html } = progressPanel({ lang: 'en', steps: ['bash: a', 'edit: b', 'read: c'] });
   assert.match(html, /• bash: a\n• edit: b\n• read: c/);
