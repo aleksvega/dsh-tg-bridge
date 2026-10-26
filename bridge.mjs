@@ -30,6 +30,7 @@ import { createAlbumBuffer } from './albums.mjs';
 import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { ensureProfile } from './profiles.mjs';
+import { firstLiveModel, describeVerdicts, probeHint, probeModel } from './model-probe.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf, reasoningOf } from './control.mjs';
 import { bridgeVersion, installRelease, npmLatestAsync } from './control.mjs';
 import { dueForCheck, updateState } from './update-policy.mjs';
@@ -47,7 +48,7 @@ import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card
 import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { sessionFile } from './thoughts.mjs';
-import { MENU_PREFIX, commandForName, isMenuPress, renderPanel } from './menu-card.mjs';
+import { MENU_PREFIX, commandForName, isMenuPress, renderPanel, runsUnasked } from './menu-card.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -1756,10 +1757,24 @@ ${t(lang, 'help.body')}`,
   // chain as well, otherwise the bridge sits on AUTH 403 and gives up.
   const FALLBACK_TRIGGERS = /RATE_LIMIT|503|all providers|нет активности|EMPTY_RESPONSE|TIMEOUT|overloaded|AUTH|403|insufficient_user_quota|quota|UNKNOWN_MODEL|MISSING_CREDENTIAL/i;
   const QUOTA_LIKE = /insufficient_user_quota|AUTH\b|\b403\b|\b401\b|quota|balance|баланс|payment|billing/i;
+  // "get_channel_failed / all providers are busy" is the provider's own channel
+  // pool, not the model: when it is down, it is down for every model in the
+  // chain. One probe then answers in seconds what four full turns spent 741
+  // seconds discovering.
+  const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|503/i;
   const tried = [];
   for (const entry of chain) {
     if (!result.error || !FALLBACK_TRIGGERS.test(result.error)) break;
     if (!entry.patch || !existsSync(entry.patch)) continue;
+    // The provider's channel pool is down: every model in the chain will answer
+    // the same 503. Ask once, quickly, and say so instead of burning a turn per
+    // model. A probe that DOES answer proves the pool is back — then the chain
+    // goes on, and the fallback at hand is tried as usual.
+    if (tried.length >= 1 && CHANNEL_DOWN.test(result.error)) {
+      const verdict = await probeModel(config.primaryModel || 'deepseek-v4.1-flash-1017');
+      log(`channel down after ${tried.length} model(s): probe says ${verdict.kind}; not trying ${entry.model}`);
+      if (!verdict.ok) break;
+    }
     const quotaLike = QUOTA_LIKE.test(result.error);
     // Quota failures never deserve a retry of the same model: the balance is
     // gone, so waiting is pure loss. Anything else gets one retry at most.
@@ -1785,13 +1800,41 @@ ${t(lang, 'help.body')}`,
     });
     if (!result.error) break;
   }
-  // Every model refused: one message naming the causes, not a cascade of errors.
-  if (result.error && tried.length > 0 && tried.length >= (Array.isArray(config.fallbackModels) ? config.fallbackModels.length : 0)) {
-    log(`all fallbacks exhausted for ${where}: ${tried.length}`);
+  // Every model refused. Before saying "all models are unavailable", ask each
+  // channel directly with a 1-token request: a 503 storm usually clears within
+  // seconds, and the verdict tells the person whether the balance is gone or the
+  // provider is merely busy — the old message always claimed quota.
+  let probeKind = '';
+  if (result.error && FALLBACK_TRIGGERS.test(result.error)) {
+    const models = [config.primaryModel || 'deepseek-v4.1-flash-1017', ...chain.map((entry) => entry.model)];
+    const { live, verdicts } = await firstLiveModel(models);
+    if (live) {
+      log(`probe: ${live.model} answers after ${verdicts.length} check(s), retrying the turn there`);
+      const entry = chain.find((item) => item.model === live.model);
+      result = await runTurnLive(text, sessionAtStart, key, {
+        onEvent,
+        onAbort: () => killTurn(key),
+        onHeartbeat: () => progress.heartbeat(),
+        profile: entry ? ensureProfile(entry.patch) : turnProfile,
+        cwd,
+        lang,
+      });
+    } else {
+      // Nothing answers: the verdict is the only useful part of the failure.
+      probeKind = describeVerdicts(verdicts);
+      log(`probe: no channel answers (${verdicts.map((v) => `${v.model}:${v.kind}`).join(', ')})`);
+    }
+  }
+  // Every model refused — or the provider's own channel pool was down and the
+// chain stopped early, which is the same answer to the person: one message
+// naming the causes, not a cascade of errors.
+  if (result.error && tried.length > 0 && (probeKind || tried.length >= (Array.isArray(config.fallbackModels) ? config.fallbackModels.length : 0))) {
+    log(`all fallbacks exhausted for ${where}: ${tried.length} probe=${probeKind || 'n/a'}`);
+    const verdictLine = probeKind ? `\n${probeHint(probeKind, lang)}` : '';
     result = {
       sessionId: result.sessionId,
       text: '',
-      error: t(lang, 'bridge.fallback.allDown', { list: tried.map((line) => `• ${line}`).join('\n') }),
+      error: t(lang, 'bridge.fallback.allDown', { list: tried.map((line) => `• ${line}`).join('\n') }) + verdictLine,
     };
   }
   // A session opened in the desktop UI holds its write handle, so the CLI
@@ -1843,6 +1886,9 @@ ${t(lang, 'help.body')}`,
   log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);
   await send(chatId, result.text || t(lang, 'bridge.progress.emptyReply'), threadId);
 }
+
+// `probeHint` lives in model-probe.mjs: this file used it at the call site and
+// defined it below, and the hint never reached the person.
 
 /**
  * Turn a raw CLI/provider error into `CODE` plus one actionable line.
@@ -2323,7 +2369,11 @@ async function handleCallback(query) {
       }
     }
     await clearKeyboard();
-    const typed = commandForName(name, { t: (k, v) => t(lang, k, v) });
+    // `/new` and `/stop` change something when typed alone, and a stray tap on
+    // them is a command nobody asked for — so they open their explanation.
+    const typed = runsUnasked(name) && CONTROL_COMMANDS.includes(name)
+      ? commandForName(name, { t: (k, v) => t(lang, k, v) })
+      : `/help ${name}`;
     await answer(typed || t(lang, 'bridge.cb.unknown'));
     if (!typed) return;
     log(`menu press /${name} for ${key}`);

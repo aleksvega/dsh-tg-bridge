@@ -1,5 +1,25 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.18.0
+
+- **Fixed: "all models are unavailable" gave no reason.** After the probe found
+  out *why* nothing answered, the hint was built by gluing the verdict onto a raw
+  provider string, and the first thing in the message was the tail of an English
+  error (the chat showed `in`, from `insufficient …`). The hint lives in
+  `model-probe.mjs` now, is a sentence in the reader's language, and says which of
+  four things is wrong: empty balance, overloaded provider, rejected key, dead
+  network.
+- **Faster: a dead channel pool no longer costs a turn per model.** A
+  `get_channel_failed` / `all providers are busy` 503 is the provider's own pool,
+  not the model — it is down for every model in the chain. One probe after the
+  first refusal now decides in seconds instead of four full turns: a real outage
+  that took 741 seconds reports in under two minutes, and a pool that answers
+  again lets the chain continue as before.
+- **Fixed: a chain that stopped early went silent.** The "all models are
+  unavailable" message only fired when every model had been tried, so the new
+  early stop would have ended the turn with nothing. A verdict now counts as the
+  report, and a test pins the rule: no verdict and a short chain is not proof.
+
 ## 1.17.0
 
 - **Fixed: `/rewind` could cut a session the desktop app had open.** The first

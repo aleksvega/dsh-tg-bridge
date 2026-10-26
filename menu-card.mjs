@@ -70,3 +70,15 @@ export function commandForName(name, { t }) {
   if (bare.includes(name)) return `/help ${name}`;
   return `/${name}`;
 }
+
+/**
+ * Whether `/menu` done alone would change something. Almost every command only
+ * reports what is already true; `new` and `stop` do not, and a stray tap on them
+ * would be a command nobody asked for. Those open their explanation instead.
+ */
+const CHANGES_ALONE = ['new', 'stop'];
+
+/** Whether a press labelled `name`, tapped on its own, is safe to run. */
+export function runsUnasked(name) {
+  return !CHANGES_ALONE.includes(name);
+}
