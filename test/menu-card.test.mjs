@@ -67,7 +67,7 @@ test('a section page holds its commands, then back, then onward and close', () =
     assert.ok(card.text.length > 20 && card.text.length < 400, `${page} text is not a card`);
     for (const row of card.keyboard) assert.ok(row.length <= 2, `${page} has a row of ${row.length}`);
     const commands = allButtons(card).filter((button) => menuTarget(button.data).kind === 'command');
-    assert.ok(commands.length >= 4, `${page} offers only ${commands.length} command(s)`);
+    assert.ok(commands.length >= 3, `${page} offers only ${commands.length} command(s)`);
     const tail = allButtons(card).slice(-3).map((button) => menuTarget(button.data).kind);
     assert.deepEqual(tail, ['hub', 'section', 'close'], `${page} cannot be left`);
   }
@@ -146,9 +146,24 @@ test('the reply keyboard offers four keys that all map to a command', () => {
 });
 
 test('the panel runs the command, not a copy of it', () => {
-  // Commands that need an argument open their own explanation; the rest run
-  // bare and answer with their own usage line when they need more.
+  // A press does what typing the command does, argument or not: the bare form
+  // answers with its own usage line or its own card. Only the two that change
+  // something when typed alone open their explanation instead.
   assert.equal(commandForName('status', { t: tr('en') }), '/status');
-  assert.equal(commandForName('rewind', { t: tr('en') }), '/help rewind');
-  assert.equal(commandForName('cd', { t: tr('en') }), '/help cd');
+  assert.equal(commandForName('rewind', { t: tr('en') }), '/rewind');
+  assert.equal(commandForName('cd', { t: tr('en') }), '/cd');
+  assert.equal(commandForName('model', { t: tr('en') }), '/model');
+  assert.equal(commandForName('new', { t: tr('en') }), '/help new');
+  assert.equal(commandForName('stop', { t: tr('en') }), '/help stop');
+});
+
+test('every press is a command, never a sentence', () => {
+  // The failure this guards against: most of the panel answering with a help
+  // paragraph, so the buttons looked like text and not like commands.
+  for (const name of menuCommands()) {
+    const typed = commandForName(name, { t: tr('ru') });
+    const [head, arg] = typed.split(' ');
+    assert.ok(CONTROL_COMMANDS.includes(head.slice(1)), `${typed} is not a command`);
+    if (arg) assert.match(head, /^\/help$/, `${name} sends "${typed}" instead of running`);
+  }
 });

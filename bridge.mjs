@@ -1770,7 +1770,7 @@ ${t(lang, 'help.body')}`,
         log(`  tool[${telemetry.steps}] ${(stepLine(event) || event.tool || 'tool').slice(0, 140)}`);
       } else if (event.type === 'tool_result') {
         const failed = event.status && event.status !== 'completed';
-        log(`  tool[${telemetry.steps}] ${failed ? 'ОШИБКА' : 'ok'} ${String(event.tool || '').slice(0, 40)}`);
+        log(`  tool[${telemetry.steps}] ${failed ? 'ERROR' : 'ok'} ${String(event.tool || '').slice(0, 40)}`);
       } else if (event.type === 'status' && event.usage) {
         if (Number.isFinite(event.usage.inputTokens)) telemetry.inputTokens = event.usage.inputTokens;
         if (Number.isFinite(event.usage.cacheReadTokens)) telemetry.cacheReadTokens = event.usage.cacheReadTokens;
@@ -2346,6 +2346,22 @@ async function handleCallback(query) {
     }).catch(() => {});
     await answer(t(lang, 'bridge.cb.done'));
     log(`rewind press ${data} for ${key}`);
+    return;
+  }
+
+  // A search result's plus button. The name came from the registry and the
+  // command is the one the hint under the list names, so a tap installs exactly
+  // what was read — no hidden second path into pnpm.
+  if (data.startsWith('pl:i:')) {
+    const wanted = data.slice(5);
+    if (!/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(wanted)) {
+      await answer(t(lang, 'bridge.cb.unknown'));
+      return;
+    }
+    await clearKeyboard();
+    await answer(`/plugin add ${wanted}`);
+    log(`plugin install via button: ${wanted}`);
+    await runCommandFromButton(`/plugin add ${wanted}`, { chatId, threadId, key, lang });
     return;
   }
 

@@ -24,6 +24,7 @@ import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from './menu-
 import { explainCommand } from './help-explain.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
+import { rowLine, searchPlugins } from './plugin-search.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -757,7 +758,7 @@ export async function handleControl(ctx) {
     const [maybeAction] = String(arg || '').trim().split(/\s+/);
     // `/plugins add|remove|disable|enable …` is the same work as `/plugin …`;
     // the case bodies read `arg`, which already holds the action and its value.
-    if (['add', 'remove', 'disable', 'enable'].includes((maybeAction || '').toLowerCase())) {
+    if (['add', 'remove', 'disable', 'enable', 'search', 'find'].includes((maybeAction || '').toLowerCase())) {
       effective = '/plugin';
     }
   }
@@ -1432,6 +1433,43 @@ export async function handleControl(ctx) {
       const [action, ...rest] = (arg || '').split(/\s+/);
       const target = (rest[0] === 'headless' || rest[0] === 'desktop') && rest.length > 1 ? rest.shift() : 'desktop';
       const value = rest.join(' ').trim();
+      if (action === 'search' || action === 'find') {
+        // The marketplace, from the chat. A word is optional: with none, the
+        // registry lists what DSH plugins exist at all — the question the
+        // desktop app answers with a page.
+        const found = await searchPlugins(value, { fetchImpl: ctx.fetch || fetch });
+        if (!found.ok) {
+          say(t(lang, 'ctrl.plugin.searchFailed', { err: found.error }));
+          return true;
+        }
+        if (!found.rows.length) {
+          say(t(lang, 'ctrl.plugin.searchEmpty', { word: value || 'dsh-plugin' }));
+          return true;
+        }
+        const installed = new Set(pluginsOf(target).bundles);
+        const body = found.rows.map((row) => rowLine(row, installed.has(row.name))).join('\n\n');
+        // A button under a result is the shortest honest path from "I found it"
+        // to "it is installed": it runs `/plugin add <name>` and nothing else.
+        say(
+          [
+            t(lang, 'ctrl.plugin.searchTitle', {
+              n: found.rows.length,
+              word: value || t(lang, 'ctrl.plugin.searchAll'),
+              profile: target,
+            }),
+            '',
+            body,
+            '',
+            t(lang, 'ctrl.plugin.searchHint'),
+          ].join('\n'),
+          {
+            keyboard: found.rows.slice(0, 6).map((row) => [
+              { text: `+ ${row.name}`, callback_data: `pl:i:${row.name}` },
+            ]),
+          },
+        );
+        return true;
+      }
       if (!action || !value) {
         say(t(lang, 'ctrl.plugin.usage'));
         return true;

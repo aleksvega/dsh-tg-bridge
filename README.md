@@ -193,7 +193,7 @@ Models:       /model · /model <id> · /prices
 Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
-Extensions:   /skills · /plugins · /plugins disable|enable <id> · /soul
+Extensions:   /skills · /plugins · /plugins search <word> · /plugins disable|enable <id> · /soul
 Updates:      /version · /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
@@ -396,7 +396,9 @@ plugin set and model. The same switch works from a topic:
 A new profile is written by `dsh <name> --from-default-profile <template> --dump-config`, so
 nothing boots and no plugin is loaded at creation time; dependencies are installed by the
 profile's first turn. The binding is per topic: `/model` then edits that profile's model, and
-`/plugins` manages that profile's rows.
+`/plugins` manages that profile's rows, and `/plugins search <word>` lists what the npm registry
+has with the `dsh-plugin` keyword — the desktop app's plugin browser, from the chat. Each result
+carries a plus button that runs `/plugins add <name>`.
 
 ### Goals and tasks
 

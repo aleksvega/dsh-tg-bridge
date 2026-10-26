@@ -59,5 +59,8 @@ test("a press never runs /new or /stop", () => {
   assert.equal(pressText("new"), "/help new");
   assert.equal(pressText("stop"), "/help stop");
   assert.equal(pressText("status"), "/status");
-  assert.equal(pressText("rewind"), "/help rewind");
+  // /rewind run bare opens its own card, which is the useful answer; an
+  // explanation page is not.
+  assert.equal(pressText("rewind"), "/rewind");
+  assert.equal(pressText("model"), "/model");
 });

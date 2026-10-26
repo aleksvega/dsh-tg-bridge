@@ -15,20 +15,27 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './control.mjs';
  * a panel that hides half the bot sends people back to typing.
  */
 const SECTIONS = {
-  work: ['status', 'new', 'cd', 'seed', 'send', 'stop'],
-  session: ['sessions', 'resume', 'rewind', 'fork', 'branches', 'profile', 'agents'],
+  work: ['cd', 'seed', 'send', 'sessions', 'rewind', 'fork', 'branches'],
+  session: ['resume', 'profile', 'agents'],
   goals: ['goal', 'task', 'plan', 'jobs', 'remind'],
-  talk: ['model', 'effort', 'reasoning', 'thoughts', 'prices', 'lang'],
+  talk: ['effort', 'reasoning', 'thoughts', 'prices', 'lang'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['settings', 'update', 'version', 'subscribe', 'doctor', 'logs', 'restart', 'app', 'help'],
 };
+
+/**
+ * The four presses of an ordinary day, on the first card. They are here instead
+ * of in a section because reaching them must cost one tap, not two: a panel that
+ * asks "which section is /status in" is a second thing to learn.
+ */
+const QUICK = ['status', 'model', 'new', 'stop'];
 
 export const MENU_GROUPS = Object.keys(SECTIONS);
 
 /** Commands the panel shows, in order, deduplicated, and all of them real. */
 export function menuCommands() {
   const known = new Set(DOCUMENTED_COMMANDS);
-  const out = [];
+  const out = QUICK.filter((name) => known.has(name));
   for (const group of Object.values(SECTIONS)) {
     for (const name of group) if (known.has(name) && !out.includes(name)) out.push(name);
   }
@@ -96,9 +103,14 @@ const section = (name) => `${MENU_PREFIX}g:${name}`;
 const HUB = `${MENU_PREFIX}h`;
 const CLOSE = `${MENU_PREFIX}x`;
 
-/** The hub: six sections, two per row, and the way out. */
+/** The hub: the daily four, then the sections, then the way out. */
 function renderHub({ t }) {
   const rows = [];
+  QUICK.forEach((name, index) => {
+    const button = { text: t(`ctrl.menu.quick.${name}`), data: press(name) };
+    if (index % 2 === 0) rows.push([button]);
+    else rows[rows.length - 1].push(button);
+  });
   MENU_GROUPS.forEach((group, index) => {
     const button = { text: t(`ctrl.menu.group.${group}`), data: section(group) };
     if (index % 2 === 0) rows.push([button]);
@@ -166,11 +178,12 @@ export function menuTarget(data) {
 /** What a person typed, from a button label: the command itself. */
 export function commandForName(name, { t }) {
   if (!CONTROL_COMMANDS.includes(name)) return '';
-  // A command that needs an argument cannot be run by one press; the press
-  // opens its explanation instead, which says what to type. The same goes for
-  // the commands that change something when typed alone.
+  // A press runs the command, bare, exactly as if it had been typed. A command
+  // that wants an argument answers with its own usage line or its own card, which
+  // is the useful answer — an explanation page is not. The two that change
+  // something when typed alone are the exception: a stray tap must not start a
+  // new session or kill a running turn, so they open their explanation.
   if (CHANGES_ALONE.includes(name)) return `/help ${name}`;
-  if (NEEDS_ARG.includes(name)) return `/help ${name}`;
   return `/${name}`;
 }
 
@@ -179,12 +192,6 @@ export function commandForName(name, { t }) {
  * would change something nobody asked for; the rest need a word after them.
  */
 const CHANGES_ALONE = ['new', 'stop'];
-
-const NEEDS_ARG = [
-  'cd', 'resume', 'seed', 'send', 'effort', 'logs', 'rewind', 'goal', 'remind',
-  'model', 'profile', 'preset', 'crew', 'task', 'lang', 'subscribe', 'update',
-  'help', 'plugins', 'soul', 'thoughts', 'reasoning', 'permissions',
-];
 
 /** Whether a press labelled `name`, tapped on its own, is safe to run. */
 export function runsUnasked(name) {

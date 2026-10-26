@@ -1,5 +1,36 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.1
+
+- **Fixed: a tap in the panel ran an explanation instead of the command.** Every
+  command that takes an argument opened its help page, so most of the panel
+  answered with a paragraph — the buttons looked like text, not like commands.
+  A press now runs the command bare, exactly as typing it would, and the command
+  answers with its own usage line or its own card. Only `/new` and `/stop`
+  still stop at their explanation: a stray tap must not start a session or kill a
+  turn.
+- **Fixed: the English progress header was Russian.** `bridge.progress.topic`
+  was left in the Russian block's spelling, so an English chat read
+  "Тема: main (id 42)" above every tool line. Three new tests now check that each
+  dictionary stays in its own language: no Cyrillic in the English or Chinese
+  values, and no untranslated English sentence in the Chinese one.
+- **The panel leads with what is used daily.** `/menu` opens with four buttons —
+  status, model, new session, stop — above the six sections, so the common case
+  costs one tap instead of three. Nothing is listed twice.
+- **The Telegram command menu no longer advertises aliases.** `/tasks`,
+  `/models`, `/plugin` and `/agentset` are still accepted, but they are gone
+  from `setMyCommands` (and their two Russian descriptions with them), matching
+  what the panel already did.
+- **New: `/plugins search <word>` — the marketplace, from the chat.** It asks the
+  npm registry for the `dsh-plugin` keyword and answers with name, version and a
+  line of description; each result carries a plus button that runs
+  `/plugins add <name>`. A wordless search lists what exists at all. A refused
+  registry is reported as a failure with its status, never as "nothing found" —
+  the two send a person in opposite directions.
+- **Fixed: the failure rules live in `failures.mjs`.** Extracting them from
+  `bridge.mjs` is what lets `TURN_TIME_CAP` be tested without starting a bot;
+  the module is published with the rest.
+
 ## 1.19.0
 
 - **Fixed: a turn stopped by its own time ceiling no longer reads as a
