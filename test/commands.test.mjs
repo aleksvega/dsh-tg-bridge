@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { CONTROL_COMMANDS } from '../control.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../control.mjs';
 import { LANGS, t } from '../i18n.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,10 +33,14 @@ test('every command in the menu is a command the dispatcher knows', () => {
   assert.deepEqual(missing, [], `the menu offers commands the bot would reject: ${missing.join(', ')}`);
 });
 
-test('every control command is documented somewhere in /help', () => {
+test('every documented command is listed in /help', () => {
+  // Old spellings (`/tasks`, `/models`, `/plugin`, `/agentset`) are accepted and
+  // deliberately undocumented: a name in the help text is a name to mistype.
   const documented = new Set(LANGS.flatMap((lang) => names(t(lang, 'help.body'))));
-  const silent = CONTROL_COMMANDS.filter((name) => !documented.has(name));
+  const silent = DOCUMENTED_COMMANDS.filter((name) => !documented.has(name));
   assert.deepEqual(silent, [], `commands a person cannot discover: ${silent.join(', ')}`);
+  assert.ok(CONTROL_COMMANDS.length >= DOCUMENTED_COMMANDS.length);
+  assert.ok(Object.keys(COMMAND_ALIASES).length >= 4, 'the alias table went missing');
 });
 
 test('/settings is reachable, in all three languages', () => {

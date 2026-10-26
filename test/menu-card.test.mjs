@@ -1,12 +1,19 @@
 // The panel: every button must be a command that exists, a press must never be
-// able to start an AI turn, and the card must be small enough to read.
+// able to start an AI turn, and moving between pages must edit one message
+// instead of sending more. The panel is also the only place where a person can
+// find the whole bot without reading /help, so nothing documented may be missing
+// from it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTROL_COMMANDS } from '../control.mjs';
-import { MENU_GROUPS, MENU_PREFIX, commandForName, isMenuPress, menuCommands, renderPanel } from '../menu-card.mjs';
+import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../control.mjs';
+import {
+  MENU_GROUPS, MENU_PREFIX, commandForName, isMenuPress, keyboardCommand, menuCommands,
+  menuTarget, renderPanel, replyKeyboard, unlistedCommands,
+} from '../menu-card.mjs';
 import { t } from '../i18n.mjs';
 
 const tr = (lang) => (key, vars) => t(lang, key, vars);
+const allButtons = (card) => card.keyboard.flat();
 
 test('every button of the panel is a real command', () => {
   const known = new Set(CONTROL_COMMANDS);
@@ -34,45 +41,108 @@ test('a press for an unknown name does nothing', () => {
   assert.equal(commandForName('nosuchcommand', { t: tr('en') }), '');
 });
 
-test('callback data fits Telegram and cannot collide with other cards', () => {
-  for (const name of menuCommands()) {
-    const data = `${MENU_PREFIX}${name}`;
-    assert.ok(data.length <= 64, `${data} is too long for a callback`);
-    assert.equal(isMenuPress(data), true);
-    assert.equal(isMenuPress(`t:${data}`), false);
-    assert.equal(isMenuPress('m:reply'), false);
+test('callback data fits Telegram, for every button of every page', () => {
+  const cards = [renderPanel({ t: tr('en') }), ...MENU_GROUPS.map((page) => renderPanel({ t: tr('en'), page }))];
+  for (const card of cards) {
+    for (const button of allButtons(card)) {
+      assert.ok(button.data.length <= 64, `${button.data} is too long for a callback`);
+      assert.equal(isMenuPress(button.data), true, `${button.data} is not a menu press`);
+    }
+  }
+  assert.equal(isMenuPress('m:reply'), false);
+});
+
+test('the hub offers one button per section and a way out', () => {
+  const hub = renderPanel({ t: tr('ru') });
+  const targets = allButtons(hub).map((button) => menuTarget(button.data));
+  assert.deepEqual(targets.filter((target) => target.kind === 'section').map((target) => target.page), MENU_GROUPS);
+  assert.deepEqual(targets.filter((target) => target.kind === 'close'), [{ kind: 'close' }]);
+  assert.ok(hub.text.length > 40 && hub.text.length < 400, 'the panel is a shortcut, not the help text');
+});
+
+test('a section page holds its commands, then back, then onward and close', () => {
+  for (const page of MENU_GROUPS) {
+    const card = renderPanel({ t: tr('ru'), page });
+    assert.ok(card, `${page} has no page`);
+    assert.ok(card.text.length > 20 && card.text.length < 400, `${page} text is not a card`);
+    for (const row of card.keyboard) assert.ok(row.length <= 2, `${page} has a row of ${row.length}`);
+    const commands = allButtons(card).filter((button) => menuTarget(button.data).kind === 'command');
+    assert.ok(commands.length >= 4, `${page} offers only ${commands.length} command(s)`);
+    const tail = allButtons(card).slice(-3).map((button) => menuTarget(button.data).kind);
+    assert.deepEqual(tail, ['hub', 'section', 'close'], `${page} cannot be left`);
   }
 });
 
-test('the panel has a page per group, each with text and buttons', () => {
-  for (const group of MENU_GROUPS) {
-    const card = renderPanel({ t: tr('ru'), page: group });
-    assert.ok(card, `${group} has no page`);
-    assert.equal(card.keyboard[0].length, 4, `${group} should offer one row of buttons`);
-    assert.ok(card.text.length > 40);
-    assert.ok(card.text.length < 400, 'the panel is a shortcut, not the help text');
-    // The tabs lead back to every page, including this one.
-    assert.deepEqual(card.keyboard[1].map((b) => b.data), MENU_GROUPS.map((g) => `mn:g:${g}`));
-  }
-});
-
-test('an unknown page falls back instead of drawing nothing', () => {
-  assert.equal(renderPanel({ t: tr('en'), page: 'nope' }), null);
+test('an unknown page falls back to the hub instead of drawing nothing', () => {
+  const fallback = renderPanel({ t: tr('en'), page: 'nope' });
+  assert.deepEqual(fallback, renderPanel({ t: tr('en') }));
 });
 
 test('the panel is written in the language asked for', () => {
-  assert.match(renderPanel({ t: tr('zh'), page: 'work' }).text, /机器人/);
-  assert.match(renderPanel({ t: tr('ru'), page: 'work' }).text, /Нажми/);
-  assert.match(renderPanel({ t: tr('en'), page: 'work' }).text, /Press a button/);
+  assert.match(renderPanel({ t: tr('zh') }).text, /机器人/);
+  assert.match(renderPanel({ t: tr('ru') }).text, /Выбери раздел/);
+  assert.match(renderPanel({ t: tr('en') }).text, /Pick a section/);
+  for (const page of MENU_GROUPS) assert.ok(renderPanel({ t: tr('ru'), page }).text.length > 10, page);
 });
 
-test('every button has its own name in every language', () => {
+test('every section has a name and a sentence, in every language', () => {
   for (const lang of ['en', 'ru', 'zh']) {
-    const labels = menuCommands().map((name) => t(lang, `ctrl.menu.item.${name}`));
-    for (const label of labels) assert.ok(!label.startsWith('ctrl.menu'), `${lang} lacks a label for ${label}`);
-    assert.equal(new Set(labels).size, labels.length, `${lang} repeats a button label`);
-    for (const group of MENU_GROUPS) assert.ok(t(lang, `ctrl.menu.group.${group}`).startsWith('ctrl.menu') === false);
+    for (const page of MENU_GROUPS) {
+      for (const key of [`ctrl.menu.group.${page}`, `ctrl.menu.hint.${page}`]) {
+        const said = t(lang, key);
+        assert.ok(!said.startsWith('ctrl.menu'), `${lang} lacks ${key}`);
+        assert.ok(said.length >= 2, `${lang}/${key} is empty`);
+      }
+    }
+    assert.ok(t(lang, 'ctrl.menu.close').length > 2, `${lang} has no close label`);
+    assert.ok(t(lang, 'ctrl.menu.back').length > 2, `${lang} has no back label`);
   }
+});
+
+test('a button carries the command it runs, so the panel teaches the names', () => {
+  for (const page of MENU_GROUPS) {
+    const card = renderPanel({ t: tr('en'), page });
+    for (const button of allButtons(card)) {
+      const target = menuTarget(button.data);
+      if (target.kind !== 'command') continue;
+      assert.ok(button.text.startsWith('/'), `${target.name} has a label that hides its command`);
+      assert.ok(button.text.includes(target.name), `${button.text} does not name /${target.name}`);
+    }
+  }
+});
+
+test('the panel reaches every documented command', () => {
+  assert.deepEqual(unlistedCommands(), [], `the panel hides: ${unlistedCommands().join(', ')}`);
+  const shown = new Set(menuCommands());
+  assert.ok(DOCUMENTED_COMMANDS.length >= 36, 'some commands went missing from the documented list');
+  assert.equal(shown.has('menu'), false, 'the panel is where the panel already is');
+});
+
+test('the panel never offers an old spelling of a command', () => {
+  for (const name of menuCommands()) {
+    assert.notEqual(commandForName(name, { t: tr('en') }), `/${name}s`, `${name} would run a stale name`);
+  }
+  for (const page of MENU_GROUPS) {
+    for (const button of allButtons(renderPanel({ t: tr('en'), page }))) {
+      assert.ok(!/\/tasks|\/models|\/agentset|\/plugin\b/.test(button.text), `${button.text} advertises an alias`);
+    }
+  }
+});
+
+test('the reply keyboard offers four keys that all map to a command', () => {
+  for (const lang of ['en', 'ru', 'zh']) {
+    const rows = replyKeyboard({ t: tr(lang) });
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+      assert.equal(row.length, 2);
+      for (const key of row) {
+        const typed = keyboardCommand(key.text, { t: tr(lang) });
+        assert.match(typed, /^\/(status|menu|stop|new)$/, `${lang} key "${key.text}" maps to "${typed}"`);
+      }
+    }
+  }
+  // A word that is not a key stays a prompt, which is what typing it means.
+  assert.equal(keyboardCommand('привет', { t: tr('ru') }), '');
 });
 
 test('the panel runs the command, not a copy of it', () => {

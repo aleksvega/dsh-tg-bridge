@@ -1,4 +1,4 @@
-﻿// Nothing may throw out of handleControl. The subagent found two ReferenceErrors
+// Nothing may throw out of handleControl. The subagent found two ReferenceErrors
 // that node --check cannot see and no test called, so this calls every command
 // for real, with the smallest context that is still honest.
 import test from "node:test";
@@ -28,8 +28,11 @@ test("every command answers without throwing", async () => {
   }
 });
 
-test("/help <command> explains the lookalike pairs apart", async () => {
-  const pairs = [["task", "tasks"], ["model", "models"], ["plugin", "plugins"]];
+test("/help <alias> answers as the command that owns the job", async () => {
+  // The pairs used to be explained apart. One letter apart is a mistake a phone
+  // keyboard makes for the person, so there is one command and the old spelling
+  // is answered with it — the reader never learns a second name.
+  const pairs = [["task", "tasks"], ["model", "models"], ["plugins", "plugin"], ["crew", "agentset"]];
   for (const [one, many] of pairs) {
     const first = context("/help", one);
     const second = context("/help", many);
@@ -38,11 +41,8 @@ test("/help <command> explains the lookalike pairs apart", async () => {
     const a = first.said.join(" ");
     const b = second.said.join(" ");
     assert.ok(a.length > 20, `/help ${one} said nothing useful`);
-    assert.ok(b.length > 20, `/help ${many} said nothing useful`);
-    assert.notEqual(a, b, `/help ${one} and /help ${many} say the same thing`);
-    // Each explanation names both, so the reader learns which is which.
-    assert.ok(a.includes(`/${many}`) || a.includes("list"), `/help ${one} does not mention /${many}`);
-    assert.ok(b.includes(`/${one}`), `/help ${many} does not mention /${one}`);
+    assert.equal(a, b, `/help ${many} told a different story than /help ${one}`);
+    assert.ok(!a.includes("list"), `/help ${one} still teaches a second spelling`);
   }
 });
 

@@ -31,6 +31,7 @@ import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { firstLiveModel, describeVerdicts, probeHint, probeModel } from './model-probe.mjs';
+import { explainFailure } from './failures.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf, reasoningOf } from './control.mjs';
 import { bridgeVersion, installRelease, npmLatestAsync } from './control.mjs';
 import { dueForCheck, updateState } from './update-policy.mjs';
@@ -48,7 +49,7 @@ import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card
 import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { sessionFile } from './thoughts.mjs';
-import { MENU_PREFIX, commandForName, isMenuPress, renderPanel, runsUnasked } from './menu-card.mjs';
+import { MENU_PREFIX, commandForName, isMenuPress, keyboardCommand, menuTarget, renderPanel, runsUnasked } from './menu-card.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -803,6 +804,42 @@ function topicName(chatId, threadId) {
  * a button cannot do is money or state the person did not mean — so a press
  * never falls through to an AI turn.
  */
+/**
+ * A message that carries buttons. Inline rows are the usual case; a persistent
+ * reply keyboard (`/menu on`) and taking it away again are the two other markup
+ * shapes a person can end up with, so every call site hands its intent here
+ * instead of building `reply_markup` itself.
+ */
+async function sendWithMarkup(chatId, threadId, text, extra = {}) {
+  const thread = threadId > 0 ? { message_thread_id: threadId } : {};
+  if (extra.removeKeyboard) {
+    return tg('sendMessage', {
+      chat_id: chatId,
+      text,
+      reply_markup: { remove_keyboard: true },
+      ...thread,
+    }).catch(() => {});
+  }
+  if (extra.persistent) {
+    return tg('sendMessage', {
+      chat_id: chatId,
+      text,
+      reply_markup: { keyboard: extra.persistent, resize_keyboard: true, is_persistent: true },
+      ...thread,
+    }).catch(() => {});
+  }
+  if (extra.keyboard) {
+    return tg('sendMessage', {
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true,
+      reply_markup: { inline_keyboard: extra.keyboard },
+      ...thread,
+    }).catch(() => {});
+  }
+  return send(chatId, text, threadId);
+}
+
 async function runCommandFromButton(typed, { chatId, threadId, key }) {
   const lang = langFor(chatId, threadId);
   const [head, ...rest] = typed.trim().split(/\s+/);
@@ -830,15 +867,7 @@ async function runCommandFromButton(typed, { chatId, threadId, key }) {
     sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
     seedTopic: ensureTopicSeed,
     profile: profileOf(key),
-    reply: (out, extra = {}) => (extra.keyboard
-      ? tg('sendMessage', {
-          chat_id: chatId,
-          text: out,
-          disable_web_page_preview: true,
-          reply_markup: { inline_keyboard: extra.keyboard },
-          ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-        }).catch(() => {})
-      : send(chatId, out, threadId)),
+    reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
     stopTurn: (k) => {
       const child = activeTurns.get(k);
       if (!child) return false;
@@ -1556,6 +1585,20 @@ async function handleMessage(msg, album = null) {
     }
   }
 
+  // A tap on the persistent keyboard (`/menu on`) arrives as its own label,
+  // with no slash: "Меню", "Статус", "Стоп", "Новый". Only while the keyboard is
+  // on — the same word typed by hand is a prompt, not a command. The label is
+  // matched in every language, because the keyboard outlives a /lang switch.
+  if (state.menu?.[key]) {
+    const mapped = ['ru', 'en', 'zh']
+      .map((code) => keyboardCommand(text, { t: (k, v) => t(code, k, v) }))
+      .find(Boolean);
+    if (mapped) {
+      log(`menu key "${text}" -> ${mapped} for ${key}`);
+      text = mapped;
+    }
+  }
+
   const space = text.indexOf(' ');
   const head = space === -1 ? text : text.slice(0, space);
   const command = commandOf(head);
@@ -1640,15 +1683,7 @@ ${t(lang, 'help.body')}`,
           lang,
         });
       },
-      reply: (out, extra = {}) => (extra.keyboard
-        ? tg('sendMessage', {
-            chat_id: chatId,
-            text: out,
-            disable_web_page_preview: true,
-            reply_markup: { inline_keyboard: extra.keyboard },
-            ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-          }).catch(() => {})
-        : send(chatId, out, threadId)),
+      reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
       stopTurn: (k) => {
         const child = activeTurns.get(k);
         if (!child) return false;
@@ -1890,39 +1925,6 @@ ${t(lang, 'help.body')}`,
 // `probeHint` lives in model-probe.mjs: this file used it at the call site and
 // defined it below, and the hint never reached the person.
 
-/**
- * Turn a raw CLI/provider error into `CODE` plus one actionable line.
- *
- * Raw text like `AUTH 403 insufficient_user_quota` means nothing to a person on
- * a phone; the code makes the failure greppable and the hint says what to do.
- */
-function explainFailure(text, lang = 'ru') {
-  const raw = String(text);
-  // The regular expressions match the CLI's and the provider's own words, so
-  // they stay as they are; only the hint on the right follows the topic language.
-  const cases = [
-    [/insufficient_user_quota|insufficient quota|AUTH\b|\b402\b|\bbalance\b|баланс|billing/i,
-      'INSUFFICIENT_QUOTA', 'bridge.fail.quota'],
-    [/Conflict: terminated by other getUpdates|\b409\b/i,
-      'TG_CONFLICT', 'bridge.fail.conflict'],
-    [/MISSING_CREDENTIAL|no credentials|not authenticated/i,
-      'MISSING_CREDENTIAL', 'bridge.fail.noCredential'],
-    [/ENOENT|not recognized|не найден.*dsh|dsh\.cmd/i,
-      'NO_DSH_CLI', 'bridge.fail.noCli'],
-    [/fetch failed|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|socket hang up|network/i,
-      'NETWORK', 'bridge.fail.network'],
-    [/EACCES|EPERM|access is denied|отказано в доступе|sandbox|permission denied/i,
-      'SANDBOX_DENY', 'bridge.fail.sandbox'],
-    [/UNKNOWN_MODEL|model not found|no such model/i,
-      'UNKNOWN_MODEL', 'bridge.fail.unknownModel'],
-    [/empty response|EMPTY_RESPONSE|no output|пустой ответ/i,
-      'EMPTY_RESPONSE', 'bridge.fail.empty'],
-  ];
-  for (const [re, code, hint] of cases) {
-    if (re.test(raw)) return `${raw}\n\n${code}: ${t(lang, hint)}`;
-  }
-  return `${raw}\n\nTURN_FAILED: ${t(lang, 'bridge.fail.generic')}`;
-}
 
 // Per-topic turn queues: one turn at a time inside a topic, different topics run
 // in parallel. Bounded, because every turn is a full Electron process.
@@ -2347,27 +2349,54 @@ async function handleCallback(query) {
     return;
   }
 
-  if (isMenuPress(data)) {
-    // The panel. A press is exactly a typed command, so it goes through the same
-    // `handleControl`; the card is replaced by whatever that command answers, and
-    // if it draws a card of its own (settings, rewind) this one is simply gone.
-    // `mn:g:<group>` switches tabs in place — that is the only press that does
-    // not run a command.
-    const [verb, name] = data.slice(MENU_PREFIX.length).split(':');
-    if (verb === 'g') {
-      const card = renderPanel({ t: (k, v) => t(lang, k, v), page: name });
-      if (card) {
-        await tg('editMessageText', {
-          chat_id: chatId,
-          message_id: messageId,
-          text: card.text,
-          reply_markup: { inline_keyboard: card.keyboard },
-          ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-        }).catch(() => {});
-        await answer(t(lang, 'bridge.cb.done'));
-        return;
-      }
+  if (data.startsWith('fk:')) {
+    // A branch button from /branches. It does what `/resume <id>` does, so the
+    // topic moves onto that branch and the answer comes from the command
+    // itself — one implementation, one sentence.
+    const wanted = data.slice(3);
+    if (!/^session-[0-9a-f-]{36}$/.test(wanted)) {
+      await answer(t(lang, 'bridge.cb.unknown'));
+      return;
     }
+    await clearKeyboard();
+    await runCommandFromButton(`/resume ${wanted.slice(8)}`, { chatId, threadId, key, lang });
+    return;
+  }
+
+  if (isMenuPress(data)) {
+    // The panel is a set of cards: the hub, then one page per section. Moving
+    // between them edits this message, so browsing costs no new messages. A
+    // command press is exactly a typed command, so it goes through the same
+    // `handleControl`; the card is replaced by whatever that command answers.
+    const target = menuTarget(data);
+    if (target.kind === 'hub' || target.kind === 'section') {
+      const card = renderPanel({ t: (k, v) => t(lang, k, v), page: target.page || '' });
+      await tg('editMessageText', {
+        chat_id: chatId,
+        message_id: messageId,
+        text: card.text,
+        reply_markup: { inline_keyboard: card.keyboard },
+        ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+      }).catch(() => {});
+      await answer(t(lang, 'bridge.cb.done'));
+      return;
+    }
+    if (target.kind === 'close') {
+      // The card collapses into one line that can be deleted by hand, and the
+      // buttons go with it: a panel that stays open is a panel that lies about
+      // being closed.
+      await tg('editMessageText', {
+        chat_id: chatId,
+        message_id: messageId,
+        text: t(lang, 'ctrl.menu.closed'),
+        reply_markup: { inline_keyboard: [] },
+        ...(threadId > 0 ? { thread_id: threadId, message_thread_id: threadId } : {}),
+      }).catch(() => {});
+      await answer(t(lang, 'ctrl.menu.closedToast'));
+      log(`menu closed for ${key}`);
+      return;
+    }
+    const name = target.kind === 'command' ? target.name : '';
     await clearKeyboard();
     // `/new` and `/stop` change something when typed alone, and a stray tap on
     // them is a command nobody asked for — so they open their explanation.

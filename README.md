@@ -22,9 +22,9 @@ a bot that answers, one step at a time.
   the model's reasoning in a collapsed block you can tap open. A long turn adds a second
   collapsed block with every tool call, so the whole run stays in the chat as one message.
 - **No lost messages**: a journal with acknowledgement and replay.
-- **Settings per topic**: `/agentset use reviewer` gives one topic its own model,
+- **Settings per topic**: `/crew use reviewer` gives one topic its own model,
   effort, permissions, agent preset and language while the others keep the profile;
-  `/agentset off` returns it. Four built-in sets ship read-only and can be copied.
+  `/crew off` returns it. Four built-in sets ship read-only and can be copied.
 - **Fail-fast**: when the quota runs out it switches to a free model right away.
 - **`dsh-tg check`**: diagnostics in one command, no changes to the system.
 - **Languages**: menus and service messages in `en`, `ru`, `zh`; `/lang` pins the topic language, and without it a new topic takes the language of the message itself (Cyrillic → `ru`, Han characters → `zh`), then the Telegram `language_code`, then `en`.
@@ -165,6 +165,7 @@ Error replies end with a code, which tells you what to fix:
 | `SANDBOX_DENY` | DSH denied access to a file or directory: check the project path and permissions |
 | `UNKNOWN_MODEL` | the model from the config is unavailable: `/model` lists the working ones |
 | `EMPTY_RESPONSE` | the model returned nothing: retry or switch model (`/model`) |
+| `TURN_TIME_CAP` | the turn hit its own time ceiling: the work is saved, press Continue |
 | `TURN_FAILED` | cause not recognized: `/doctor` and `/logs errors` |
 
 ## Checks
@@ -185,14 +186,14 @@ Send the bot:
 
 ```
 Work:         /cd · /new · /stop · /send · /seed
-Goals:        /goal · /task · /tasks
+Goals:        /goal · /task · /task done|rm <n>
 Sessions:     /status · /sessions · /resume
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
-Models:       /model · /model <id> · /models · /prices
+Models:       /model · /model <id> · /prices
 Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
-Sets:         /agentset · /agentset use|off|new|copy|rm · /agentset model <v>
-Extensions:   /skills · /plugins · /plugin disable|enable <id> · /soul
+Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
+Extensions:   /skills · /plugins · /plugins disable|enable <id> · /soul
 Updates:      /version · /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
@@ -212,7 +213,7 @@ delete it and the chat is back to what it was.
 
 Nothing on the card is only available on the card. `/settings` is for people who
 would rather press a labelled button than remember which of `/effort`,
-`/preset` and `/agentset` changes what.
+`/preset` and `/crew` changes what.
 
 Every command answers `/help` in the chat, in the language you write in: a
 message written in Cyrillic or Han characters switches the topic to Russian or

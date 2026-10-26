@@ -11,9 +11,9 @@ import { join } from 'node:path';
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 const CRED = join(DSH_HOME, '.credentials.yaml');
-const BASE = process.env.UNOROUTER_BASE_URL || 'https://api.unorouter.com/v1';
 
 function secret(name) {
+  if (!name) return '';
   const fromEnv = (process.env[name] || '').trim();
   if (fromEnv) return fromEnv;
   try {
@@ -23,6 +23,46 @@ function secret(name) {
   } catch {
     return '';
   }
+}
+
+/**
+ * The provider this install answers through first: its base URL and the name of
+ * the env var holding its key, read from the profile the bridge runs with.
+ *
+ * Nothing is hardcoded here on purpose. A probe against a host the bot does not
+ * use reports the wrong fault — "your key is rejected" when the key was never
+ * meant for that host — and a wrong answer is worse than no answer.
+ */
+let cachedProvider;
+export function firstProvider() {
+  if (cachedProvider !== undefined) return cachedProvider;
+  const profile = process.env.DSH_PROFILE || 'headless';
+  let patch = '';
+  try {
+    patch = readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
+  } catch {
+    cachedProvider = null;
+    return cachedProvider;
+  }
+  const lines = patch.split('\n');
+  const at = lines.findIndex((line) => /^\s*providers:\s*$/.test(line));
+  const found = { baseUrl: '', keyEnv: '' };
+  if (at >= 0) {
+    // The first provider block: both fields belong to the row the bot tries
+    // first, which is the one a verdict is about.
+    for (let i = at + 1; i < lines.length; i += 1) {
+      if (/^\S/.test(lines[i])) break;
+      const base = lines[i].match(/^\s+baseURL:\s*["']?([^"'\s]+)/);
+      if (base && !found.baseUrl) found.baseUrl = base[1].replace(/\/+$/, '');
+      const key = lines[i].match(/^\s+apiKeyEnv:\s*["']?([^"'\s]+)/);
+      if (key && !found.keyEnv) found.keyEnv = key[1];
+      if (found.baseUrl && found.keyEnv) break;
+    }
+  }
+  const baseUrl = (process.env.UNOROUTER_BASE_URL || found.baseUrl || '').trim().replace(/\/+$/, '');
+  const keyEnv = process.env.UNOROUTER_API_KEY ? 'UNOROUTER_API_KEY' : found.keyEnv;
+  cachedProvider = baseUrl ? { baseUrl, keyEnv } : null;
+  return cachedProvider;
 }
 
 /** Classify a provider answer into something the chat can act on. */
@@ -41,12 +81,14 @@ function classify(status, body) {
  * account right now — not just that the name exists.
  */
 async function probeModel(model, { timeoutMs = 15000 } = {}) {
-  const key = secret('UNOROUTER_API_KEY');
-  if (!key) return { model, ok: false, kind: 'auth', detail: 'UNOROUTER_API_KEY is missing' };
+  const provider = firstProvider();
+  if (!provider) return { model, ok: false, kind: 'unknown', detail: 'no provider base url in this profile' };
+  const key = secret(provider.keyEnv);
+  if (!key) return { model, ok: false, kind: 'auth', detail: `${provider.keyEnv || 'the key'} is missing` };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${BASE}/chat/completions`, {
+    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false }),

@@ -15,8 +15,10 @@
 //     that never ends.
 // The file is never modified in place: a copy is taken, the cut is written to a
 // temporary file, and only then swapped in.
-import { copyFileSync, existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import { zstdDecompressSync } from 'node:zlib';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { dirname, join } from 'node:path';
+import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 
 const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 
@@ -157,6 +159,90 @@ export function planRewind(file, steps = 1) {
   const lastRecord = before[before.length - 1];
   if (lastRecord && String(lastRecord.type) === 'turn/start') return { ...plan, reason: 'would-leave-open-turn' };
   return plan;
+}
+
+/**
+ * Where to branch from: the same cut as `planRewind`, except that a fork keeps
+ * everything it cuts. `steps = 0` branches from the end — a copy of the whole
+ * session, which is what "continue this work down a different road" means when
+ * the road starts here.
+ */
+export function planFork(file, steps = 0) {
+  const plan = { offset: 0, total: 0, kept: 0, dropped: 0, reason: '', size: 0 };
+  if (!file || !existsSync(file)) return { ...plan, reason: 'missing' };
+  let buf;
+  let size = 0;
+  try {
+    buf = readFileSync(file);
+    size = statSync(file).size;
+  } catch {
+    return { ...plan, reason: 'unreadable' };
+  }
+  plan.size = size;
+  // A session being appended to right now may lack its last frame; a fork taken
+  // from it would copy a half-written record.
+  try {
+    if (Date.now() - statSync(file).mtimeMs < RECENT_WRITE_MS) return { ...plan, reason: 'recently-written' };
+  } catch {
+    return { ...plan, reason: 'unreadable' };
+  }
+  const offsets = frameOffsets(buf);
+  for (let i = 0; i < offsets.length - 1; i++) {
+    const text = decode(buf, offsets[i], offsets[i + 1]);
+    if (!text || (text.trim() && recordsOf(text).length === 0)) return { ...plan, reason: 'tail-incomplete' };
+  }
+  const turns = allTurns(file);
+  plan.total = turns.length;
+  if (!Number.isInteger(steps) || steps < 0) return { ...plan, reason: 'bad-steps' };
+  if (steps === 0) {
+    plan.offset = size;
+    plan.kept = turns.length;
+    return plan;
+  }
+  if (turns.length === 0) return { ...plan, reason: 'no-turns' };
+  if (steps >= turns.length) return { ...plan, reason: 'too-many-steps' };
+  const keep = turns.length - steps;
+  const cutFrame = turns[keep].frame;
+  plan.offset = offsets[cutFrame];
+  plan.kept = keep;
+  plan.dropped = steps;
+  const before = recordsOf(decode(buf, offsets[cutFrame - 1], offsets[cutFrame]));
+  const lastRecord = before[before.length - 1];
+  if (lastRecord && String(lastRecord.type) === 'turn/start') return { ...plan, reason: 'would-leave-open-turn' };
+  return plan;
+}
+
+/**
+ * Write a copy of the session up to `offset` as a NEW session, so the topic can
+ * carry on down a different road while the original stays as it was.
+ *
+ * The first frame is the session header and carries the id. A copy that kept it
+ * would claim to be the original — the app would see two sessions with one name
+ * — so that single field is replaced and everything after it is copied byte for
+ * byte, frame for frame.
+ */
+export function applyFork(file, offset, expectedSize) {
+  const size = statSync(file).size;
+  if (expectedSize !== undefined && size !== expectedSize) throw new Error(`session grew from ${expectedSize} to ${size} bytes`);
+  if (!(offset > 0) || offset > size) throw new Error(`bad fork offset ${offset}`);
+  const buf = readFileSync(file);
+  const offsets = frameOffsets(buf);
+  if (offsets.length < 2) throw new Error('session has no frames');
+  const head = recordsOf(decode(buf, offsets[0], offsets[1]))[0];
+  if (!head || head.type !== 'session') throw new Error('session does not start with a header');
+  const id = `session-${randomUUID()}`;
+  const header = Buffer.from(`${JSON.stringify({ ...head, id })}\n`, 'utf8');
+  const body = buf.subarray(offsets[1], offset);
+  // The session lives in <root>/<project key>/<session id>/session.v4.jsonl.zstd,
+  // so its own directory parent is where a sibling session belongs.
+  const self = dirname(file);
+  const project = dirname(self);
+  const target = join(project, id, 'session.v4.jsonl.zstd');
+  mkdirSync(dirname(target), { recursive: true });
+  const temp = `${target}.fork-tmp`;
+  writeFileSync(temp, Buffer.concat([zstdCompressSync(header), body]));
+  renameSync(temp, target);
+  return { id, file: target };
 }
 
 /**

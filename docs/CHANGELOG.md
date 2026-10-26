@@ -1,5 +1,40 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.0
+
+- **Fixed: a turn stopped by its own time ceiling no longer reads as a
+  failure.** The bridge's clock reported `turn exceeded 75 min` as an unknown
+  error and told the person to repeat the request — which throws away a finished
+  hour of work that is, in fact, safely on disk. It is now its own cause,
+  `TURN_TIME_CAP`, saying that nothing is lost and that Continue picks up where
+  it stopped. The failure rules moved to `failures.mjs` so they can be tested
+  without starting a bot.
+- **New: `/fork` and `/branches` — branches, as on the desktop.** `/fork`
+  copies this topic's session as a session of its own and moves the topic onto
+  the copy; `/fork 2` copies it as it stood two turns back. Nothing is cut: the
+  session you were in stays byte for byte as it was, and `/branches` lists the
+  branches with a button each, so going back is a tap and not a guess. The copy
+  gets a new id in its header — a copy that kept the old one would be two
+  sessions with one name. Same refusals as `/rewind`: a session being written,
+  or one whose tail is half-written, is not copied.
+- **New: `/menu` is a real menu — six sections, pages, and a keyboard you can
+  keep.** The old panel was one card of sixteen buttons that vanished on the
+  first press. It is now a hub and six pages (work, sessions, goals, model,
+  extensions, service), each page one card that edits itself as you move, with
+  its commands as buttons, a way back and a way onward. Every documented command
+  is reachable from it and nothing else is: a test fails if the panel hides one.
+- **New: `/menu on` puts four keys under the message field** — status, menu,
+  stop, new — and `/menu off` takes them away, remembered per topic. A tap sends
+  the key's own word, so the bridge maps those four words back to their commands
+  in all three languages; any other word stays a prompt, exactly as before.
+- **Fixed: the `/help` body ran two lines together.** `/subscribe on|off` and
+  `Other:` were printed as `on|offOther:` in all three languages — a missing
+  newline from an earlier edit, which also made the whole body unparseable as a
+  single line.
+- **The panel no longer advertises old spellings.** Buttons carry the command
+  they run (`/model <id>`, `/rewind [n]`), which is also how the panel teaches
+  the names — and a test walks every button of every page for a stale name.
+
 ## 1.18.0
 
 - **Fixed: "all models are unavailable" gave no reason.** After the probe found

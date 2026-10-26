@@ -1,18 +1,21 @@
-﻿// Which commands need a sentence each, and which only need their line from
-// /help. The pairs are the whole reason this exists: /task and /tasks, /model
-// and /models, /plugin and /plugins are one letter apart and do different jobs,
-// so a lookup must say which is which before it says anything else.
-import { CONTROL_COMMANDS } from './control.mjs';
+// Which command sits in which /help group, and what to say when somebody asks
+// about one. Every command has exactly one name now: the lookalike pairs
+// (/task|/tasks, /model|/models, /plugin|/plugins, /agents|/agentset) were one
+// letter apart and did different jobs, which is a mistake a phone keyboard makes
+// for the person. The old spellings still work, and asking about one answers with
+// the command that owns the job — nothing here ever advertises an alias.
+import { COMMAND_ALIASES, CONTROL_COMMANDS } from './control.mjs';
 import { t } from './i18n.mjs';
 
 /** The /help group each command is listed under. */
 const SECTION = {
   cd: 'Work', new: 'Work', stop: 'Work', send: 'Work', seed: 'Work',
-  goal: 'Goals', task: 'Goals', tasks: 'Goals',
-  status: 'Sessions', sessions: 'Sessions', resume: 'Sessions', rewind: 'Sessions', profile: 'Sessions',
-  agents: 'Agents', model: 'Models', models: 'Models', prices: 'Models', thoughts: 'Models',
-  effort: 'Tuning', permissions: 'Tuning', preset: 'Tuning', agentset: 'Tuning', plan: 'Tuning', jobs: 'Tuning', remind: 'Tuning',
-  skills: 'Extensions', plugins: 'Extensions', plugin: 'Extensions', soul: 'Extensions',
+  goal: 'Goals', task: 'Goals',
+  status: 'Sessions', sessions: 'Sessions', resume: 'Sessions', rewind: 'Sessions', fork: 'Sessions',
+  branches: 'Sessions', profile: 'Sessions',
+  agents: 'Agents', model: 'Models', prices: 'Models', thoughts: 'Models',
+  effort: 'Tuning', permissions: 'Tuning', preset: 'Tuning', crew: 'Tuning', plan: 'Tuning', jobs: 'Tuning', remind: 'Tuning',
+  skills: 'Extensions', plugins: 'Extensions', soul: 'Extensions',
   version: 'Versions', update: 'Versions', subscribe: 'Versions',
   settings: 'Other', lang: 'Other', reasoning: 'Other', doctor: 'Other', logs: 'Other',
   app: 'Other', restart: 'Other', help: 'Other', menu: 'Panels',
@@ -24,8 +27,12 @@ const SECTION = {
  * /help that lists them, so a reader still sees the command in context.
  */
 export function explainCommand(name, lang, t) {
-  const clean = String(name || '').trim().toLowerCase().replace(/^\//, '');
-  if (!CONTROL_COMMANDS.includes(clean)) return '';
+  const typed = String(name || '').trim().toLowerCase().replace(/^\//, '');
+  if (!CONTROL_COMMANDS.includes(typed)) return '';
+  // An old spelling answers as the command that owns the job. Saying "that one
+  // is the same as /task" would teach the alias back, which is the confusion
+  // this file exists to end.
+  const clean = COMMAND_ALIASES[typed] || typed;
   const about = t(lang, `ctrl.help.about.${clean}`);
   if (about && !about.startsWith('ctrl.help.about.')) return about;
   const body = String(t(lang, 'help.body'));

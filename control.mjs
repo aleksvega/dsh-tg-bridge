@@ -17,10 +17,10 @@ import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from './reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from './agentsets.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
-import { planRewind } from './rewind.mjs';
+import { applyFork, planFork, planRewind } from './rewind.mjs';
 import { cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from './rewind-card.mjs';
-import { MENU_GROUPS, commandForName, renderPanel } from './menu-card.mjs';
+import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from './menu-card.mjs';
 import { explainCommand } from './help-explain.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
@@ -673,9 +673,29 @@ export const CONTROL_COMMANDS = [
   'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task', 'tasks',
-  'thoughts', 'version', 'update', 'agentset', 'subscribe', 'settings',
-  'rewind', 'menu',
+  'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
+  'rewind', 'fork', 'branches', 'menu',
 ];
+
+/**
+ * Old spellings that no longer have a job of their own. A phone keyboard turns
+ * `task` into `tasks` and `model` into `models` without the person noticing, so
+ * each pair is ONE command: one name in `/help` and the panel, and the other
+ * spelling quietly routed to it. A name that is documented is a name a person
+ * can mistype; a name that is not documented is a name nobody has to remember.
+ */
+export const COMMAND_ALIASES = {
+  tasks: 'task',
+  models: 'model',
+  plugin: 'plugins',
+  agentset: 'crew',
+};
+
+/**
+ * What `/help`, the panel and the Telegram menu are allowed to say. Aliases are
+ * deliberately absent: they work, and they are never advertised.
+ */
+export const DOCUMENTED_COMMANDS = CONTROL_COMMANDS.filter((name) => !COMMAND_ALIASES[name]);
 
 /**
  * Working notes ("💭" lines in the progress message) are on unless the topic or
@@ -723,11 +743,16 @@ export async function handleControl(ctx) {
   // without one it follows the install default.
   const activeProfile = profile || config.profile || 'headless';
 
+  // Old spellings of a command route to the one name that owns the job, before
+  // anything else looks at the argument.
+  const bare = command.startsWith('/') ? command.slice(1) : command;
+  const canonical = COMMAND_ALIASES[bare];
+  let effective = canonical ? `/${canonical}` : command;
+
   // One command for one job: `/plugins` is both the list and the way to change
   // things. Two near-identical names (`/plugin` / `/plugins`) invited the exact
   // mistake of typing the plural with an action. The singular form stays as an
   // alias so old instructions and muscle memory keep working.
-  let effective = command;
   if (effective === '/plugins') {
     const [maybeAction] = String(arg || '').trim().split(/\s+/);
     // `/plugins add|remove|disable|enable …` is the same work as `/plugin …`;
@@ -1721,11 +1746,28 @@ export async function handleControl(ctx) {
     }
 
     case '/menu': {
-      // The panel: a few buttons, one per job, and each of them runs the command
-      // a person would otherwise have to spell. It replaces itself on a press,
-      // which is why nothing here tries to stay in the chat.
+      // Two ways in. `/menu` is the hub card: six sections, each one a page of
+      // commands that replace the card in place, so nobody has to spell a
+      // command and the chat keeps one message instead of a wall of them.
+      // `/menu on|off` is the other way: a Telegram reply keyboard under the
+      // message field, which is what a person who does not read commands at all
+      // needs — and it can be taken away again.
       const page = String(arg || '').trim().toLowerCase();
-      const card = renderPanel({ t: (k, vars) => t(lang, k, vars), page: MENU_GROUPS.includes(page) ? page : MENU_GROUPS[0] });
+      if (page === 'on' || page === 'off') {
+        state.menu = state.menu || {};
+        state.menu[key] = page === 'on';
+        ctx.saveState();
+        log(`menu keyboard ${page} for ${key}`);
+        await reply(
+          t(lang, page === 'on' ? 'ctrl.menu.keyOn' : 'ctrl.menu.keyOff'),
+          page === 'on' ? { persistent: replyKeyboard({ t: (k, vars) => t(lang, k, vars) }) } : { removeKeyboard: true },
+        );
+        return true;
+      }
+      const card = renderPanel({
+        t: (k, vars) => t(lang, k, vars),
+        page: MENU_GROUPS.includes(page) ? page : '',
+      });
       await reply(card.text, { keyboard: card.keyboard });
       return true;
     }
@@ -1766,6 +1808,57 @@ export async function handleControl(ctx) {
       }
       const card = renderRewindCard({ t: (k, vars) => t(lang, k, vars), file, sessionId, steps, lang });
       await reply(card.text, { keyboard: card.keyboard });
+      return true;
+    }
+
+    case '/fork': {
+      // The desktop app's "branch from here", without losing the road you were
+      // on: the session is not cut, a copy of it up to the branch point becomes
+      // a session of its own, and this topic moves onto the copy. `/fork` alone
+      // branches from the end; `/fork 2` branches from two turns back.
+      const sessionId = state.sessions[key] || '';
+      if (!sessionId) { say(t(lang, 'ctrl.fork.noSession')); return true; }
+      if (ctx.activeTurns && ctx.activeTurns.has(key)) { say(t(lang, 'ctrl.fork.busy')); return true; }
+      const wanted = String(arg || '').trim().toLowerCase();
+      const steps = wanted ? Number.parseInt(wanted, 10) : 0;
+      if (wanted && (!Number.isInteger(steps) || steps < 0)) { say(t(lang, 'ctrl.fork.usage')); return true; }
+      const file = sessionFile(join(DSH_HOME, 'sessions'), sessionId);
+      const plan = planFork(file, steps);
+      if (plan.reason) {
+        // The same refusals as a cut: a session being written is the one file
+        // this must never copy, and the reason is the same sentence.
+        say(t(lang, `ctrl.rewind.refused.${plan.reason}`, { total: plan.total, dropped: steps }));
+        return true;
+      }
+      let made;
+      try {
+        made = applyFork(file, plan.offset, plan.size);
+      } catch (error) {
+        say(t(lang, 'ctrl.fork.failed', { error: error.message }));
+        return true;
+      }
+      state.sessions[key] = made.id;
+      state.forks = state.forks || {};
+      const list = state.forks[key] || [];
+      list.push({ id: made.id, from: sessionId, at: Date.now(), kept: plan.kept });
+      // The last dozen is enough to pick from, and state.json stays small.
+      state.forks[key] = list.slice(-12);
+      ctx.saveState();
+      log(`fork ${sessionId} -> ${made.id} at turn ${plan.kept} for ${key}`);
+      say(t(lang, 'ctrl.fork.done', { id: made.id, kept: plan.kept }));
+      return true;
+    }
+
+    case '/branches': {
+      const list = state.forks?.[key] || [];
+      const current = state.sessions[key] || '';
+      if (!list.length) { say(t(lang, 'ctrl.fork.none')); return true; }
+      const rows = list.map((entry) => [{
+        text: `${entry.id === current ? '• ' : ''}${entry.id.slice(8, 16)} · ${t(lang, 'ctrl.fork.turns', { n: entry.kept })}`,
+        data: `fk:${entry.id}`,
+      }]);
+      const head = [t(lang, 'ctrl.fork.list', { n: list.length }), t(lang, 'ctrl.fork.current', { id: current || '—' })];
+      await reply(head.join('\n'), { keyboard: rows });
       return true;
     }
 
@@ -2182,7 +2275,7 @@ export async function handleControl(ctx) {
       return true;
     }
 
-    case '/agentset': {
+    case '/crew': {
       const store = agentset();
       if (store.error) say(t(lang, 'ctrl.set.storeBroken', { error: store.error }));
       const bound = state.agentsets?.[key] || '';
