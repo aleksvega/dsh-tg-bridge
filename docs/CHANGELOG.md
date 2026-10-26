@@ -1,5 +1,27 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.13.0
+
+- **New: `/agentset` — named settings for a topic.** A set holds a model, an
+  effort, a permission preset, a DSH agent preset and a language; every field is
+  a delta, so an empty one inherits the profile. `/agentset use <id>` binds it to
+  the current topic, `/agentset off` returns to the profile, `/agentset new`,
+  `copy`, `rm` and `/agentset model <value> [id]` edit it without a text editor.
+  Four builtins ship read-only — `normal`, `careful`, `fast`, `reviewer`; copy one
+  to change it. Two topics can now run two models on one profile, which was
+  impossible before: each of those switches wrote the shared profile patch.
+- Sets live in `agentsets.json` next to `state.json`, with their own revision and
+  one silent rebase when two processes write at once, so a set saved by a second
+  bridge is not lost by the first.
+- The progress message says which set a turn runs on (`On it: … · 9 s ·
+  Reviewer · glm-5.3/high`), and nothing when no set is bound.
+- **Security: every inline button now checks the allowlist.** A callback used to
+  be accepted from any user in any chat the bot was in; the message path was
+  guarded, the button path was not. A press from outside `allowedUserIds` (and
+  outside an allowed chat) is answered with the same "unknown button" text and
+  changes nothing.
+- Fix: `agentsets.json` is refused, not overwritten, when it cannot be parsed.
+
 ## 1.12.1
 
 - Fix: `bridge.mjs` spelled out one machine's secret name

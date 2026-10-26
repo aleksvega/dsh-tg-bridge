@@ -19,6 +19,9 @@ blocks.
   the model's reasoning in a collapsed block you can tap open. A long turn adds a second
   collapsed block with every tool call, so the whole run stays in the chat as one message.
 - **No lost messages**: a journal with acknowledgement and replay.
+- **Settings per topic**: `/agentset use reviewer` gives one topic its own model,
+  effort, permissions, agent preset and language while the others keep the profile;
+  `/agentset off` returns it. Four built-in sets ship read-only and can be copied.
 - **Fail-fast**: when the quota runs out it switches to a free model right away.
 - **`dsh-tg check`**: diagnostics in one command, no changes to the system.
 - **Languages**: menus and service messages in `en`, `ru`, `zh`; `/lang` switches the topic language, a new user gets theirs from the Telegram `language_code` (anything outside ru/zh → `en`).
