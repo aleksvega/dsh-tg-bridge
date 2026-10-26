@@ -99,6 +99,15 @@ export function recentTurns(file, { limit = 8 } = {}) {
   return turns.slice(-limit).reverse();
 }
 
+/** Every reason a cut can be refused. Each one has words in every language. */
+const REFUSAL_REASONS = [
+  'missing', 'unreadable', 'recently-written', 'tail-incomplete', 'no-turns', 'bad-steps', 'too-many-steps', 'would-leave-open-turn',
+];
+export { REFUSAL_REASONS };
+
+/** How fresh a write must be for the file to count as in use. */
+const RECENT_WRITE_MS = 30_000;
+
 /**
  * Where to cut so that the last `steps` turns are gone and everything before
  * them is untouched.
@@ -118,6 +127,15 @@ export function planRewind(file, steps = 1) {
     return { ...plan, reason: 'unreadable' };
   }
   plan.size = size;
+  // A file written in the last half minute may be held open by another process
+  // (the desktop app keeps a write handle for a session it has open) even when
+  // no bridge turn runs. DSH then refuses with "stored log shrank below a
+  // previously observed prefix". Waiting is the honest answer.
+  try {
+    if (Date.now() - statSync(file).mtimeMs < RECENT_WRITE_MS) return { ...plan, reason: 'recently-written' };
+  } catch {
+    return { ...plan, reason: 'unreadable' };
+  }
   const offsets = frameOffsets(buf);
   // A frame that does not decode is a frame being written right now, or a
   // damaged tail. Either way this file is not cut today.

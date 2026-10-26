@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.17.0
+
+- **Fixed: `/rewind` could cut a session the desktop app had open.** The first
+  1.16.0 rule only refused while a *bridge* turn was running, but the app keeps a
+  write handle on a session it has open, and DSH then throws "stored log shrank
+  below a previously observed prefix" at the next message. A session written to
+  in the last half minute is now refused with a sentence that says to wait. The
+  projection cache needs nothing: rows past the new end are discarded and the
+  title is refolded from what remains.
+- **Fixed: two refusals were a key name or a sentence that said nothing.** Every
+  refusal the planner can return now has words in all three languages, and a test
+  holds the planner's own list to the translations, so a new refusal cannot ship
+  wordless. Two Chinese messages were rewritten: they were correct but so short
+  they did not say what to do.
+
 ## 1.16.0
 
 - **New: `/rewind [n]` — go back a turn and say it differently.** The desktop

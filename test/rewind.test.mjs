@@ -3,7 +3,7 @@
 // alone, and every case where it must do nothing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { zstdDecompressSync } from 'node:zlib';
 import { allTurns, applyRewind, frameOffsets, newestBackup, planRewind, recentTurns, restoreBackup } from '../rewind.mjs';
 import { writeSession } from './rewind-fixture.mjs';
@@ -128,6 +128,10 @@ test('refuses when a frame does not decode — that is a session being written',
   const { file } = writeSession(THREE);
   const buf = readFileSync(file);
   writeFileSync(file, Buffer.concat([buf, Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0x00, 0x01])]));
+  // Writing the torn tail also touched the file, so backdate it again: this test
+  // is about the undecodable frame, not about freshness.
+  const old = new Date(Date.now() - 10 * 60 * 1000);
+  utimesSync(file, old, old);
   assert.equal(planRewind(file, 1).reason, 'tail-incomplete');
 });
 

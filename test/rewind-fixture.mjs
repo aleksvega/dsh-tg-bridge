@@ -1,7 +1,7 @@
 // A session in the shape the app writes it: a header frame, then one frame per
 // appended batch, turns marked by turn/start and turn/end. Built here so the
 // rewind tests do not depend on a real 20 MB session staying on disk.
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { zstdCompressSync } from 'node:zlib';
@@ -11,6 +11,10 @@ const frame = (records) => zstdCompressSync(Buffer.from(`${records.map((r) => JS
 /**
  * `turns` turns, each: user text, assistant text, and (when `tools`) a tool call
  * and its result, so the tests can see that tool frames belong to the turn.
+ *
+ * The file is backdated ten minutes: a session written seconds ago is refused by
+ * design (another process may hold it open), and these tests are about the cut,
+ * not about that guard — which `rewind-safety.test.mjs` covers on its own.
  */
 export function writeSession(turns, { header = true, tools = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'rewind-'));
@@ -36,5 +40,7 @@ export function writeSession(turns, { header = true, tools = false } = {}) {
     frames.push(frame([{ type: 'turn/end', seq: next(), data: { turn: number, reason: { kind: 'completed' } } }]));
   });
   writeFileSync(file, Buffer.concat(frames));
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  utimesSync(file, tenMinutesAgo, tenMinutesAgo);
   return { file, dir, frames: frames.length };
 }
