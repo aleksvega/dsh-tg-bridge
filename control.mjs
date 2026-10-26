@@ -15,6 +15,8 @@ import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkd
 import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
 import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from './reminders.mjs';
+import { AgentsetStore, emptySet, slugId } from './agentsets.mjs';
+import { profileValues, resolveSettings } from './settings.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -459,6 +461,75 @@ function setSoul(text) {
 
 const fmt = (rows) => rows.map((row) => `  ${row}`).join('\n');
 
+/**
+ * Named bundles of per-topic agent settings. The file sits next to state.json
+ * and keeps its own revision counter, so a write from a second process cannot
+ * silently drop a set saved a moment earlier.
+ */
+const AGENTSETS = join(process.env.DSH_TG_HOME || join(DSH_HOME, 'tg-bridge'), 'agentsets.json');
+let agentsetStore = null;
+function agentset() {
+  if (!agentsetStore) agentsetStore = new AgentsetStore(AGENTSETS).load();
+  return agentsetStore;
+}
+
+/** The set bound to this topic, or null. */
+function agentsetOf(state, key) {
+  const id = state.agentsets?.[key];
+  return id ? agentset().get(id) : null;
+}
+
+/** What the topic's profile declares — the tier every set inherits from. */
+function profileRowOf(profile) {
+  return profileValues({
+    model: modelOf(profile),
+    permissions: (parsePermissionPresets(read(patchPath(profile))) || {}).current || '',
+    preset: (parseAgentPresets(read(patchPath(profile))) || {}).selected || '',
+    effort: '',
+    lang: '',
+  });
+}
+
+/** Bind/unbind this topic. The set itself lives in agentsets.json. */
+function bindAgentset(state, key, id) {
+  state.agentsets = state.agentsets || {};
+  if (id) state.agentsets[key] = id;
+  else delete state.agentsets[key];
+}
+
+/** One set rendered for a chat: what it owns, what it inherits. */
+function agentsetCard(set, lang, profile, boundId) {
+  const row = profileRowOf(profile);
+  const resolved = resolveSettings({
+    set,
+    profile: row,
+    models: modelsOf(profile),
+    efforts: parseReasoningEfforts(read(patchPath(profile)), set.model || row.model) || [],
+    permissions: (parsePermissionPresets(read(patchPath(profile))) || {}).presets?.map((p) => p.id) || [],
+    presets: (parseAgentPresets(read(patchPath(profile))) || {}).presets?.map((p) => p.id) || [],
+  });
+  const pick = (field) => (set[field] ? set[field] : `— ${t(lang, 'ctrl.set.inherit')}`);
+  const lines = [
+    t(lang, `${boundId === set.id ? 'ctrl.set.titleBound' : 'ctrl.set.title'}`, { name: set.name || set.id }),
+    `${t(lang, 'ctrl.set.id')}: ${set.id}${set.builtin ? ` (${t(lang, 'ctrl.set.builtin')})` : ''}`,
+    `${t(lang, 'ctrl.set.field.model')}: ${pick('model')}`,
+    `${t(lang, 'ctrl.set.field.effort')}: ${pick('effort')}`,
+    `${t(lang, 'ctrl.set.field.permissions')}: ${pick('permissions')}`,
+    `${t(lang, 'ctrl.set.field.preset')}: ${pick('dshPreset')}`,
+    `${t(lang, 'ctrl.set.field.lang')}: ${pick('lang')}`,
+  ];
+  const warnings = [];
+  for (const field of ['model', 'effort', 'permissions', 'dshPreset']) {
+    if (String(resolved.sources[field] || '').endsWith('(invalid)')) {
+      warnings.push(t(lang, 'ctrl.set.dropped', { field }));
+    }
+  }
+  if (set.notes) lines.push('', set.notes);
+  if (warnings.length > 0) lines.push('', ...warnings);
+  lines.push('', t(lang, 'ctrl.set.hint'));
+  return lines.join('\n');
+}
+
 /** Goal + task list as one message; empty list is shown, not hidden. */
 function goalView(goal, lang) {
   const { done, total } = progressOf(goal);
@@ -482,7 +553,7 @@ export const CONTROL_COMMANDS = [
   'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task',
-  'thoughts', 'version', 'update',
+  'thoughts', 'version', 'update', 'agentset',
 ];
 
 /**
@@ -1866,6 +1937,166 @@ export async function handleControl(ctx) {
         return true;
       }
       say(t(lang, 'ctrl.update.available', { from: installed || '?', to: latest }));
+      return true;
+    }
+
+    case '/agentset': {
+      const store = agentset();
+      if (store.error) say(t(lang, 'ctrl.set.storeBroken', { error: store.error }));
+      const bound = state.agentsets?.[key] || '';
+      const ids = () => store.list().map((set) => set.id).join(', ');
+      const parts = String(arg || '').trim().split(/\s+/).filter(Boolean);
+      const verb = (parts[0] || '').toLowerCase();
+      const rest = parts.slice(1);
+      const text = (value) => rest.join(' ').trim();
+
+      /** Shared failure lanes: every write reports the same three ways. */
+      const commit = (id, result) => {
+        if (result.ok) return true;
+        if (result.error === 'stale') say(t(lang, 'ctrl.set.stale'));
+        else if (result.error === 'unreadable') say(t(lang, 'ctrl.set.unreadable', { error: result.file || AGENTSETS }));
+        else if (result.error === 'builtin-readonly') say(t(lang, 'ctrl.set.builtinReadonly', { id }));
+        else if (result.error === 'bad-id') say(t(lang, 'ctrl.set.badId'));
+        else if (result.error === 'missing') say(t(lang, 'ctrl.set.unknown', { id, list: ids() }));
+        else say(t(lang, 'ctrl.set.failed', { error: result.error || '?' }));
+        return false;
+      };
+
+      if (!verb) {
+        const sets = store.list();
+        const lines = [
+          t(lang, 'ctrl.set.list', { n: sets.length }),
+          ...sets.map((set) => {
+            const mark = set.id === bound ? '•' : ' ';
+            const note = set.builtin ? t(lang, 'ctrl.set.builtin') : set.notes || t(lang, 'ctrl.set.custom');
+            return `${mark} ${set.id} — ${set.name || set.id} (${note})`;
+          }),
+          '',
+          bound ? t(lang, 'ctrl.set.boundNow', { name: store.get(bound)?.name || bound }) : t(lang, 'ctrl.set.noneBound', { profile: activeProfile }),
+          t(lang, 'ctrl.set.usage'),
+          t(lang, 'ctrl.set.hint'),
+        ];
+        say(lines.join('\n'));
+        return true;
+      }
+
+      if (verb === 'show') {
+        const set = store.get(rest[0] || bound);
+        if (!set) {
+          say(t(lang, 'ctrl.set.unknown', { id: rest[0] || '', list: ids() }));
+          return true;
+        }
+        say(agentsetCard(set, lang, activeProfile, bound));
+        return true;
+      }
+
+      if (verb === 'use') {
+        const id = rest[0] || '';
+        const set = store.get(id);
+        if (!set) {
+          say(t(lang, 'ctrl.set.unknown', { id, list: ids() }));
+          return true;
+        }
+        if (bound === id) {
+          say(t(lang, 'ctrl.set.same'));
+          return true;
+        }
+        // Binding a builtin is fine: nobody writes to it, it is only a
+        // starting point that the profile tier still overrides per field.
+        bindAgentset(state, key, id);
+        // A set that carries language or the thinking block changes this topic's
+        // own preferences too; those live in state, not in the profile.
+        if (set.lang) state.lang = { ...(state.lang || {}), [key]: set.lang };
+        if (set.thinkBlock) state.thinkBlock = { ...(state.thinkBlock || {}), [key]: set.thinkBlock };
+        ctx.saveState();
+        say(t(lang, 'ctrl.set.bound', { name: set.name || set.id }));
+        return true;
+      }
+
+      if (verb === 'off') {
+        if (!bound) {
+          say(t(lang, 'ctrl.set.same'));
+          return true;
+        }
+        bindAgentset(state, key, '');
+        ctx.saveState();
+        say(t(lang, 'ctrl.set.unbound', { profile: activeProfile }));
+        return true;
+      }
+
+      if (verb === 'new' || verb === 'copy') {
+        // `/agentset new <name> [from <id>]`, and the shorthand
+        // `/agentset copy <name> <id>`.
+        const fromWord = rest.indexOf('from', 1);
+        const bare = fromWord > 0 ? rest.slice(0, fromWord).join(' ') : rest[0] || '';
+        const sourceId = fromWord > 0 ? rest[fromWord + 1] || '' : rest[1] || '';
+        const source = sourceId ? store.get(sourceId) : null;
+        if (sourceId && !source) {
+          say(t(lang, 'ctrl.set.unknown', { id: sourceId, list: ids() }));
+          return true;
+        }
+        const id = slugId(bare || sourceId);
+        if (!id) {
+          say(t(lang, 'ctrl.set.badId'));
+          return true;
+        }
+        if (store.get(id)) {
+          say(t(lang, 'ctrl.set.exists', { id }));
+          return true;
+        }
+        const next = source ? { ...source, id, name: bare || id, builtin: false, createdAt: undefined } : emptySet(id, bare || id);
+        if (commit(id, store.put(next))) say(t(lang, 'ctrl.set.created', { id }));
+        return true;
+      }
+
+      if (verb === 'rm') {
+        const id = rest[0] || '';
+        const set = store.get(id);
+        if (!set) {
+          say(t(lang, 'ctrl.set.unknown', { id, list: ids() }));
+          return true;
+        }
+        const users = Object.entries(state.agentsets || {}).filter(([, ref]) => ref === id).map(([ref]) => ref);
+        if (users.length > 0) {
+          say(t(lang, 'ctrl.set.inUse', { id, keys: users.join(', ') }));
+          return true;
+        }
+        if (commit(id, store.remove(id))) say(t(lang, 'ctrl.set.removed', { id }));
+        return true;
+      }
+
+      if (verb === 'reload') {
+        agentsetStore = new AgentsetStore(AGENTSETS).load();
+        say(agentset().error ? t(lang, 'ctrl.set.storeBroken', { error: agentset().error }) : t(lang, 'ctrl.set.reloaded', { n: agentset().list().length }));
+        return true;
+      }
+
+      // Anything else is a field edit on a set: `/agentset model glm-5.3 [id]`,
+      // `/agentset model inherit`. The DSH profile keeps its own /agents set …
+      // verbs; this one only ever writes the topic's set.
+      const field = verb;
+      const known = new Set(['model', 'effort', 'permissions', 'preset', 'lang', 'notes']);
+      if (!known.has(field)) {
+        say(t(lang, 'ctrl.set.badField', { field, list: [...known].join(', ') }));
+        return true;
+      }
+      // The last word names the set only when it is one; otherwise the whole
+      // tail is the value ("/agentset model glm 5.3" would be a model id).
+      const maybe = store.get(rest[rest.length - 1]);
+      const target = maybe || (bound ? store.get(bound) : null);
+      const set = target || store.get(rest[0]);
+      if (!set) {
+        say(t(lang, 'ctrl.set.unknown', { id: rest[rest.length - 1] || '', list: ids() }));
+        return true;
+      }
+      const valueWords = maybe ? rest.slice(0, -1) : rest;
+      const value = valueWords.join(' ').trim();
+      const cleared = !value || value === 'inherit' || value === '-';
+      const storeField = field === 'preset' ? 'dshPreset' : field;
+      const next = { ...set, [storeField]: cleared ? '' : value };
+      if (commit(set.id, store.put(next))) {
+        say(cleared ? t(lang, 'ctrl.set.fieldCleared', { field }) : t(lang, 'ctrl.set.fieldSet', { field, value, name: set.name || set.id }));
+      }
       return true;
     }
 

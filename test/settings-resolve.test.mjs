@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { resolveSettings, profileValues, settingsChip, touchesProfile } from '../settings.mjs';
 
 const profile = profileValues({
-  model: { model: 'deepseek-v4.1-flash', provider: 'unorouter' },
+  model: { model: 'deepseek-v4.1-flash', provider: 'example-provider' },
   permissions: 'workspace-write',
   preset: 'default',
   effort: 'medium',

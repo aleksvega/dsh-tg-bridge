@@ -1938,6 +1938,17 @@ async function handleCallback(query) {
   const answer = (text, show = false) =>
     tg('answerCallbackQuery', { callback_query_id: query.id, text, show_alert: show }).catch(() => {});
 
+  // A button is a message without a sender the rest of the code can check, and
+  // the chat itself may be a group. Anything that changes configuration must
+  // come from an allowed user, exactly like the message path at the top of the
+  // poll loop. The refusal is deliberately the same as "unknown button".
+  const presser = query.from?.id;
+  if (!config.allowedUserIds.includes(presser) && !config.allowedUserIds.includes(chatId)) {
+    log(`ignored callback from ${presser} (chat ${chatId})`);
+    await answer(t(lang, 'bridge.cb.unknown'));
+    return;
+  }
+
   // Trim the buttons of the pressed message first: a button that already did
   // its job must not be pressable a second time.
   const clearKeyboard = () =>

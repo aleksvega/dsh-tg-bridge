@@ -19,6 +19,11 @@ const ID = /^[a-z0-9][a-z0-9-]{0,23}$/;
 const TRASH_TTL = 7 * 24 * 60 * 60 * 1000;
 const TRASH_CAP = 20;
 
+/** JSON of every set as it was loaded: what a rebase has to tell apart. */
+function snapshot(sets) {
+  return JSON.parse(JSON.stringify(sets));
+}
+
 /** Fields a set may carry. Anything else is preserved but never read. */
 export const FIELDS = ['model', 'provider', 'effort', 'permissions', 'dshPreset', 'lang', 'thinkBlock', 'base', 'notes'];
 export const LIST_FIELDS = ['plugins', 'toolFilter', 'agents'];
@@ -66,6 +71,8 @@ export class AgentsetStore {
   constructor(file) {
     this.file = file;
     this.data = null;
+    /** Every set as loaded, so a rebase can find this handle's own edits. */
+    this.before = {};
     this.error = '';
   }
 
@@ -74,6 +81,7 @@ export class AgentsetStore {
     const seed = { version: 1, rev: 0, updatedAt: new Date().toISOString(), sets: builtinSets(), trash: [] };
     if (!existsSync(this.file)) {
       this.data = seed;
+      this.before = snapshot(seed.sets);
       this.error = '';
       return this;
     }
@@ -89,9 +97,11 @@ export class AgentsetStore {
         sets: { ...builtinSets(), ...raw.sets },
         trash: Array.isArray(raw.trash) ? raw.trash : [],
       };
+      this.before = snapshot(this.data.sets);
       this.error = '';
     } catch (error) {
       this.data = seed;
+      this.before = snapshot(seed.sets);
       this.error = `agentsets.json unreadable (${error.message}); builtins only`;
     }
     this.dropExpiredTrash();
@@ -166,8 +176,19 @@ export class AgentsetStore {
    */
   save() {
     const disk = this.diskRev();
-    if (disk !== null && disk !== this.data.rev) {
-      return { ok: false, error: 'stale', diskRev: disk, rev: this.data.rev };
+    if (disk === null) return { ok: false, error: 'unreadable', file: this.file };
+    if (disk !== this.data.rev) {
+      // One silent rebase instead of a failed write: re-read what the other
+      // writer saved, stamp this handle's edits on top of it, write once more.
+      const rev = this.data.rev;
+      const carried = Object.keys(this.data.sets)
+        .filter((id) => !this.before[id] || JSON.stringify(this.before[id]) !== JSON.stringify(this.data.sets[id]))
+        .map((id) => [id, this.data.sets[id]]);
+      this.load();
+      if (this.error || this.data.rev !== disk) return { ok: false, error: 'stale', diskRev: disk, rev };
+      // New, edited and deleted sets belong to this handle; everything else is
+      // whatever the other writer left on disk.
+      for (const [id, set] of carried) if (set) this.sets[id] = set;
     }
     this.data.rev += 1;
     this.data.updatedAt = new Date().toISOString();
