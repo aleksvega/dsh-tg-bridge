@@ -31,9 +31,13 @@ range=$(git rev-list --reverse --not --remotes HEAD 2>/dev/null | head -n 1)
 if [ -n "$range" ]; then
   base=$(git rev-parse "$range" 2>/dev/null)
   node "$here/scan-secrets.mjs" --range "$base..HEAD" || exit 1
-else
-  node "$here/scan-secrets.mjs" --all || exit 1
 fi
+# The whole history is checked as advice, not as a gate: an identity that is
+# already on the remote cannot be fixed by refusing this push, and a hook that
+# blocks every future push over an old commit is one people learn to bypass
+# with --no-verify — which would let the next real finding through too. The
+# identity is reported loudly and the push proceeds; the fix is a rewrite.
+node "$here/scan-secrets.mjs" --all --report-only
 `;
 
 function git(...args) {

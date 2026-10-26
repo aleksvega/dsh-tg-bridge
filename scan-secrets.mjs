@@ -156,6 +156,10 @@ if (process.argv[1] && process.argv[1].endsWith('scan-secrets.mjs')) {
     return at >= 0 ? argv[at + 1] || '' : '';
   };
   const mode = argv.includes('--all') ? 'all' : flag('--range') ? 'range' : 'staged';
+  // `--report-only` is for advice about what is already public: the pre-push
+  // hook prints it and lets the push through. It never weakens the gate on new
+  // content, only on findings that existed before this push.
+  const reportOnly = argv.includes('--report-only');
   const peersDir = flag('--peers');
   try {
     const findings = scanRepo({ mode, range: flag('--range'), peers: loadPeers(peersDir || undefined) });
@@ -168,14 +172,19 @@ if (process.argv[1] && process.argv[1].endsWith('scan-secrets.mjs')) {
       process.stdout.write('scan-secrets: clean\n');
     } else {
       for (const finding of all) process.stderr.write(`${finding.text}\n`);
-      process.stderr.write(`\nscan-secrets: ${all.length} finding(s); nothing was pushed.\n`);
-      if (authorFindings.length > 0) {
-        process.stderr.write('A commit identity is not fixed by editing a file: rewrite the author\n');
-        process.stderr.write('(git rebase --exec or git filter-repo) or set git config user.email to a\n');
-        process.stderr.write('noreply address before the next commit.\n');
+      if (reportOnly) {
+        process.stderr.write(`\nscan-secrets: ${all.length} finding(s), reported only.\n`);
+        process.exitCode = 0;
+      } else {
+        process.stderr.write(`\nscan-secrets: ${all.length} finding(s); nothing was pushed.\n`);
+        if (authorFindings.length > 0) {
+          process.stderr.write('A commit identity is not fixed by editing a file: rewrite the author\n');
+          process.stderr.write('(git rebase --exec or git filter-repo) or set git config user.email to a\n');
+          process.stderr.write('noreply address before the next commit.\n');
+        }
+        process.stderr.write('Fix the line, or (if it has to stay) override with git push --no-verify.\n');
+        process.exitCode = 1;
       }
-      process.stderr.write('Fix the line, or (if it has to stay) override with git push --no-verify.\n');
-      process.exitCode = 1;
     }
   } catch (error) {
     // A broken scanner must not be mistaken for a clean tree.
