@@ -574,6 +574,20 @@ function immediateCommandOf(text) {
   return immediateKind(collapsed, rest);
 }
 
+/**
+ * Language for a chat and topic.
+ *
+ * Extracting the formatting helpers into `format.mjs` took this function with
+ * them, and the two `langFor` call sites stayed behind — so `send()` threw
+ * `langFor is not defined` on its first line and the restart notice never
+ * reached the chat. Nothing caught it: the error was logged and swallowed by
+ * the outer `try`, and the process kept running. It is a one-line wrapper, and
+ * the tests below pin the call sites so a missing name fails there instead.
+ */
+function langFor(chatId, threadId = 0) {
+  return resolveLang(state, sessionKey(chatId, threadId), null, config);
+}
+
 async function send(chatId, text, threadId = 0, replyTo = 0) {
   // Who is reading: the topic's language decides even the fallback line, so an
   // English or Chinese topic never sees a Russian placeholder.

@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.12.0
+
+- Fix: a restart went silent. Extracting the formatting helpers into `format.mjs`
+  took `langFor` with them while two call sites stayed behind, so `send()` threw
+  on its first line and the restart confirmation was logged and swallowed. The
+  bridge now sends `✅ Мост поднялся` again after `/restart confirm`.
+- Fix: the npm README linked to `docs/*` files that the tarball does not ship, so
+  every such link opened a 404 right after install. The links now point at the
+  GitHub sources, and the install scripts and SECURITY.md are published too.
+- New: `test/bridge-wiring.test.mjs` reads `bridge.mjs` and fails when a called
+  name is neither defined nor imported, and checks that every i18n key used by
+  the bridge exists in all three languages.
+
 ## 1.11.0 — 2026-10-25
 
 - The progress message opens with the request echoed back — `⏳ Принял: «…» · 3 с` — instead

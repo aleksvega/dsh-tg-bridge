@@ -123,7 +123,7 @@ You do not need to set up the command menu by hand: `init` and `setup` install i
 in Russian, English and Chinese at once. The menu is not refreshed by a plain
 bridge restart, so after adding commands run `dsh-tg menu`. The full settings
 table, permissions, checks and common errors are in
-[docs/TELEGRAM-SETUP.md](docs/TELEGRAM-SETUP.md).
+[docs/TELEGRAM-SETUP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TELEGRAM-SETUP.md).
 
 **Autostart** is installed by the setup: `launchd` on macOS, `systemd --user` on
 Linux. On Windows `setup` registers the `DSH-TG-Bridge` task, which runs the
@@ -367,12 +367,12 @@ no lock race and no lost update.
 
 ## Documentation
 
-- [docs/TELEGRAM-SETUP.md](docs/TELEGRAM-SETUP.md): BotFather settings, group and bot permissions
-- [docs/ROADMAP.md](docs/ROADMAP.md): what comes next
-- [docs/UX-ANALYSIS.md](docs/UX-ANALYSIS.md): interactive UX review
-- [docs/COST.md](docs/COST.md): what one turn costs and how to reduce it
-- [docs/CHANGELOG.md](docs/CHANGELOG.md): change history
-- [docs/RELEASE-CRITERIA.md](docs/RELEASE-CRITERIA.md): release readiness criteria
+- [docs/TELEGRAM-SETUP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TELEGRAM-SETUP.md): BotFather settings, group and bot permissions
+- [docs/ROADMAP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/ROADMAP.md): what comes next
+- [docs/UX-ANALYSIS.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/UX-ANALYSIS.md): interactive UX review
+- [docs/COST.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/COST.md): what one turn costs and how to reduce it
+- [docs/CHANGELOG.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/CHANGELOG.md): change history
+- [docs/RELEASE-CRITERIA.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/RELEASE-CRITERIA.md): release readiness criteria
 
 ## License
 
