@@ -67,15 +67,6 @@ export function resolveSettings({
   const provider = from('provider');
   const effort = from('effort');
 
-  // A value the profile never declared would only fail on the next turn, so it
-  // is dropped here — and the source says so, which is how the card explains
-  // itself instead of silently running something else.
-  const valid = (field, value, declared) => {
-    if (!value) return { value, ok: true };
-    if (declared.length === 0) return { value, ok: true }; // profile has no list: trust the value
-    if (declared.includes(value)) return { value, ok: true };
-    return { value: profile[field] || '', ok: false };
-  };
   // A model the profile never declared would only fail on the next turn, so it
   // is dropped here — and the source says so, which is how the card explains
   // itself instead of silently running something else.
@@ -85,8 +76,8 @@ export function resolveSettings({
     src.model = `${src.model} (invalid)`;
     src.provider = `${src.provider} (follows model)`;
   }
-  // The effort belonged to the model that was just dropped: it was never
-  // declared for the model that actually runs, so it must not survive it.
+  // A profile with no declared efforts answers with an empty list, and then the
+  // value is trusted: refusing it would drop a legitimate id the list cannot see.
   const effortList = efforts;
   const effortDropped = Boolean(effort) && effortList.length > 0 && !effortList.includes(effort);
   const checkedEffort = { value: effortDropped ? (profile.effort || '') : effort };
@@ -94,7 +85,8 @@ export function resolveSettings({
   const permissionsDropped = Boolean(permissions.length) && !permissions.includes(from('permissions'));
   const checkedPermissions = { value: permissionsDropped ? profile.permissions : from('permissions') };
   if (permissionsDropped) src.permissions = `${src.permissions} (invalid)`;
-  const checkedPreset = valid('dshPreset', from('dshPreset'), presets);
+  const presetDropped = Boolean(presets.length) && !presets.includes(from('dshPreset'));
+  const checkedPreset = { value: presetDropped ? profile.dshPreset : from('dshPreset'), ok: !presetDropped };
   if (!checkedPreset.ok) src.dshPreset = `${src.dshPreset} (invalid)`;
 
   const plugins = {
