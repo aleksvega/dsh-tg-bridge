@@ -1,5 +1,36 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.16.0
+
+- **New: `/rewind [n]` — go back a turn and say it differently.** The desktop
+  app can branch from an earlier turn; the bridge now can too, from Telegram.
+  `/rewind 2` shows a card naming every turn that will go and the turn the
+  session will continue from, with one button to confirm and one to cancel.
+  Nothing is cut until the button is pressed, the file is never edited in place
+  (a copy is written first, and `/rewind undo` puts it back), and a turn that is
+  running refuses the whole thing — a session being written is the one file this
+  must never touch. Every ambiguous case refuses with a reason instead of
+  guessing: no session, too few turns, a half-written tail, a button from
+  another session, a button pressed twice.
+- **New: `/menu` — the panel.** Four short screens of buttons (work, answers,
+  session, service). A press runs the command a person would have typed, and the
+  card is replaced by that command's answer, so it never lingers. A button that
+  needs an argument opens its explanation instead of guessing.
+- **New: `/help <command>`.** One sentence per command, and the lookalikes
+  explain each other: `/task` adds, `/tasks` is the list; `/model` switches,
+  `/models` is the catalogue; `/plugins` is the command, `/plugin` its old
+  spelling. The full list is still `/help`.
+- **Fixed: two crashes in unreleased work, found by an audit before release.**
+  `/help <anything>` and `/rewind` both threw a `ReferenceError` — one on a
+  function that was called and never written, one on a variable read outside its
+  scope. `node --check` cannot see either. A test now calls the real dispatcher
+  with every command and asserts that none of them throws.
+- **Fixed: the commit history carried a personal email address.** Two commits,
+  one of them reachable from every release since v1.10.0, were authored with the
+  maintainer's private address. The whole history was rewritten to the project
+  identity and every tag moved with it; nothing in the published package changed.
+  The secrets scan now fails on a commit author, not only on file contents.
+
 ## 1.15.1
 
 - **Fixed: `/settings` answered "Неизвестная команда".** It was in `/help`, in

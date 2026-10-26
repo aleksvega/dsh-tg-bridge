@@ -44,6 +44,10 @@ import { drainAsetJobs } from './aset-jobs.mjs';
 import { materialiseProfile, pruneDerived } from './aset-profile.mjs';
 import { parseCallback } from './aset-schema.mjs';
 import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
+import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
+import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
+import { sessionFile } from './thoughts.mjs';
+import { MENU_PREFIX, commandForName, isMenuPress, renderPanel } from './menu-card.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -788,6 +792,65 @@ function topicName(chatId, threadId) {
     })
     .catch(() => {});
   return '';
+}
+
+/**
+ * Run a command that a button stands for, exactly as if it had been typed.
+ *
+ * The panel has no second implementation of anything: a press calls this, and
+ * this calls `handleControl` with the same context a typed command gets. What
+ * a button cannot do is money or state the person did not mean — so a press
+ * never falls through to an AI turn.
+ */
+async function runCommandFromButton(typed, { chatId, threadId, key }) {
+  const lang = langFor(chatId, threadId);
+  const [head, ...rest] = typed.trim().split(/\s+/);
+  const arg = rest.join(' ');
+  const handled = await handleControl({
+    command: head,
+    arg,
+    text: typed,
+    lang,
+    chatId,
+    threadId,
+    key,
+    state,
+    config,
+    activeTurns,
+    saveState,
+    log,
+    send,
+    jobs: () => ({
+      active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
+      queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
+      max: MAX_PARALLEL,
+    }),
+    api: tg,
+    sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
+    seedTopic: ensureTopicSeed,
+    profile: profileOf(key),
+    reply: (out, extra = {}) => (extra.keyboard
+      ? tg('sendMessage', {
+          chat_id: chatId,
+          text: out,
+          disable_web_page_preview: true,
+          reply_markup: { inline_keyboard: extra.keyboard },
+          ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+        }).catch(() => {})
+      : send(chatId, out, threadId)),
+    stopTurn: (k) => {
+      const child = activeTurns.get(k);
+      if (!child) return false;
+      try {
+        child.kill();
+        activeTurns.delete(k);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
+  if (!handled) await send(chatId, t(lang, 'bridge.cb.unknown'), threadId);
 }
 
 async function send(chatId, text, threadId = 0, replyTo = 0) {
@@ -2090,6 +2153,8 @@ const lastPrompt = new Map();
 
 /** Pending approval requests: id -> { key, chatId, threadId, resolve, timer. */
 const approvals = new Map();
+// A rewind card is used once - a fast double tap must not cut twice.
+const rewindUsed = new Set();
 let approvalSeq = 0;
 
 function errorKeyboard(key, lang = 'ru') {
@@ -2193,6 +2258,76 @@ async function handleCallback(query) {
     // flips one setting must not go through the defaults below (`clearKeyboard`
     // would strip the tabs it is about to draw again).
     await handleCardPress(query, { chatId, messageId, threadId, key, lang });
+    return;
+  }
+
+  if (isRewindPress(data)) {
+    // A rewind button. What it acts on is read here, not taken from the card:
+    // between drawing "go back 2" and the press, the session may have moved on,
+    // and the answer says so instead of cutting the wrong turns.
+    const sessionId = state.sessions[key] || '';
+    const sessionPath = sessionId ? sessionFile(join(DSH_HOME, 'sessions'), sessionId) : '';
+    const line = answerRewindPress(data, {
+      used: rewindUsed,
+      lang,
+      t,
+      ctx: {
+        sessionId,
+        busy: activeTurns.has(key),
+        file: sessionPath,
+        cut: (steps) => cutSession(sessionPath, steps, applyRewind),
+        undo: () => {
+          const backup = newestBackup(sessionPath);
+          if (!backup) return { error: 'nothing' };
+          try {
+            restoreBackup(backup, sessionPath);
+            return { backup };
+          } catch (error) {
+            return { error: error.message };
+          }
+        },
+      },
+    });
+    // The card becomes the one line answering the press, and keeps no buttons.
+    await tg('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: line,
+      reply_markup: { inline_keyboard: [] },
+      ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+    }).catch(() => {});
+    await answer(t(lang, 'bridge.cb.done'));
+    log(`rewind press ${data} for ${key}`);
+    return;
+  }
+
+  if (isMenuPress(data)) {
+    // The panel. A press is exactly a typed command, so it goes through the same
+    // `handleControl`; the card is replaced by whatever that command answers, and
+    // if it draws a card of its own (settings, rewind) this one is simply gone.
+    // `mn:g:<group>` switches tabs in place — that is the only press that does
+    // not run a command.
+    const [verb, name] = data.slice(MENU_PREFIX.length).split(':');
+    if (verb === 'g') {
+      const card = renderPanel({ t: (k, v) => t(lang, k, v), page: name });
+      if (card) {
+        await tg('editMessageText', {
+          chat_id: chatId,
+          message_id: messageId,
+          text: card.text,
+          reply_markup: { inline_keyboard: card.keyboard },
+          ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+        }).catch(() => {});
+        await answer(t(lang, 'bridge.cb.done'));
+        return;
+      }
+    }
+    await clearKeyboard();
+    const typed = commandForName(name, { t: (k, v) => t(lang, k, v) });
+    await answer(typed || t(lang, 'bridge.cb.unknown'));
+    if (!typed) return;
+    log(`menu press /${name} for ${key}`);
+    await runCommandFromButton(typed, { chatId, threadId, key, lang });
     return;
   }
 

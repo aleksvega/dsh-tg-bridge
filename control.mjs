@@ -17,6 +17,11 @@ import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from './reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from './agentsets.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
+import { planRewind } from './rewind.mjs';
+import { cutSession, isRewindPress } from './rewind-buttons.mjs';
+import { renderRewindCard, renderRewindUsage } from './rewind-card.mjs';
+import { MENU_GROUPS, commandForName, renderPanel } from './menu-card.mjs';
+import { explainCommand } from './help-explain.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
 
@@ -669,6 +674,7 @@ export const CONTROL_COMMANDS = [
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'agentset', 'subscribe', 'settings',
+  'rewind', 'menu',
 ];
 
 /**
@@ -1714,6 +1720,55 @@ export async function handleControl(ctx) {
       return true;
     }
 
+    case '/menu': {
+      // The panel: a few buttons, one per job, and each of them runs the command
+      // a person would otherwise have to spell. It replaces itself on a press,
+      // which is why nothing here tries to stay in the chat.
+      const page = String(arg || '').trim().toLowerCase();
+      const card = renderPanel({ t: (k, vars) => t(lang, k, vars), page: MENU_GROUPS.includes(page) ? page : MENU_GROUPS[0] });
+      await reply(card.text, { keyboard: card.keyboard });
+      return true;
+    }
+
+    case '/rewind': {
+      // Going back the way the desktop app's branch-from-here does. The file is
+      // cut only where a turn begins, a copy of it is kept, and a turn that is
+      // still running refuses the whole thing: a session being written is the
+      // one file this must never touch.
+      const sessionId = state.sessions[key] || '';
+      if (!sessionId) { say(t(lang, 'ctrl.rewind.noSession')); return true; }
+      const file = sessionFile(join(DSH_HOME, 'sessions'), sessionId);
+      const wanted = String(arg || '').trim().toLowerCase();
+      if (ctx.activeTurns && ctx.activeTurns.has(key)) { say(t(lang, 'ctrl.rewind.busy')); return true; }
+
+      // Undo is its own verb: it restores the newest backup and says so.
+      if (wanted === 'undo' || wanted === 'назад' || wanted === 'отмена') {
+        const done = ctx.undoRewind ? ctx.undoRewind(file) : { error: 'no undo here' };
+        if (done.error === 'nothing') { say(t(lang, 'ctrl.rewind.nothing')); return true; }
+        say(done.error ? t(lang, 'ctrl.rewind.failed', { error: done.error }) : t(lang, 'ctrl.rewind.undone'));
+        return true;
+      }
+
+      const steps = Number.parseInt(wanted, 10);
+      if (!wanted || !Number.isInteger(steps) || steps < 1) {
+        const card = renderRewindUsage({ t: (k, vars) => t(lang, k, vars), file, sessionId });
+        await reply(card.text, card.keyboard.length ? { keyboard: card.keyboard } : undefined);
+        return true;
+      }
+
+      // Say the number twice: the card already asks "back 2?" and this is the
+      // proof that two is what will be cut.
+      const plan = planRewind(file, steps);
+      if (plan.reason) {
+        const key2 = plan.reason === 'too-many-steps' ? 'ctrl.rewind.refused.too-many-steps' : `ctrl.rewind.refused.${plan.reason}`;
+        say(t(lang, key2, { total: plan.total, dropped: steps }));
+        return true;
+      }
+      const card = renderRewindCard({ t: (k, vars) => t(lang, k, vars), file, sessionId, steps, lang });
+      await reply(card.text, { keyboard: card.keyboard });
+      return true;
+    }
+
     case '/new': {
       delete state.sessions[key];
       ctx.saveState();
@@ -1781,6 +1836,19 @@ export async function handleControl(ctx) {
       // One translated body keeps the help in step with the menu; the Russian
       // text stays as the fallback when a key is missing.
       const helpLang = normalizeLang(state.lang?.[key] || config.lang) || 'ru';
+      // `/help <command>` answers about one command: the list alone forced a
+      // reader to guess which of /task and /tasks they wanted, and the pairs
+      // that look alike are exactly the ones worth a sentence each.
+      const about = String(arg || '').trim().toLowerCase().replace(/^\//, '');
+      if (about) {
+        const lines = explainCommand(about, helpLang, t);
+        if (lines) {
+          say(lines);
+          return true;
+        }
+        say(t(helpLang, 'ctrl.help.unknown', { name: about }));
+        return true;
+      }
       say(t(helpLang, 'help.body'));
       return true;
     }
