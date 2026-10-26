@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.15.1
+
+- **Fixed: `/settings` answered "Неизвестная команда".** It was in `/help`, in
+  the Telegram menu and in the code that draws the card, but not in the list the
+  bot checks before handling a command — the one list nothing compared against
+  the other two. Now one test reads all three: a command in help or in the menu
+  that the dispatcher does not know fails the build, and so does a command the
+  dispatcher knows that nothing documents. The test was run against the broken
+  code first, so it fails for the right reason.
+
 ## 1.15.0
 
 - **New: `/settings` is one card with four tabs.** What the bot says (reasoning,

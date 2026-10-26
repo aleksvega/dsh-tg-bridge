@@ -668,7 +668,7 @@ export const CONTROL_COMMANDS = [
   'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task', 'tasks',
-  'thoughts', 'version', 'update', 'agentset', 'subscribe',
+  'thoughts', 'version', 'update', 'agentset', 'subscribe', 'settings',
 ];
 
 /**
