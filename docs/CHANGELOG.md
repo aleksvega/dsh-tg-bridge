@@ -1,5 +1,32 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.13.1
+
+- **Fix: the npm package could not start.** `format.mjs` was imported by
+  `bridge.mjs` but missing from `files[]`, so `npm i -g dsh-tg-bridge` installed a
+  package whose entry point fails on its first import. The check that would have
+  caught it (does every shipped `.mjs` exist and does every relative import
+  resolve?) now runs in the test suite.
+- `npm run secrets` and `npm run hooks` expose the scanner and the git hook
+  installer from a published install.
+- Fix: a step note could land in another topic. Two turns running at once shared
+  one note file per topic, and `say.mjs` learned the topic by picking the newest
+  file on disk. Every turn now gets its own file, its path travels to the tools
+  as `DSH_TG_THOUGHT`, and with no target `say.mjs` exits (7) instead of guessing.
+- **New: `/tasks` — the task list as buttons.** One tap closes a task, a second
+  tap reopens it, and the card is redrawn from state, so a double tap cannot
+  stack ✅ marks. The list is in the menu in all three languages.
+- Fix: `goal.mjs` took the topic from `--key`, which was easy to forget, so a
+  task update could be written to the wrong topic or refused. It now takes
+  `DSH_TG_KEY`, which the bridge passes to every turn.
+- A turn with no goal is told to set one before starting multi-step work, so the
+  plan the person can see and the plan the agent follows are the same list.
+- **Security: a local push guard.** `scan-secrets.mjs` refuses tokens, private
+  keys, paths that carry a user name and personal ids kept outside the repo;
+  `.githooks/pre-commit` and `pre-push` run it, `install-hooks.mjs` installs them.
+  `jev-gate` asked a remote model about secrets and only when run by hand, which
+  is why an identifier reached a push earlier.
+
 ## 1.13.0
 
 - **New: `/agentset` — named settings for a topic.** A set holds a model, an
