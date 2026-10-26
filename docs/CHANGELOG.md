@@ -1,5 +1,12 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.12.1
+
+- Fix: `bridge.mjs` spelled out one machine's secret name
+  (`DSH_TELEGRAM_BOT_TOKEN_<hex>`, a per-install id), so a clone carried the
+  original author's machine fingerprint. The suffix is now discovered from
+  `~/.dsh/.credentials.yaml` instead of being written into the code.
+
 ## 1.12.0
 
 - Fix: a restart went silent. Extracting the formatting helpers into `format.mjs`

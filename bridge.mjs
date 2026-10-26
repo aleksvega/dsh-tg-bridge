@@ -329,7 +329,15 @@ function providerKeys(cfg) {
 function findToken() {
   const env = (process.env.DSH_TELEGRAM_BOT_TOKEN || '').trim();
   if (env) return env;
-  for (const name of ['DSH_TELEGRAM_BOT_TOKEN', 'DSH_TELEGRAM_BOT_TOKEN_3278A97027814C501779F5E2']) {
+  // The suffixed name carries a random id of the machine that created the
+  // secret (DSH_TELEGRAM_BOT_TOKEN_<hex>), so it must not be spelled out here:
+  // any install is free to carry its own suffix. Try the plain name first, then
+  // whatever suffixed variants the credentials file actually holds.
+  const suffixes = [];
+  try {
+    for (const m of readFileSync(CRED, 'utf8').matchAll(/^\s*(DSH_TELEGRAM_BOT_TOKEN_[A-Z0-9_]+):/gm)) suffixes.push(m[1]);
+  } catch {}
+  for (const name of ['DSH_TELEGRAM_BOT_TOKEN', ...suffixes]) {
     try {
       const value = readSecret(name);
       if (value) return value;
