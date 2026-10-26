@@ -89,41 +89,37 @@ export function describeUpdate(state) {
   if (!state.behind) return `${have}; ${target} is the newest published one.`;
   const how =
     mode === 'auto'
-      ? `auto-update is on: ${latest} will be installed, then /restart confirm loads it`
+      ? `auto-update is on: ${latest} installs by itself, then /restart confirm loads it`
       : mode === 'off'
-        ? 'auto-update is off: /update confirm installs it'
-        : `notified once: /update on turns the notice off, /update confirm installs it`;
+        ? 'notices are off: /update on turns them on, /update confirm installs it now'
+        : `a notice appears once: /update off turns notices off, /update confirm installs it now`;
   return `${have}, ${latest} is out. ${how}.`;
 }
 
 /**
- * What `/update on|off|check` has to do to leave the install where the person
- * asked it to be.
+ * What `/update on|off|check|auto` has to do to leave the install where the
+ * person asked it to be.
  *
- * One rule, said plainly: `off` and `on` mean "stay on the version I have now",
- * because only an install that is already up to date would otherwise read the
- * switch as "stop telling me, and also never update". Going back to following
- * releases is `npm i -g dsh-tg-bridge@latest` or `npx dsh-tg@latest setup` — the
- * command that also proves the new version starts.
+ * Two switches, on purpose: `on|off` is the notice ("tell me about releases"),
+ * `check|auto` is the means ("or install them yourself"). Both leave the version
+ * on disk alone — installing is `confirm`, and only `confirm` — so there is no
+ * way for "stop telling me" to be read as "and also move me somewhere".
  */
 export function modeChange({ installed = '', latest = '', command = '' } = {}) {
   if (command === 'off') {
-    return {
-      store: { mode: 'off', pinned: installed, notified: latest },
-      text: `update checks are off; this install stays on ${installed || 'its current version'}${latest && latest !== installed ? `, and ${latest} is waiting for /update confirm` : ''}`,
-    };
+    return { store: { mode: 'off', pinned: installed }, text: 'notices are off; this install stays where it is. /update on brings them back, /update confirm installs an update by hand' };
   }
-  if (command === 'check') return { store: { mode: 'check', pinned: '', notified: '' }, text: 'a notice appears once per new version; nothing installs by itself' };
+  if (command === 'on' || command === 'check') {
+    const more = latest && installed && compareVersions(installed, latest) < 0 ? ', and one notice is due for it' : '';
+    return { store: { mode: 'check', pinned: '', notified: '' }, text: `notices are on: one message per new release${more}; nothing installs by itself` };
+  }
   if (command === 'auto') {
-    // Only an install already on the newest release can follow releases again:
-    // switching the policy on top of an old version would mean two updates at
-    // once, one of them unattended.
-    if (latest && installed && compareVersions(installed, latest) < 0) {
-      return { store: null, text: `this install is still on ${installed}; run /update confirm first, then /update auto` };
-    }
-    return { store: { mode: 'auto', pinned: '', notified: '' }, text: 'new releases install by themselves; /restart confirm loads them' };
+    return { store: { mode: 'auto', pinned: '' }, text: 'notices are on and new releases also install by themselves; /restart confirm loads them' };
   }
-  return { store: null, text: 'use: /update (status) · off · check · auto · confirm', invalid: true };
+  if (command === 'manual') {
+    return { store: { mode: 'check', pinned: installed }, text: `stays on ${installed || 'the current version'}; /update confirm installs a newer one when you ask` };
+  }
+  return { store: null, text: 'use: /update (status) · on · off · auto · confirm', invalid: true };
 }
 
 /** Storage shape for the settings file, so callers agree on one place. */

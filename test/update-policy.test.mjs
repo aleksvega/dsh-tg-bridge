@@ -28,7 +28,7 @@ test('off means no notice and no automatic work, but the number is still known',
   assert.equal(s.behind, true);
   assert.equal(s.notify, false);
   assert.equal(s.auto, false);
-  assert.match(describeUpdate(s), /auto-update is off/);
+  assert.match(describeUpdate(s), /notices are off/);
 });
 
 test('auto updates, and says a restart is what loads it', () => {
@@ -64,19 +64,30 @@ test('the mode list is the one the command accepts', () => {
   assert.deepEqual(UPDATE_MODES, ['off', 'check', 'auto']);
 });
 
-test('off freezes the version it saw and stops the notices', () => {
+test('off stops the notices and leaves the version alone', () => {
   const r = modeChange({ installed: '1.13.2', latest: '1.14.0', command: 'off' });
   assert.equal(r.store.mode, 'off');
+  // Neither switch installs: `off` is the notice, `confirm` is the install, so
+  // the pin records where a person is stuck but does not mark anything read.
   assert.equal(r.store.pinned, '1.13.2');
-  assert.equal(r.store.notified, '1.14.0'); // so switching off does not leave an unread notice behind
-  // And once off, a newer release produces no notice even though it is known.
+  assert.equal(r.store.notified, undefined);
   assert.equal(updateState({ installed: '1.13.2', latest: '1.15.0', mode: r.store.mode }).notify, false);
 });
 
-test('auto refuses to combine with a pending update', () => {
+test('auto and off never install on their own switch', () => {
+  // `auto` on a lagging install is allowed: the next check does the work.
   const r = modeChange({ installed: '1.13.0', latest: '1.14.0', command: 'auto' });
-  assert.equal(r.store, null);
-  assert.match(r.text, /update confirm/);
+  assert.equal(r.store.mode, 'auto');
+  assert.equal(r.store.pinned, '');
+  // And switching from `off` to `on` goes through `check`, not straight to work.
+  assert.equal(modeChange({ installed: '1.13.0', latest: '1.14.0', command: 'on' }).store.mode, 'check');
+});
+
+test('manual pins the version and still answers /update confirm', () => {
+  const r = modeChange({ installed: '1.13.2', latest: '1.14.0', command: 'manual' });
+  assert.equal(r.store.mode, 'check');
+  assert.equal(r.store.pinned, '1.13.2');
+  assert.match(r.text, /stays on 1\.13\.2/);
 });
 
 test('auto is accepted on an up-to-date install, and from off', () => {
@@ -93,5 +104,5 @@ test('an unknown subcommand changes nothing and says what to use', () => {
   const r = modeChange({ command: 'maybe', installed: '1.13.2', latest: '1.13.2' });
   assert.equal(r.store, null);
   assert.equal(r.invalid, true);
-  assert.match(r.text, /off · check · auto · confirm/);
+  assert.match(r.text, /on · off · auto · confirm/);
 });

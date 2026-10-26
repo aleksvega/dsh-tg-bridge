@@ -43,6 +43,7 @@ import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from
 import { drainAsetJobs } from './aset-jobs.mjs';
 import { materialiseProfile, pruneDerived } from './aset-profile.mjs';
 import { parseCallback } from './aset-schema.mjs';
+import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -767,6 +768,28 @@ function lastTurnTarget() {
   return { chatId, threadId: Number(thread) || 0 };
 }
 
+/**
+ * The forum topic's own title, for a card that has to say where it is.
+ *
+ * One API call per topic, then cached for the life of the process: a rename
+ * shows up on the next restart, which is a fair trade for not calling Telegram
+ * on every panel edit. A failure caches the empty name — a card is not worth a
+ * retry storm — and the caller renders the id alone.
+ */
+const topicNames = new Map();
+function topicName(chatId, threadId) {
+  const cacheKey = sessionKey(chatId, threadId);
+  if (topicNames.has(cacheKey)) return topicNames.get(cacheKey);
+  topicNames.set(cacheKey, '');
+  tg('getForumTopic', { chat_id: chatId, message_thread_id: threadId })
+    .then((res) => {
+      const name = String(res?.name || '').trim();
+      if (name) topicNames.set(cacheKey, name);
+    })
+    .catch(() => {});
+  return '';
+}
+
 async function send(chatId, text, threadId = 0, replyTo = 0) {
   // Who is reading: the topic's language decides even the fallback line, so an
   // English or Chinese topic never sees a Russian placeholder.
@@ -1064,6 +1087,11 @@ async function startProgress(chatId, threadId, lang = 'ru', task = '', chip = ''
       : '';
     return progressPanel({
       lang,
+      // Two topics run at once in a group, so a card that does not name its topic
+      // is unattributable the moment it scrolls: the same 💭 line in the wrong
+      // place looks like a cross-topic bug, and half the time it is one. The
+      // name comes from Telegram, cached: one API call per topic per process.
+      topic: threadId ? t(lang, 'bridge.progress.topic', { n: threadId, name: topicName(chatId, threadId) || t(lang, 'bridge.progress.topicNoName') }) : '',
       seconds: Math.round((Date.now() - started) / 1000),
       final,
       steps,
@@ -2140,8 +2168,6 @@ async function handleCallback(query) {
   const messageId = query.message?.message_id;
   const threadId = query.message?.message_thread_id ?? 0;
   const key = sessionKey(chatId, threadId);
-  // One lookup for every answer: a button press carries no message of its own,
-  // so the language comes from the topic the buttons were posted in.
   const lang = resolveLang(state, key, null, config);
   const answer = (text, show = false) =>
     tg('answerCallbackQuery', { callback_query_id: query.id, text, show_alert: show }).catch(() => {});
@@ -2161,6 +2187,14 @@ async function handleCallback(query) {
   // its job must not be pressable a second time.
   const clearKeyboard = () =>
     tg('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+
+  if (data.startsWith('m:')) {
+    // The settings card. Its own answer path, because a tap that redraws or
+    // flips one setting must not go through the defaults below (`clearKeyboard`
+    // would strip the tabs it is about to draw again).
+    await handleCardPress(query, { chatId, messageId, threadId, key, lang });
+    return;
+  }
 
   if (data === 'stop') {
     const killed = killTurn(key);
@@ -2262,6 +2296,126 @@ async function handleCallback(query) {
   }
 
   await answer(t(lang, 'bridge.cb.unknown'));
+}
+
+/**
+ * Answer a button from the settings card.
+ *
+ * Two kinds of press, one rule: the card is a view of the commands.
+ *
+ * - A tab (`m:agent`) redraws the same message as another page.
+ * - A switch or a door (`m:reasoning:on`, `m:model`) runs the command a person
+ *   would have typed, through `handleControl`, and then replaces the card with
+ *   one plain line saying what changed. The card does not stay: a menu left in
+ *   the history is what the person asked to avoid, and one line is easier to
+ *   delete than a twelve-row keyboard.
+ *
+ * The press carries no text of its own, which is why `handleMessage` is not this
+ * path's entry point: it would journal, queue and spend a turn on a tap.
+ */
+async function handleCardPress(query, ctx) {
+  const { chatId, messageId, threadId, key, lang } = ctx;
+  const data = String(query.data || '');
+  const current = settingsCurrent({ config, state, key, reasoningOf });
+  const updateMode = state.update?.mode || 'check';
+  const wanted = commandFor({ t: (k, vars) => t(lang, k, vars), current, updateMode }, data);
+
+  if (!wanted) {
+    await tg('answerCallbackQuery', { callback_query_id: query.id, text: t(lang, 'settings.card.stale') }).catch(() => {});
+    return;
+  }
+
+  if (wanted.page) {
+    const card = renderSettingsCard({
+      page: wanted.page,
+      t: (k, vars) => t(lang, k, vars),
+      current,
+      updateMode,
+      bound: boundSetOf(key),
+    });
+    await tg('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: card.text,
+      reply_markup: { inline_keyboard: card.keyboard },
+      ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+    }).catch((error) => log(`settings card redraw failed: ${error.message}`));
+    await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
+    return;
+  }
+
+  // Run the command. Whatever it answers goes in the log and, by default, not
+  // in the chat: the one line below is the chat's share of this press. Only a
+  // command that failed says more than that.
+  const replies = [];
+  const [head, ...rest] = wanted.command.split(/\s+/);
+  const handled = await handleControl({
+    command: head,
+    arg: rest.join(' '),
+    text: wanted.command,
+    lang,
+    chatId,
+    threadId,
+    key,
+    state,
+    config,
+    activeTurns,
+    saveState,
+    log,
+    send: (text) => {
+      replies.push(String(text ?? ''));
+      return Promise.resolve(0);
+    },
+    reply: (text) => {
+      replies.push(String(text ?? ''));
+      return Promise.resolve(0);
+    },
+    jobs: () => ({ active: [], queued: 0, max: MAX_PARALLEL }),
+    api: tg,
+    sendFile: () => Promise.resolve(0),
+    profile: profileOf(key),
+    prices: () => Promise.resolve(''),
+  }).catch((error) => {
+    log(`settings press ${data} failed: ${error.message}`);
+    replies.push(error.message);
+    return true;
+  });
+
+  const changed = Boolean(wanted.value);
+  const answerText = changed
+    ? t(lang, 'settings.card.changed', { label: wanted.label, value: wanted.value })
+    : t(lang, 'settings.card.door', { command: wanted.command });
+
+  // The card becomes the line: the buttons go away with the text they described.
+  await tg('editMessageText', {
+    chat_id: chatId,
+    message_id: messageId,
+    text: answerText,
+    ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+  }).catch(() => {});
+  await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
+
+  // A door that opened to nothing (an unknown set id, a command that is not
+  // allowed here) still has something to say; it goes under the line, once.
+  if (!handled) log(`settings press ${data}: no handler answered`);
+  const notLine = replies.filter(Boolean).filter((r) => r !== answerText);
+  if (notLine.length > 0 && !changed) {
+    await send(chatId, notLine[0], threadId).catch(() => {});
+  }
+}
+
+/**
+ * The set bound to this topic, for the card that names it. Read through the
+ * agentset store the commands use, so the card never keeps a second copy.
+ */
+function boundSetOf(key) {
+  const id = state.agentsets?.[key];
+  if (!id) return null;
+  try {
+    return new AgentsetStore(join(DIR, 'agentsets.json')).load().get(id) || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

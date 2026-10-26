@@ -38,7 +38,7 @@ Optional but recommended in the same chat:
 ## 2. Tell the bridge about the token
 
 ```bash
-npx dsh-tg@latest init --token <the token> --user <your id>
+npx dsh-tg-bridge@latest init --token <the token> --user <your id>
 ```
 
 - **`<the token>`** — the line from step 1, in quotes if your shell needs it.
@@ -54,12 +54,13 @@ would write without writing.
 ## 3. Start the bridge
 
 ```bash
-npx dsh-tg@latest setup
+npx dsh-tg-bridge@latest setup
 ```
 
-This registers the bridge so it starts with your session and runs it once. Watch
-for `bridge started` at the end. A failure here is almost always one of the three
-things in [If it does not work](#if-it-does-not-work).
+This registers the bridge so it starts with your session and runs it once. It
+ends with `ok new bridge pid <number>` — that number is the running bridge. A
+failure here is almost always one of the three things in [If it does not
+work](#if-it-does-not-work).
 
 ## 4. Say hello
 
@@ -83,10 +84,11 @@ Everything below is typed in the chat, not in a terminal.
 | See what it is doing | it posts a live progress message; `/thoughts` toggles the 💭 notes |
 | A plan you can tick off | `/goal <what done looks like>`, then `/task <step>`, then `/tasks` to tap items |
 | Stop a long answer | `/stop` |
-| Update the bridge | `/update` shows where you stand. By default it tells you once about a new release; `/update confirm` installs it and `/restart confirm` loads it. `/update off` stays on the version you have. |
+| Tell me about new versions, or stop | /update on / /update off — neither one installs anything |
+| Install an update, then load it | /update confirm, then /restart confirm |
 | Everything it can do | `/help` |
 
-`/lang` pins the reply language; without it the bridge answers in the language you
+`/lang` pins the reply language; without it the bridge answers in the language your
 write in (Russian, Chinese, otherwise English).
 
 ---
@@ -95,14 +97,14 @@ write in (Russian, Chinese, otherwise English).
 
 | What you see | What it means |
 |---|---|
-| Nothing at all after `hi` | The id in `config.json` is not yours, or the bridge is not running: `npx dsh-tg@latest setup` again and read its output. |
+| Nothing at all after `hi` | The id in `config.json` is not yours, or the bridge is not running: `npx dsh-tg-bridge@latest setup` again and read its output. |
 | `401 Unauthorized` | The token is wrong or was revoked by BotFather. Run `init` again with a fresh token. |
 | Works in private chat, silent in a group | Privacy mode is on: `/setprivacy` → Disable, then remove and re-add the bot to the group. |
-| `Error [ERR_MODULE_NOT_FOUND]` on start | The package is older than 1.13.1, which shipped without a file it needs. `npm i -g dsh-tg-bridge@latest`. |
-| Bot answers in the wrong language | `/lang ru` / `/lang en` / `/lang zh`, or just write in the language you want. |
+| `Error [ERR_MODULE_NOT_FOUND]` on start | The running copy is older than the files it imports. A global install never updates itself: `npm i -g dsh-tg-bridge@latest`, then `/restart confirm` in the chat. With `npx` this cannot happen — `npx dsh-tg-bridge@latest` fetches the newest release on every launch. |
+| Bot answers in the wrong language | `/lang ru` / `/lang en` / `/lang zh` — one command pins it for the topic. |
 | Two answers to one message | Another copy of the bridge is running: `/status` shows the pid, kill the duplicate. |
 
-Still stuck: `/doctor` in the chat, or `npx dsh-tg@latest check` in a
+Still stuck: `/doctor` in the chat, or `npx dsh-tg-bridge@latest check` in a
 terminal — both print what is missing and how to fix it.
 
 ---
@@ -121,10 +123,10 @@ An agent helping a person needs three answers, then can do the rest:
 Then:
 
 ```bash
-npx dsh-tg@latest check        # what is missing right now
-npx dsh-tg@latest init --token <token> --user <id> [--cwd <path>] [--dry-run]
-npx dsh-tg@latest setup       # register autostart and start
-npx dsh-tg@latest menu        # push the command menu to Telegram
+npx dsh-tg-bridge@latest check        # what is missing right now
+npx dsh-tg-bridge@latest init --token <token> --user <id> [--cwd <path>] [--dry-run]
+npx dsh-tg-bridge@latest setup       # register autostart and start
+npx dsh-tg-bridge@latest menu        # push the command menu to Telegram
 ```
 
 Verify with a real message, not with logs: ask the person to send `hi` and wait

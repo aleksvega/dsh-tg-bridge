@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // dsh-tg — CLI entrypoint for the Telegram bridge of DeepSeek Harness.
 //
-//   npx dsh-tg init --token <T> --user <ID>   write config + credentials, no editing
-//   npx dsh-tg setup                          install/restart the bridge
-//   npx dsh-tg check                          diagnostics only, changes nothing
-//   npx dsh-tg doctor                         supervisor report (pid, log tail)
-//   npx dsh-tg menu                           register the bot command menu
-//   npx dsh-tg start                          run the bridge in the foreground
+//   npx dsh-tg-bridge init --token <T> --user <ID>   write config + credentials, no editing
+//   npx dsh-tg-bridge setup                          install/restart the bridge
+//   npx dsh-tg-bridge check                          diagnostics only, changes nothing
+//   npx dsh-tg-bridge doctor                         supervisor report (pid, log tail)
+//   npx dsh-tg-bridge menu                           register the bot command menu
+//   npx dsh-tg-bridge start                          run the bridge in the foreground
 //
 // The goal of `init` is a cold start with ONE command: the person pastes the
 // bot token and their numeric id, and nothing else needs hand-editing.
@@ -74,6 +74,12 @@ function flag(name, fallback = '') {
 
 const help = `
 dsh-tg ${pkg.version} — Telegram bridge for DeepSeek Harness
+
+Install once, then use the short name:
+  npm i -g dsh-tg-bridge        → dsh-tg setup
+Without installing, run the same things through npx (the PACKAGE name, not the
+command name — \`npx dsh-tg\` alone does not resolve):
+  npx dsh-tg-bridge@latest setup
 
   dsh-tg init --token <bot-token> --user <your-id>   настроить всё одной командой
   dsh-tg setup     установить и перезапустить мост (setup.log хранит шаги)
@@ -216,7 +222,7 @@ switch (cmd) {
   case 'doctor': run('bridge-kick.mjs', rest); break;
   case 'menu': run('bot-menu.mjs', rest); break;
   case 'start': run('bridge.mjs', rest, { sync: true }); break;
-  case 'version': console.log(pkg.version); break;
+  case 'version': case '--version': case '-v': console.log(pkg.version); break;
   case 'help': case '--help': case '-h': console.log(help); break;
   default:
     console.error(`unknown command: ${cmd}`);

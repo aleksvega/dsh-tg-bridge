@@ -15,7 +15,7 @@ A check is a command or a fact, not an intention.
 | R6 | No secrets or personal ids in the git index | `git ls-files` + grep for tokens/paths |
 | R7 | `git status` clean, a release commit tagged with the version exists | `git log --oneline -1`, `git status --short` |
 | R8 | `node setup.mjs --check` does not fail on a fresh clone | exit code 0 |
-| R9 | All runtime files present and passing `node --check` | 5 files, 0 syntax errors |
+| R9 | All runtime files present and passing `node --check` | every module in `package.json` `files[]`, 0 syntax errors (39 at 1.15.0) |
 | R10 | `init --token --user` on an empty `DSH_HOME` produces working credentials and `config.json` | `node cli.mjs init ... --dry-run` + a run in a temp directory |
 | R11 | Re-running `init` does not duplicate `refs:` and does not lose other keys | credentials with `MY_PROVIDER_API_KEY` stay in place |
 | R12 | `install.sh` sets up autostart: launchd (macOS) / systemd --user (Linux), `--no-autostart` flag | read the file + `bash -n install.sh` |

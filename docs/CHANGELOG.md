@@ -1,5 +1,47 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.15.0
+
+- **New: `/settings` is one card with four tabs.** What the bot says (reasoning,
+  language, thinking), who answers and how hard it works (model, effort,
+  permissions, preset, agent set, agents), new releases, and the health checks.
+  Each row shows what the value is now and what a tap would change it to, and a
+  tap runs the command a person would have typed — the card cannot drift from
+  the commands because it is a view of them. After a change it collapses into one
+  plain line that can be deleted.
+- **Fixed, and it was the worst kind: `/prices` printed a wrong number.** The
+  catalog holds the same model on about a hundred gateways, 567 entries at cost 0,
+  and the matcher took the shortest substring hit — a free mirror of DeepSeek. The
+  install's own model was reported as `$0.0000 / $0.0000`. A price is now chosen
+  in a fixed order (published and yours, published, yours at zero, nothing), every
+  line says whose price it is, and a route nobody publishes says
+  "no public price" and names gateways that do.
+- **Fixed: a Chinese question in an English client got an English answer.** The
+  reply language now comes from the message itself before the Telegram locale:
+  Cyrillic switches the topic to Russian, Han characters to Chinese. Three letters
+  minimum, so a model name or a path does not flip it.
+- **Fixed: the first command a new reader runs was a 404.** QUICKSTART said
+  `npx dsh-tg@latest` eight times; the package is `dsh-tg-bridge`. Every copy-paste
+  line now works as written, and the `ERR_MODULE_NOT_FOUND` row says what a global
+  install does and does not update.
+- **Fixed: `/status` said the context window was unknown.** It looked for
+  `contextWindow` in the wrong block of `cordis.patch.yml`, and the advice it gave
+  pointed at a file that never holds the setting. It now reads the model's row,
+  then the provider's default, and says which one is in force.
+- **Fixed: every progress card was one more message in a chat that is already
+  busy.** One card per turn, edited in place, now carrying the topic it belongs to
+  — a card that lands in the wrong place says so instead of raising the question.
+- **`/agents` explains itself.** Who a subagent is, what depth and the tool filter
+  change, whose model list the "routes" are, and the one command for each. The
+  numbers are still there; the sentence above them is new.
+- **The release notice goes to the last topic that ran a turn**, not to whichever
+  topic happened to be open when the check ran.
+- `scan-secrets` reads commit identities too (`--all`): an address in an
+  `Author:` line is personal data that no file in the tree shows, and it used to
+  pass every check. Docs corrected where they described behaviour that had
+  changed: `/logs file`, `/profile` in `/help`, the module count in the release
+  criteria, the menu-language fallback.
+
 ## 1.14.0
 
 - **New: updates have a policy.** The npm tag `latest` is a label, not an

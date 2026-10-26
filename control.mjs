@@ -16,6 +16,7 @@ import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseRe
 import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from './reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from './agentsets.mjs';
+import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
 
@@ -115,6 +116,70 @@ function modelOf(profile) {
   const model = block && /^\s+model:\s*(\S+)/m.exec(block[0]);
   const provider = block && /^\s+provider:\s*(\S+)/m.exec(block[0]);
   return { provider: provider ? provider[1] : '?', model: model ? model[1] : '?' };
+}
+
+/**
+ * The context window this profile actually runs with.
+ *
+ * It lives in the profile's own patch — `defaultContextWindow`, and a
+ * `contextWindow` per model that overrides it — never in the bridge config. The
+ * old code looked only at config and told every install to fix a file that has
+ * no such key, which read as "the bot does not know" when the bot was simply
+ * asking the wrong place.
+ *
+ * A profile whose model has no explicit window is left to the model registry, so
+ * the answer is empty rather than a guess: an invented denominator turns into a
+ * wrong percentage.
+ */
+function windowOf(profile, model) {
+  const lines = read(patchPath(profile)).split(/\r?\n/);
+
+  // The provider's own default, which DSH writes as `defaultContextWindow`; a
+  // bare `contextWindow` on the provider is the same thing spelled differently.
+  // The provider key and a per-model key are told apart by indentation alone:
+  // model rows sit two spaces deeper than the `- ` that starts them.
+  const windowRows = lines
+    .map((line) => /^(\s*)(?:defaultContextWindow|contextWindow):\s*(\d+)/.exec(line))
+    .filter(Boolean);
+  const fallback = Number((windowRows.find((row) => row[1].length < modelIndent(lines)) || [])[2] || 0);
+
+  if (!model) return fallback;
+
+  // A model entry is a YAML row whose `name` is the id, with `contextWindow` at
+  // the same indentation a line or two below. Many entries, one match.
+  const wanted = new RegExp(`^\\s*(?:-\\s+)?name:\\s*${model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+  const nameAt = lines.findIndex((line) => wanted.test(line));
+  if (nameAt < 0) return fallback;
+  const indent = depthOf(lines[nameAt]);
+  for (let i = nameAt + 1; i < lines.length; i += 1) {
+    if (!lines[i].trim()) continue;
+    const at = depthOf(lines[i]);
+    if (at < indent) break;
+    const own = /^\s*contextWindow:\s*(\d+)/.exec(lines[i]);
+    if (own && at <= indent + 2) return Number(own[1]);
+  }
+  return fallback;
+}
+
+/**
+ * The indentation a profile's model rows are written at.
+ *
+ * Read from the file rather than assumed: the first row of the list that the
+ * provider default introduces sets it, and its keys sit two spaces deeper. A
+ * profile with no list at all falls back to the shape every DSH profile has.
+ */
+function modelIndent(lines) {
+  const at = lines.findIndex((line) => /^\s*defaultContextWindow:/.test(line));
+  const from = at >= 0 ? at + 1 : 0;
+  const row = lines.slice(from).find((line) => /^\s*-\s+(?:id|name):/.test(line));
+  const spaces = row ? /^\s*/.exec(row)[0].length : 10;
+  return spaces + 2;
+}
+
+/** Spaces of indentation a line starts with; the leaf row of a list reads one deeper. */
+function depthOf(text) {
+  const spaces = /^\s*/.exec(String(text))[0].length;
+  return /^\s*-\s/.test(String(text)) ? spaces + 2 : spaces;
 }
 
 /** The `/model` list: what this profile runs and what else it could run. */
@@ -684,7 +749,10 @@ export async function handleControl(ctx) {
       if (stats?.createdAt) lines.push(t(lang, 'ctrl.status.created', { when: stamp(stats.createdAt) }));
       if (stats?.lastActivity) lines.push(t(lang, 'ctrl.status.activity', { when: stamp(stats.lastActivity) }));
       if (stats?.contextTokens) {
-        const window = Number(config.contextWindow) || 0;
+        // The window belongs to the profile that answered, not to this bridge's
+        // config: read it where the harness reads it, and say "unknown" only when
+        // the profile really does not declare one.
+        const window = windowOf(activeProfile, stats.model || head.model);
         lines.push(window
           ? t(lang, 'ctrl.status.context', {
             now: stats.contextTokens.toLocaleString('en-US'),
@@ -957,8 +1025,17 @@ export async function handleControl(ctx) {
 
       const lines = [
         t(lang, 'ctrl.agents.title'),
+        // Every number below answers a question someone actually asked looking
+        // at the old dump: what is a "route", what does "depth" mean, who are
+        // these children. The card says it in order — who does the work, what a
+        // child may do, which models it may use, whose sessions came from here —
+        // and each block ends with the one command that changes it.
+        t(lang, 'ctrl.agents.lead'),
+        '',
         t(lang, 'ctrl.agents.profile', { name: profileName, route: `${head.provider}/${head.model}` }),
-        t(lang, 'ctrl.agents.tools', { n: rows.length }),
+        rows.length > 0
+          ? t(lang, 'ctrl.agents.tools', { n: rows.length })
+          : t(lang, 'ctrl.agents.toolsNone'),
       ];
       for (const row of rows) {
         lines.push(row.model
@@ -973,11 +1050,18 @@ export async function handleControl(ctx) {
           filter,
         }));
       }
-      if (selection && selection.allowed.length > 0) {
-        lines.push(t(lang, 'ctrl.agents.routes', { n: selection.allowed.length }));
-        for (const route of selection.allowed) lines.push(`  • ${route.provider}/${route.model}`);
+      if (rows.length > 0) {
+        lines.push(
+          t(lang, 'ctrl.agents.depthHint', { sample: rows[0].toolName }),
+          t(lang, 'ctrl.agents.filterHint', { sample: rows[0].toolName }),
+        );
       }
-      lines.push(t(lang, 'ctrl.agents.children', { n: fleet.children.length }));
+      if (selection && selection.allowed.length > 0) {
+        lines.push('', t(lang, 'ctrl.agents.routes', { n: selection.allowed.length }));
+        for (const route of selection.allowed) lines.push(`  • ${route.provider}/${route.model}`);
+        lines.push(t(lang, 'ctrl.agents.routesHint'));
+      }
+      lines.push('', t(lang, 'ctrl.agents.children', { n: fleet.children.length }));
       if (fleet.children.length === 0) {
         lines.push(t(lang, 'ctrl.agents.noChildren'));
       } else {
@@ -989,8 +1073,9 @@ export async function handleControl(ctx) {
           }));
         }
         if (fleet.children.length > 8) lines.push(`  … +${fleet.children.length - 8}`);
+        lines.push(t(lang, 'ctrl.agents.childHint', { id: fleet.children[0].id }));
       }
-      lines.push(t(lang, 'ctrl.agents.hint'));
+      lines.push('', t(lang, 'ctrl.agents.hint'));
       say(lines.join('\n'));
       return true;
     }
@@ -1700,6 +1785,29 @@ export async function handleControl(ctx) {
       return true;
     }
 
+    case '/settings': {
+      // The same switches, drawn: one card, four tabs, every button equal to the
+      // command a person would type. A button press carries `m:<row>[:<value>]`
+      // and `bridge.mjs` answers it by rendering the same card again — the card
+      // is a view of the commands, never a second implementation of them.
+      const page = String(arg || '').trim().split(/\s+/)[0].toLowerCase();
+      if (page && !SETTINGS_PAGES.includes(page)) {
+        say(t(lang, 'ctrl.settings.usage'));
+        return true;
+      }
+      const current = settingsCurrent({ config, state, key, reasoningOf });
+      const bound = agentsetOf(state, key);
+      const card = renderSettingsCard({
+        page: SETTINGS_PAGES.includes(page) ? page : 'reply',
+        t: (k, vars) => t(lang, k, vars),
+        current,
+        updateMode: updatePolicy(state).mode,
+        bound,
+      });
+      say(card.text, { keyboard: card.keyboard });
+      return true;
+    }
+
     case '/doctor': {
       // One command that answers "why is it broken?" instead of a conversation.
       const rows = [];
@@ -1945,10 +2053,12 @@ export async function handleControl(ctx) {
       const installed = bridgeVersion();
       const latest = npmLatest('dsh-tg-bridge');
       const sub = String(arg).trim().toLowerCase();
-      if (['off', 'check', 'auto'].includes(sub)) {
+      if (['on', 'off', 'check', 'auto', 'manual'].includes(sub)) {
         const change = modeChange({ installed, latest, command: sub });
         if (change.store) {
-          Object.assign(policy, change.store);
+          // A switch answers about the switch itself: no "1.14.0 is out" on the
+          // next check for a release the person was just told about.
+          Object.assign(policy, change.store, latest ? { notified: latest } : {});
           saveState();
         }
         say(change.text);

@@ -27,7 +27,7 @@ a bot that answers, one step at a time.
   `/agentset off` returns it. Four built-in sets ship read-only and can be copied.
 - **Fail-fast**: when the quota runs out it switches to a free model right away.
 - **`dsh-tg check`**: diagnostics in one command, no changes to the system.
-- **Languages**: menus and service messages in `en`, `ru`, `zh`; `/lang` switches the topic language, a new user gets theirs from the Telegram `language_code` (anything outside ru/zh → `en`).
+- **Languages**: menus and service messages in `en`, `ru`, `zh`; `/lang` pins the topic language, and without it a new topic takes the language of the message itself (Cyrillic → `ru`, Han characters → `zh`), then the Telegram `language_code`, then `en`.
 - **"Stop"/"Retry" buttons, tool confirmations**: right in the message, no commands to type.
 
 ## Requirements
@@ -58,7 +58,7 @@ can be listed next to them:
 
 ## Languages
 
-- Menus (`/` in chat): three sets, `ru` by default, plus `en` and `zh`.
+- Menus (`/` in chat): three sets, `ru` by default, plus `en` and `zh`; a client whose locale matches neither gets the Russian set.
 - Topic language: `/lang en|ru|zh`; stored in `state.json` and survives a restart.
 - A new user gets the language from the Telegram `language_code`; anything that is not `ru`/`zh` → `en`.
 - Translated so far: menus, the start message, turn status, errors, `/cd`, `/new`, `/stop`, `/lang`,
@@ -179,7 +179,7 @@ Send the bot:
 | `/thoughts [file\|all\|off]` | the last turn's reasoning as a message; `file`/`all` send the full log as a Markdown document, `off` hides the block |
 | `/help` | commands grouped by category |
 | `/cd my-app` | topic bound to the project |
-| `/prices` | model prices and the cost of the current one |
+| `/prices` | what the current model costs, and whose price that is: your provider's, the same model on another gateway, or "no public price" when nobody publishes one |
 
 ## Commands
 
@@ -196,37 +196,57 @@ Extensions:   /skills · /plugins · /plugin disable|enable <id> · /soul
 Updates:      /version · /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
+Settings:     /settings — the same switches as buttons, grouped in four tabs
 Display:      /lang · /reasoning on|off · /thoughts
 ```
 
-Every command answers `/help` in the chat, in the language you write in. The
-Telegram menu shows the same list, minus `/subscribe`: it is one line, and a
-person who turns it off should not have to find it in a menu again.
+### Settings as a card
+
+`/settings` draws the same switches that the commands set, in one message with
+four tabs: what the bot says, who answers and how hard it works, new releases,
+and the health checks. Each row shows what the setting is now and what a tap
+would change it to. A tap runs the command a person would have typed
+(`/reasoning off`, `/update on`), so the card cannot disagree with the command:
+it is a view of them. After the change the card collapses into one plain line —
+delete it and the chat is back to what it was.
+
+Nothing on the card is only available on the card. `/settings` is for people who
+would rather press a labelled button than remember which of `/effort`,
+`/preset` and `/agentset` changes what.
+
+Every command answers `/help` in the chat, in the language you write in: a
+message written in Cyrillic or Han characters switches the topic to Russian or
+Chinese even when the phone's menu is set to another language, and `/lang`
+pins a choice above that. The Telegram menu shows the same list, minus
+`/subscribe`: it is one line, and a person who turns it off should not have to
+find it in a menu again.
 
 ## Updates
 
 The npm tag `latest` is a label, not an updater: installing a package pins the
-version on disk, and nothing moves until something moves it. Three modes, one
-per install (a global setting, since it is the install that updates, not a
-topic):
+version on disk, and nothing moves until something moves it. Two switches, both
+about this install (not about a topic, because it is the install that updates):
 
-| `/update …` | What happens |
+| Command | What it does |
 |---|---|
-| *(none)* | one line: what runs here, what is published, which mode is set |
-| `check` (default) | one message per new release, at most once a day of checking |
-| `auto` | the new release is fetched and installed by itself; `/restart confirm` loads it |
-| `off` | no notices, no checks; `/version` still reports what is published |
-| `confirm` | install now, keeping a copy of the old files in `update-backup-<date>` |
+| `/update` | one line: what runs here, what is published, which switches are set |
+| `/update on` | tell me about new releases: one message per version, checked once a day |
+| `/update off` | stop telling me; nothing installs, nothing moves |
+| `/update auto` | besides telling me, install the release by itself (checked hourly) |
+| `/update confirm` | install the new release now, by hand |
 
-In every mode the running process keeps its modules until `/restart confirm`,
-so a bad release never arrives in the middle of a chat. `/update off` pins the
-install to the version it runs; `npx dsh-tg@latest setup` is how you follow
-releases again.
+Nothing above installs except `confirm` and `auto`, and even those only change the
+files: the running process keeps its old modules until `/restart confirm`, so a
+bad release never lands mid-chat. `confirm` and `auto` copy the replaced files to
+`update-backup-<date>` and print the path; copying that folder back is the way to
+roll back, with no state to undo.
 
-Failure notices are not a thing here on purpose: the bridge cannot report a bug
-to its own author, and a message about "something failed" that nobody can act on
-is noise. What it does send is the release notice above, and only to the chat
-that last ran a turn.
+`/subscribe on|off` says the same thing as `/update on|off`, for people who do not
+want to read `/update` first. It is not in the Telegram menu on purpose.
+
+There are no notices about failures. The bridge cannot decide what counts as one
+for you, and "something failed" that nobody can act on is noise; errors stay in
+the chat where they happened, under `/doctor` and `/logs errors`.
 
 ## How it works
 

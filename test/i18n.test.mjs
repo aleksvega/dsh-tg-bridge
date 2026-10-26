@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { LANGS, keysOf, t, resolveLang } from '../i18n.mjs';
+import { LANGS, detectLang, keysOf, t, resolveLang } from '../i18n.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -56,4 +56,24 @@ test('an unknown or missing locale lands in English', () => {
   assert.equal(resolveLang({}, '1:2', null, {}), 'en');
   // config.lang is a default, not a guess: it is used when the topic has none.
   assert.equal(resolveLang({}, '1:2', { from: { language_code: 'zh-hans' } }, { lang: 'ru' }), 'ru');
+});
+
+test('a Chinese message in an English-locale client is answered in Chinese', () => {
+  // The case the docs promise and the code used to miss: the phone menu says
+  // English, the person writes Chinese, and the reply must follow the words.
+  const state = {};
+  const msg = { text: '为什么机器人没有回复', from: { language_code: 'en' } };
+  assert.equal(resolveLang(state, '1:2', msg, {}), 'zh');
+  assert.equal(state.lang['1:2'], 'zh');
+});
+
+test('the language comes from the message, not from a code word inside it', () => {
+  const zh = { text: '为什么 npm install 失败', from: { language_code: 'en' } };
+  assert.equal(resolveLang({}, '1:2', zh, {}), 'zh');
+  const ru = { text: 'смотри путь к логу в подключённой папке', from: { language_code: 'en' } };
+  assert.equal(resolveLang({}, '1:2', ru, {}), 'ru');
+  // A Latin message stays with the locale: English is not detectable by script,
+  // and guessing from it would flip German and French speakers into English.
+  assert.equal(detectLang('why is the bot silent'), '');
+  assert.equal(detectLang('好的'), '', 'two characters are not enough to switch');
 });

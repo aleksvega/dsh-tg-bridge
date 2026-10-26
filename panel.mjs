@@ -97,14 +97,19 @@ export function progressPanel({
   // Which settings this topic actually overrides, e.g. "Reviewer · glm-5.3/high".
   // It rides in the head, so the panel budget above counts it automatically.
   chip = '',
+  // The forum topic this card belongs to, already translated by the caller. A
+  // group can run two topics at once and the cards look identical; the head is
+  // the only part that survives the card being quoted or forwarded.
+  topic = '',
 } = {}) {
   const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
   const mark = String(chip).trim() ? ` · ${String(chip).trim()}` : '';
+  const where = String(topic || '').trim() ? `\n${String(topic).trim()}` : '';
   const head = final
-    ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}${mark}`
+    ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}${mark}${where}`
     : snippet
-      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${mark}`
-      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${mark}`;
+      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${mark}${where}`
+      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${mark}${where}`;
   const mind = thoughts.map((line) => `💭 ${line}`);
   const base = [head, ...mind, cache].filter(Boolean).join('\n').length;
 

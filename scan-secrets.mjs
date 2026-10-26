@@ -31,6 +31,10 @@ export const RULES = [
   { id: 'machine-id', re: /\b[0-9A-Fa-f]{16}\b(?!\.png|\.jpg|\.gif)/, why: 'a 16-hex machine id' },
   { id: 'chat-id', re: /\bchat_?id\b\s*[:=]\s*['"]?-?\d{8,}/i, why: 'a chat id' },
   { id: 'email-env', re: /\b(?!noreply@|example\.)[A-Za-z0-9._%+-]+@(?:gmail|yandex|mail|outlook|hotmail|proton|yahoo)\.[a-z]{2,}\b/, why: 'a personal email address' },
+  // A commit's identity comes from `git config` on whichever machine committed,
+  // so it is the one place a personal address appears without ever being in a
+  // file. `--all` reads the log through `git log --format`, not the tree.
+  { id: 'email-author', re: /^(?:Author|Committer):\s.*<[^>]*@(?!users\.noreply\.github\.com|noreply@)[^>]*\.[a-z]{2,}>/m, why: 'a commit authored with a personal email address' },
 ];
 
 /**
@@ -71,6 +75,36 @@ export function scanText(text, rules = RULES) {
     }
   });
   return hits;
+}
+
+/**
+ * Every commit's identity, which no file in the tree reveals.
+ *
+ * `git config user.email` is whatever the machine had; a clone, a work laptop or
+ * an old `git commit --author` can carry a personal address into history forever.
+ * Only who committed is read, never what — so this stays cheap on any history and
+ * needs no diff.
+ */
+export function scanAuthors({ root = process.cwd(), range = '' } = {}) {
+  const run = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  let log = '';
+  try {
+    log = run('log', ...(range ? [range] : ['--all']), '--format=Author: %an <%ae>%nCommitter: %cn <%ce>');
+  } catch {
+    return [];
+  }
+  const findings = [];
+  const seen = new Set();
+  for (const line of log.split(/\r?\n/)) {
+    for (const rule of RULES) {
+      if (rule.id !== 'email-author' || !rule.re.test(line)) continue;
+      const key = line.trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      findings.push({ file: 'git history', line: 0, id: rule.id, why: rule.why, text: `${line.trim()} — ${rule.why} [${rule.id}]` });
+    }
+  }
+  return findings;
 }
 
 /** Scan every pushable file and return readable findings. */
@@ -125,11 +159,21 @@ if (process.argv[1] && process.argv[1].endsWith('scan-secrets.mjs')) {
   const peersDir = flag('--peers');
   try {
     const findings = scanRepo({ mode, range: flag('--range'), peers: loadPeers(peersDir || undefined) });
-    if (findings.length === 0) {
+    // History is only checked when the whole repo is asked about: a staged scan
+    // runs in a pre-commit hook, where a full log read would slow every commit
+    // and could not fix an author that is already there.
+    const authorFindings = mode === 'all' ? scanAuthors({ range: flag('--range') }) : [];
+    const all = [...findings, ...authorFindings];
+    if (all.length === 0) {
       process.stdout.write('scan-secrets: clean\n');
     } else {
-      for (const finding of findings) process.stderr.write(`${finding.text}\n`);
-      process.stderr.write(`\nscan-secrets: ${findings.length} finding(s); nothing was pushed.\n`);
+      for (const finding of all) process.stderr.write(`${finding.text}\n`);
+      process.stderr.write(`\nscan-secrets: ${all.length} finding(s); nothing was pushed.\n`);
+      if (authorFindings.length > 0) {
+        process.stderr.write('A commit identity is not fixed by editing a file: rewrite the author\n');
+        process.stderr.write('(git rebase --exec or git filter-repo) or set git config user.email to a\n');
+        process.stderr.write('noreply address before the next commit.\n');
+      }
       process.stderr.write('Fix the line, or (if it has to stay) override with git push --no-verify.\n');
       process.exitCode = 1;
     }
