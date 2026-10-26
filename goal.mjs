@@ -25,10 +25,14 @@ function arg(name) {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-const key = arg('key');
-if (!key) {
-  console.error('usage: node goal.mjs --key <chat:thread> [--status|--add TEXT|--done N|--remove N|--set TEXT|--finish]');
-  process.exit(2);
+// The bridge passes the topic to every turn it starts, so the agent never has
+// to know its own chat and thread. Guessing from state.json means "whichever
+// topic was written last", which is how one topic's task list landed in
+// another. A wrong topic is worse than a refusal.
+const key = arg('key') || (process.env.DSH_TG_KEY || '').trim();
+if (!key || !/^-?\d+(:-?\d+)?$/.test(key)) {
+  console.error('no topic: pass --key <chat:thread>, or run inside a turn whose DSH_TG_KEY is set');
+  process.exit(3);
 }
 
 function readState() {

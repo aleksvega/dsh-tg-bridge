@@ -31,7 +31,7 @@ import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf, reasoningOf } from './control.mjs';
-import { drainGoalJobs, goalOf, renderPromptBlock } from './goals.mjs';
+import { drainGoalJobs, goalOf, progressOf, renderPromptBlock, toggleTask } from './goals.mjs';
 import { renderPrices } from './prices.mjs';
 import { t, resolveLang } from './i18n.mjs';
 import { progressPanel, stepLine, addStep } from './panel.mjs';
@@ -40,6 +40,7 @@ import { profileValues, resolveSettings, settingsChip } from './settings.mjs';
 import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from './agents.mjs';
 import { drainAsetJobs } from './aset-jobs.mjs';
 import { materialiseProfile, pruneDerived } from './aset-profile.mjs';
+import { parseCallback } from './aset-schema.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -267,6 +268,30 @@ function applyAsetJob(job) {
   }
   if (action === 'edit') return { ok: false, text: 'edit goes through /agentset' };
   return { ok: false, text: `unknown action ${action}` };
+}
+
+/**
+
+/**
+ * A task list as one message plus one button per task. The label carries the
+ * state, the payload carries only the number, so the card survives a relabel and
+ * stays inside Telegram's 64-byte callback limit.
+ */
+function renderTaskCard(goal, lang) {
+  const { done, total } = progressOf(goal);
+  const lines = [t(lang, 'goal.set', { text: goal.text })];
+  goal.tasks.forEach((task, i) => lines.push(`${task.done ? '✅' : '⬜'} ${i + 1}. ${task.text}`));
+  lines.push(t(lang, 'goal.progress', { done, total }), '', t(lang, 'task.tapHint'));
+  return lines.join('\n');
+}
+
+function taskRows(goal) {
+  if (!goal || goal.done) return [];
+  const rows = [];
+  for (let i = 0; i < Math.min(goal.tasks.length, 90); i += 3) {
+    rows.push(goal.tasks.slice(i, i + 3).map((task, k) => ({ text: `${task.done ? '✅' : '⬜'} ${i + k + 1}`, data: `t:${i + k + 1}` })));
+  }
+  return rows;
 }
 
 // The agent updates the topic goal list by dropping a job file (goal.mjs);
@@ -844,7 +869,7 @@ async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
 }
 
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
-function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = 'ru') {
+function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = 'ru', env = {}) {
   return new Promise((resolve) => {
     const args = turnArgs({ cli: CLI_JS, profile, extraArgs, sessionId, task });
     const child = spawn(EXE, args, {
@@ -856,6 +881,9 @@ function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd 
         DSH_TG_KEY: key,
         DSH_TG_CHAT: String(key).split(':')[0] || '',
         DSH_TG_THREAD: String(key).split(':')[1] || '0',
+        // Per-turn extras: the path of this turn's note file, so `say.mjs`
+        // never has to guess which topic a line belongs to.
+        ...env,
         ELECTRON_RUN_AS_NODE: '1',
         // Provider keys the profile cannot resolve on its own. Configured per
         // install (`providerKeys`, see config.example.json); a key listed in
@@ -967,7 +995,7 @@ function killTurn(key) {
  * thinks for ten minutes still leaves one line in the chat — and the whole trail
  * one tap away.
  */
-async function startProgress(chatId, threadId, lang = 'ru', task = '', chip = '') {
+async function startProgress(chatId, threadId, lang = 'ru', task = '', chip = '', thoughtFile = '') {
   const started = Date.now();
   const panelKey = sessionKey(chatId, threadId);
   const steps = [];
@@ -981,17 +1009,18 @@ async function startProgress(chatId, threadId, lang = 'ru', task = '', chip = ''
 
   // Short "💭" notes the agent appends with `say.mjs --thought`. The progress
   // message shows the last two, so the person sees the decision trail without
-  // a second stream of chat messages.
-  const thoughtFile = join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
+  // a second stream of chat messages. The path is unique per turn (see
+  // startTurn) so two turns never share one file.
+  const notes = thoughtFile || join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
   let thoughts = [];
   try {
     mkdirSync(THOUGHT_DIR, { recursive: true });
-    writeFileSync(thoughtFile, '');
+    writeFileSync(notes, '');
   } catch {}
   const thoughtTimer = setInterval(() => {
     let next = [];
     try {
-      next = readFileSync(thoughtFile, 'utf8')
+      next = readFileSync(notes, 'utf8')
         .split('\n')
         .filter(Boolean)
         .slice(-2)
@@ -1501,7 +1530,15 @@ ${t(lang, 'help.body')}`,
           lang,
         });
       },
-      reply: (out) => send(chatId, out, threadId),
+      reply: (out, extra = {}) => (extra.keyboard
+        ? tg('sendMessage', {
+            chat_id: chatId,
+            text: out,
+            disable_web_page_preview: true,
+            reply_markup: { inline_keyboard: extra.keyboard },
+            ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+          }).catch(() => {})
+        : send(chatId, out, threadId)),
       stopTurn: (k) => {
         const child = activeTurns.get(k);
         if (!child) return false;
@@ -1538,19 +1575,34 @@ ${t(lang, 'help.body')}`,
 
   // Desktop-style goal: the topic's goal and task list travel with every turn,
   // so a fresh session after /new still knows what the project is aiming at.
+  // Without a goal the turn still gets the one line that says how to start one:
+  // a plan nobody can see is not a plan, and the agent cannot ask a question it
+  // does not know exists.
   const topicGoal = goalOf(state, key);
   if (topicGoal) text = `${renderPromptBlock(topicGoal, key, GOAL_CMD)}\n\n---\n\n${text}`;
+  else text = `${t(lang, 'prompt.taskHint', { goal: GOAL_CMD, key })}\n\n---\n\n${text}`;
 
   // Working notes: the agent writes a 💭 line at each decision point with
   // `say.mjs --thought`, and the progress message shows the last two. Off means
   // no instruction at all, so nothing is written and nothing is displayed.
+  //
+  // Each turn gets a file of its own, named `<chat>_<thread>_<turn>.jsonl`, and
+  // its path travels with the turn: two topics working at once used to share
+  // one note file, so each saw the other's lines and `say.mjs` had to guess
+  // which topic a note belonged to. The bridge keeps a stable alias for the
+  // topic (what older tools and the panel read) pointing at this turn's file.
+  const turnId = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  const thoughtFile = join(THOUGHT_DIR, `${chatId}_${threadId || 0}_${turnId}.jsonl`);
+  // The alias is the plain topic name too; it is written as the turn's file so
+  // a reader that never heard of DSH_TG_THOUGHT still finds this turn's notes.
+  const thoughtEnv = { DSH_TG_THOUGHT: thoughtFile };
   if (reasoningOf(state, config, key)) {
     text = `${t(lang, 'prompt.reasoning', { say: join(DIR, 'say.mjs') })}\n\n---\n\n${text}`;
   }
 
   // Live progress: one status message per turn, rewritten as the agent works.
   // Without it a long turn and a hung turn looked exactly alike in the chat.
-  const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key));
+  const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key), thoughtFile);
   // Turn telemetry for the log: what the agent did, how much it cost, on which
   // model. Without it /logs shows only "in" and "sent" — useless when asking
   // "why did this take 9 minutes".
@@ -1574,11 +1626,11 @@ ${t(lang, 'help.body')}`,
       }
     } catch {}
   };
-  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
+  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
   if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
     delete state.sessions[key];
     log(`session dropped for ${where}: recorded in another directory, starting fresh`);
-    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
+    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
   }
   // Provider failover: the headless profile has no failover plugin, so one busy
   // route ("all providers are busy", 503, or a turn that emits nothing at all)
@@ -1608,7 +1660,7 @@ ${t(lang, 'help.body')}`,
     result = await runTurnLive(text, sessionAtStart, key, {
       onEvent,
       onAbort: () => killTurn(key),
-      onHeartbeat: () => progress.heartbeat(),
+      onHeartbeat: () => progress.heartbeat(), env: thoughtEnv,
       // Same overlay problem as the vision turn: the host CLI has no --patch.
       // A patch file that is missing or unreadable must not turn into an empty
       // --profile argument, so the topic's own profile is the fallback.
@@ -1632,11 +1684,11 @@ ${t(lang, 'help.body')}`,
   // of failing the user's message.
   if (result.error && /already owned by an active write handle/i.test(result.error)) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
+    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
     if (result.error && /already owned by an active write handle/i.test(result.error)) {
       delete state.sessions[key];
       saveState();
-      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), extraArgs, cwd, lang, profile: turnProfile });
+      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
       if (!result.error) result.text = `${t(lang, 'bridge.fallback.sessionBusy')}\n\n${result.text}`;
     }
   }
@@ -2144,6 +2196,28 @@ async function handleCallback(query) {
     return;
   }
 
+  if (data.startsWith('t:')) {
+    // A task card. The whole message is redrawn from state, so a double tap or
+    // two people pressing converge on one truth instead of stacking ✅ marks.
+    const n = Number(data.slice(2));
+    const goal = toggleTask(state, key, n);
+    if (!goal) {
+      await answer(t(lang, 'bridge.cb.taskStale'));
+      return;
+    }
+    saveState();
+    const text = renderTaskCard(goal, lang);
+    await tg('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      reply_markup: { inline_keyboard: taskRows(goal) },
+    }).catch(() => {});
+    await answer(t(lang, goal.tasks[n - 1]?.done ? 'bridge.cb.taskDone' : 'bridge.cb.taskUndone'));
+    log(`task ${n} toggled for ${key}`);
+    return;
+  }
+
   if (data.startsWith('ap:')) {
     const [, verdict, requestId] = data.split(':');
     const pending = approvals.get(requestId);
@@ -2245,7 +2319,7 @@ function runTurnLive(task, sessionId, key, options = {}) {
           onEvent(event);
         } catch {}
       }
-    }, options.extraArgs ?? [], options.cwd ?? '', options.profile || profileOf(key), options.lang ?? 'ru')
+    }, options.extraArgs ?? [], options.cwd ?? '', options.profile || profileOf(key), options.lang ?? 'ru', options.env ?? {})
       .then((result) => finish({ ...result, sessionId: result.sessionId || sessionSeen }))
       .catch((error) => finish({ sessionId: sessionSeen, text: '', error: String(error?.message ?? error) }));
   });

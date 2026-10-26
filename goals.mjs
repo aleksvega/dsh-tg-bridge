@@ -72,6 +72,20 @@ export function doneTask(state, key, index) {
   return true;
 }
 
+/**
+ * Mark one task done, or undo it with the same call — what a tap on the task
+ * card sends. A closed goal is never reopened by a tap, and the result carries
+ * the goal only when something actually changed, so a double tap is harmless.
+ */
+export function toggleTask(state, key, index) {
+  const goal = goalOf(state, key);
+  const i = Number(index) - 1;
+  if (!goal || goal.done || !Number.isInteger(i) || i < 0 || i >= goal.tasks.length) return null;
+  goal.tasks[i].done = !goal.tasks[i].done;
+  goal.updatedAt = new Date().toISOString();
+  return goal;
+}
+
 export function removeTask(state, key, index) {
   const goal = goalOf(state, key);
   const i = Number(index) - 1;
@@ -97,7 +111,12 @@ export function renderPromptBlock(goal, key, goalCmd) {
   }
   lines.push(
     '[How to update]',
-    `When a task is finished, run: node "${goalCmd}" --key "${key}" done <number>`,
+    'If this turn adds, finishes or discovers a task, update the list before you',
+    'answer, so the person watches the plan move instead of reading a summary:',
+    `  node "${goalCmd}" --key "${key}" add "<task>"`,
+    `  node "${goalCmd}" --key "${key}" done <number>`,
+    'A goal the turn cannot find is not a licence to invent one: only the person',
+    'sets goals in the chat, the agent keeps the task list true.',
     'Do not repeat this block in your answer; report progress in one or two lines.',
   );
   return lines.join('\n');

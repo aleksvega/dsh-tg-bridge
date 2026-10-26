@@ -19,7 +19,7 @@
 //
 // With `--steer` the chat/thread come from the job file and an ack marker is
 // written, which suppresses the bridge's fallback line.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -70,29 +70,37 @@ function parse(argv) {
 }
 
 function activeThoughtFile() {
-  try {
-    const files = readdirSync(THOUGHTS)
-      .filter((name) => name.endsWith('.jsonl'))
-      .map((name) => ({ name, mtime: statSync(join(THOUGHTS, name)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime);
-    if (!files.length) return null;
-    const [chat, thread] = files[0].name.replace(/\.jsonl$/, '').split('_');
-    if (!Number(chat)) return null;
-    return { chatId: Number(chat), threadId: Number(thread) || 0 };
-  } catch {
-    return null;
-  }
+  // The bridge hands every turn a file of its own (DSH_TG_THOUGHT) and exports
+  // that path to the tools it runs. Guessing from the newest file sent one
+  // turn's lines into another topic: two turns running at once each rewrite
+  // their own file every few seconds, so "newest" is a coin toss and the loser
+  // posts its notes into a stranger's chat. Only the explicit path is safe.
+  const explicit = (process.env.DSH_TG_THOUGHT || '').trim();
+  if (!explicit) return null;
+  const base = explicit.replace(/\.jsonl$/, '').split(/[\\/]/).pop() || '';
+  const cut = base.indexOf('_');
+  if (cut <= 0) return null;
+  const chatId = Number(base.slice(0, cut));
+  if (!chatId) return null;
+  return { chatId, threadId: Number(base.slice(cut + 1)) || 0 };
 }
 
 async function main() {
   const args = parse(process.argv.slice(2));
   if (!args.text) usage();
 
+  // Without a target, the safest answer is silence: refusal with the reason is
+  // better than a note in the wrong topic.
+  if (!args.steer && !args.chatId && !Number(process.env.DSH_TG_CHAT || 0) && !activeThoughtFile()) {
+    console.error('no target: pass --steer/--chat, or run inside a turn whose DSH_TG_THOUGHT is set');
+    process.exit(7);
+  }
+
   let chatId = args.chatId || Number(process.env.DSH_TG_CHAT || 0);
   let threadId = args.threadId || Number(process.env.DSH_TG_THREAD || 0);
   let jobPath = '';
   // Tool shells do not inherit the bridge's env, so fall back to the thought
-  // file the bridge touched at the start of the newest turn.
+  // file the bridge named for this very turn.
   if (!chatId && (args.thought || args.note)) {
     const active = activeThoughtFile();
     if (active) {

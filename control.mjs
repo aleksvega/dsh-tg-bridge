@@ -530,6 +530,55 @@ function agentsetCard(set, lang, profile, boundId) {
   return lines.join('\n');
 }
 
+/**
+ * The same set as real buttons. Only the fields this set actually overrides get
+ * a button: a slot that does nothing is worse than no button, and the typed
+ * form stays available for everything else. Button payloads are ASCII (`as:`
+ * verbs), so a Chinese or Russian label never changes what a press means.
+ */
+function agentsetKeyboard(set, lang, boundId) {
+  const labels = {
+    model: t(lang, 'ctrl.set.field.model'),
+    effort: t(lang, 'ctrl.set.field.effort'),
+    permissions: t(lang, 'ctrl.set.field.permissions'),
+    dshPreset: t(lang, 'ctrl.set.field.preset'),
+    lang: t(lang, 'ctrl.set.field.lang'),
+  };
+  const slots = Object.keys(labels)
+    .filter((field) => set[field])
+    .map((field) => `${labels[field]}|${field}`);
+  const rows = cardKeyboard(
+    { id: set.id },
+    { bound: boundId === set.id, builtin: Boolean(set.builtin), slots },
+  );
+  if (boundId === set.id) {
+    // The "use" button is drawn for every set; on the bound one it says so.
+    for (const row of rows) {
+      for (const button of row) {
+        if (button.data === `as:use:${set.id}`) button.text = `✓ ${t(lang, 'ctrl.set.bound')}`;
+      }
+    }
+  }
+  return rows;
+}
+
+/**
+ * The task list as a keyboard: one button per task, labelled with its number and
+ * state. A tap marks the task done and a second tap undoes it, so managing the
+ * plan costs no typing. Long lists are cut at Telegram's 100-button limit.
+ */
+function taskKeyboard(goal) {
+  if (!goal || goal.done) return [];
+  const rows = [];
+  for (let i = 0; i + 2 < Math.min(goal.tasks.length, 90); i += 3) {
+    rows.push(goal.tasks.slice(i, i + 3).map((task, k) => {
+      const n = i + k + 1;
+      return { text: `${task.done ? '✅' : '⬜'} ${n}`, data: `t:${n}` };
+    }));
+  }
+  return rows;
+}
+
 /** Goal + task list as one message; empty list is shown, not hidden. */
 function goalView(goal, lang) {
   const { done, total } = progressOf(goal);
@@ -552,7 +601,7 @@ export const CONTROL_COMMANDS = [
   'status', 'models', 'model', 'effort', 'profile', 'agents', 'preset', 'permissions', 'plan',
   'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
-  'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task',
+  'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'agentset',
 ];
 
@@ -595,7 +644,9 @@ export function filterLogLines(lines, filter, count) {
 
 export async function handleControl(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang } = ctx;
-  const say = (text) => reply(text);
+  // `reply(text, { keyboard })` draws buttons under the message; `say` is the
+  // common case of a message with none.
+  const say = (text, extra) => (extra ? reply(text, extra) : reply(text));
   // A topic can run on its own profile (its own plugins, model and skills);
   // without one it follows the install default.
   const activeProfile = profile || config.profile || 'headless';
@@ -1531,6 +1582,18 @@ export async function handleControl(ctx) {
       if (!goal) { say(t(L, 'goal.usage')); return true; }
       ctx.saveState();
       say(goalView(goal, L));
+      return true;
+    }
+
+    case '/tasks': {
+      // The list is the control: a tap marks a task done, and the card is
+      // redrawn in place. `/task` keeps the typed form for adding.
+      const L = lang || 'ru';
+      const current = goalOf(state, key);
+      if (!current) { say(t(L, 'task.none')); return true; }
+      const rows = taskKeyboard(current);
+      if (rows.length === 0) { say(goalView(current, L)); return true; }
+      await reply(goalView(current, L), { keyboard: rows });
       return true;
     }
 

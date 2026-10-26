@@ -1,9 +1,14 @@
 // The scanner is the only thing between a private string and a public repo, so
 // it is tested against shapes instead of against the real values.
+//
+// The file is its own first customer: the guard scans the file that describes
+// the guard, so a probe written as a live-looking literal stops the push. Every
+// part below is assembled at run time for that reason.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RULES, scanText } from '../scan-secrets.mjs';
 
+/** Path separator without writing the literal form. */
 const sep = String.fromCharCode(92);
 
 /** Text that trips one rule, built at run time so the repo never holds it. */

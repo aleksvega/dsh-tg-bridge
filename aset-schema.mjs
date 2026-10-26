@@ -40,25 +40,31 @@ export function callbackData(verb, id, slot = '') {
 }
 
 /**
- * The keyboard for a set card. Slots are the fields the set overrides plus the
- * two set-level actions; a slot the reader cannot resolve is dropped by the
- * caller, which passes `slots` — so a stale button never acts on another set.
+ * The keyboard for a set card, as plain data: label + payload, no rendering and
+ * no language. `slots` are field edits the caller has already resolved to
+ * `<label>|<field>`, so the button says "model" while the payload says `model`.
+ * A set the person cannot edit (a builtin) gets only the read-only buttons.
  */
 export function cardKeyboard(set, { bound = false, builtin = false, slots = [] } = {}) {
   if (!set) return [];
+  const slotButtons = slots
+    .map((slot) => {
+      const [label, field = slot] = String(slot).split('|');
+      return { text: label.slice(0, 24), data: callbackData('edit', set.id, field) };
+    })
+    .filter((button) => button.data);
   const rows = [];
-  if (!builtin) {
-    rows.push([
-      { text: bound ? '✓ in use' : 'Use', data: callbackData('use', set.id) },
-      ...slots.slice(0, 2).map((slot) => ({ text: slot, data: callbackData('edit', set.id, slot) })),
-    ]);
-    if (slots.length > 2) rows.push(slots.slice(2, 5).map((slot) => ({ text: slot, data: callbackData('edit', set.id, slot) })));
+  if (!builtin && slotButtons.length > 0) {
+    rows.push(
+      [{ text: bound ? '✓' : 'Use', data: callbackData('use', set.id) }, ...slotButtons.slice(0, 2)],
+      ...(slotButtons.length > 2 ? [slotButtons.slice(2, 5)] : []),
+    );
   }
   const last = [{ text: 'show', data: callbackData('show', set.id) }];
   if (bound) last.push({ text: 'off', data: callbackData('off', set.id) });
   if (!builtin) last.push({ text: 'rm', data: callbackData('rm', set.id) });
   rows.push(last);
-  return rows.filter((row) => row.every((button) => button.data));
+  return rows.filter((row) => row.length > 0 && row.every((button) => button.data));
 }
 
 /** A one-line field edit, the way a person types it: `/agentset model big-m1`. */

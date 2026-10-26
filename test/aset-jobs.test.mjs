@@ -58,14 +58,16 @@ test('callback data round-trips and every payload fits 64 bytes', () => {
   const long = callbackData('edit', 'a'.repeat(24), 'permissions');
   assert.ok(long.length <= 64, `payload too long: ${long.length}`);
 
-  const card = cardKeyboard({ id: 'feast' }, { bound: true, slots: ['model', 'effort', 'permissions'] });
+  const card = cardKeyboard({ id: 'feast' }, { bound: true, slots: ['Model|model', 'Effort|effort', 'Permissions|permissions'] });
   assert.ok(card.flat().every((button) => button.data.length <= 64));
   assert.ok(card.flat().some((button) => button.data === 'as:off:feast'));
-  assert.ok(card.flat().some((button) => button.data === 'as:edit:feast:model'));
+  // The label is what a person reads; the payload stays ASCII, so a Chinese or
+  // Russian label cannot change which field a press means.
+  assert.ok(card.flat().some((button) => button.text === 'Model' && button.data === 'as:edit:feast:model'));
 });
 
 test('a builtin set gets no write buttons', () => {
-  const card = cardKeyboard({ id: 'careful' }, { builtin: true, slots: ['model'] });
+  const card = cardKeyboard({ id: 'careful' }, { builtin: true, slots: ['Model|model'] });
   const data = card.flat().map((button) => button.data);
   assert.deepEqual(data, ['as:show:careful']);
 });
