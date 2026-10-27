@@ -186,7 +186,7 @@ Send the bot:
 
 ```
 Work:         /cd · /new · /stop · /send · /seed
-Goals:        /goal · /goal reopen · /task · /task done|rm|edit <n>
+Goals:        /goal (plan + checklist) · /goal reopen · /task (checklist only) · /task done|rm|edit <n>
 Sessions:     /status · /sessions · /resume
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <id> · /prices

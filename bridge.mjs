@@ -25,6 +25,7 @@ net.setDefaultAutoSelectFamily(false);
 import { noticeIsObsolete } from './queue-notice.mjs';
 import { immediateKind } from './immediate.mjs';
 import { writeSteerJob } from './steer-queue.mjs';
+import { allowedSender } from './allowlist.mjs';
 import { inlineText } from './media-text.mjs';
 import { createAlbumBuffer } from './albums.mjs';
 import { turnArgs } from './cli-args.mjs';
@@ -1066,6 +1067,18 @@ function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd 
     child.stderr.on('data', (buf) => {
       stderr += buf;
       if (onEvent) { try { onEvent({ type: 'activity' }); } catch {} }
+    });
+    // A missing or moved DSH app used to emit `error` with no listener, which
+    // kills the process — every turn, forever. The turn now fails with a line
+    // that says which path was expected and how to point the bridge elsewhere.
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      if (key) activeTurns.delete(key);
+      const hint = error?.code === 'ENOENT'
+        ? t(lang, 'bridge.error.noApp', { path: EXE })
+        : t(lang, 'bridge.error.spawn', { msg: error?.message || String(error) });
+      log(`turn spawn failed: ${error?.message || error}`);
+      resolve({ sessionId: sid, text: '', error: hint });
     });
     child.on('close', (code) => {
       clearTimeout(timer);
@@ -2806,6 +2819,15 @@ async function main() {
   const accept = (update, replay = false) => {
     const msg = update.message;
     if (!msg) {
+      ack(update.update_id);
+      return;
+    }
+    // The allowlist has to be the first thing every update meets, not a step
+    // inside handleMessage: the steer branch below reaches the running agent
+    // without going through handleMessage, so a stranger the bot can see used
+    // to be able to inject text into the owner's live turn.
+    if (!allowedSender(msg)) {
+      log(`ignored update from ${msg.from?.id} (chat ${msg.chat?.id}${msg.message_thread_id ? ` topic=${msg.message_thread_id}` : ''})`);
       ack(update.update_id);
       return;
     }

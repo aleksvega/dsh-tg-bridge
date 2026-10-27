@@ -1,5 +1,30 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.6
+
+- **Security: a stranger the bot can see could steer the owner's live turn.**
+  `allowedUserIds` was checked inside `handleMessage`, but the mid-turn addition
+  path (`steerRunningTurn`) runs one step earlier in the update loop and never
+  reaches that check — so any Telegram user who could message the bot could put
+  text inside a turn that already has shell and file tools. The allowlist is now
+  the first thing every update meets, in `accept`, before any branch; the rule
+  lives in `allowlist.mjs` so it can be tested without booting the bot.
+- **Fixed: `/update confirm` never worked, for anyone.** It read
+  `<tmp>/package`, a layout npm stopped producing years before this project
+  existed (the package goes to `node_modules/`), and copied every entry with
+  `copyFileSync`, which throws on the first directory (`plugin/`, `skills/`).
+  The copy is now `cpSync` over the real path, split into `copyRelease()` so the
+  two faults are covered by tests instead of by hope.
+- **Fixed: a missing DSH app killed the bridge on every turn, silently.**
+  `runTurn` spawned the desktop executable with no `error` listener; an
+  unhandled `EmitError` terminates the process, so a moved install looked like a
+  bot that answers nothing. The turn now fails with one line naming the exact
+  path and the config key that points elsewhere.
+- **Fixed: `/task` and `/goal` printed the same card.** `/goal` is the plan
+  (objective, checklist, progress) and `/task` is the list you tick — it now
+  answers with the numbered checklist only, so typing either one tells you which
+  command owns what.
+
 ## 1.19.5
 
 - **New: `/logs file` test no longer needs a machine that has run the bridge.**

@@ -5,7 +5,7 @@
 // Everything works on the same files DSH itself reads, so a running desktop app
 // and a headless turn see the same state; commands that need a reload say so.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -666,9 +666,22 @@ function goalView(goal, lang) {
 }
 
 /**
- * Handle one control command. Returns true when the message was a control
- * command and the caller must not run a turn.
+ * The checklist on its own, without the goal's wording.
+ *
+ * `/goal` and `/task` used to print the same card, so typing either one told a
+ * person nothing about which command owns what. `/goal` is the plan (objective,
+ * checklist, progress); `/task` is the list you tick — the thing you read five
+ * times a day while the objective stays the same.
  */
+function taskView(goal, lang) {
+  const { done, total } = progressOf(goal);
+  if (goal.tasks.length === 0) return t(lang, 'task.empty');
+  const lines = [t(lang, 'task.listTitle', { done, total })];
+  goal.tasks.forEach((task, i) => lines.push(`${task.done ? '✅' : '⬜'} ${i + 1}. ${task.text}`));
+  return lines.join('\n');
+}
+
+
 export const CONTROL_COMMANDS = [
   'status', 'models', 'model', 'effort', 'profile', 'agents', 'preset', 'permissions', 'plan',
   'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
@@ -1851,7 +1864,7 @@ export async function handleControl(ctx) {
       const body = (arg || '').trim();
       const current = goalOf(state, key);
       if (!body) {
-        say(current ? goalView(current, L) : t(L, 'task.none'));
+        say(current ? taskView(current, L) : t(L, 'task.none'));
         return true;
       }
       if (body.toLowerCase() === 'help' || body.toLowerCase() === '?') {
@@ -2604,6 +2617,28 @@ function bridgeRoot() {
  * Everything else in the directory (config, state, logs, backups) is left where
  * it is. Returns the directory name the old files were saved under.
  */
+/**
+ * Copy a fetched release over this install, keeping the old files under `backup`.
+ *
+ * Split from the npm call so it can be tested at all: the path inside the temp
+ * dir and the directory entries (`plugin/`, `skills/`) are exactly what broke
+ * `/update confirm` when it was written — it read `<work>/package`, a path npm
+ * never creates, and copied entries as if they were all files.
+ */
+export function copyRelease(fromDir, root, backup) {
+  const backupDir = join(root, backup);
+  mkdirSync(backupDir, { recursive: true });
+  const copied = [];
+  for (const name of readdirSync(fromDir)) {
+    const from = join(fromDir, name);
+    const to = join(root, name);
+    if (existsSync(to)) cpSync(to, join(backupDir, name), { recursive: true });
+    cpSync(from, to, { recursive: true });
+    copied.push(name);
+  }
+  return copied;
+}
+
 function installRelease(version) {
   const root = bridgeRoot();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -2620,13 +2655,9 @@ function installRelease(version) {
       const tail = `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/).slice(-6).join('\n');
       throw new Error(`npm exited ${r.status ?? '?'}${tail ? `\n${tail}` : ''}`);
     }
-    mkdirSync(join(root, backup), { recursive: true });
-    for (const name of readdirSync(join(work, 'package'))) {
-      const from = join(work, 'package', name);
-      const to = join(root, name);
-      if (existsSync(to)) copyFileSync(to, join(backup, name));
-      copyFileSync(from, to);
-    }
+    // `--prefix` puts the package in node_modules; the flat `package` name npm
+    // used before v5 has not existed for years.
+    copyRelease(join(work, 'node_modules', 'dsh-tg-bridge'), root, backup);
     return backup;
   } finally {
     try {
