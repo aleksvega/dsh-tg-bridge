@@ -177,8 +177,10 @@ async function main() {
 
   // 1. Sanity.
   const major = Number(process.versions.node.split('.')[0]);
-  if (major >= 18) ok(`node ${process.versions.node}`);
-  else fail(`node ${process.versions.node} is too old (need >= 18)`);
+  // 24 is not a preference: every command that opens a session decompresses a
+  // zstd frame, and node:zlib only grew that codec in 24.
+  if (major >= 24) ok(`node ${process.versions.node}`);
+  else fail(`node ${process.versions.node} is too old (need >= 24)`);
 
   const free = freeBytes();
   if (free > 2 * 1024 ** 3) ok(`disk free ${(free / 1024 ** 3).toFixed(1)} GB`);

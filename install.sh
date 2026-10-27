@@ -20,10 +20,10 @@ for arg in "$@"; do
   esac
 done
 
-command -v node >/dev/null || { echo "node >= 20 is required"; exit 1; }
+command -v node >/dev/null || { echo "node >= 24 is required"; exit 1; }
 command -v npm >/dev/null || { echo "npm is required"; exit 1; }
-node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 20 ? 0 : 1)' \
-  || { echo "node >= 20 is required (found $(node -v))"; exit 1; }
+node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)' \
+  || { echo "node >= 24 is required (found $(node -v))"; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

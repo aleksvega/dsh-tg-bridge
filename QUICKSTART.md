@@ -10,7 +10,7 @@ steps 2–5 for you and only needs your answers to three questions.
 
 ## 0. What you need before you start
 
-- **Node.js 20 or newer.** Check with `node --version`. If the number is lower or
+- **Node.js 24 or newer.** Check with `node --version`. If the number is lower or
   the command is missing, install Node from [nodejs.org](https://nodejs.org) first
   — nothing below works without it.
 - **A computer that stays on.** The bot runs on your machine, not in a cloud.

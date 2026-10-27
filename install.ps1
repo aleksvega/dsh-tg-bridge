@@ -17,7 +17,7 @@ foreach ($tool in 'node', 'npm') {
   if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is required" }
 }
 $major = [int]((node -v).TrimStart('v').Split('.')[0])
-if ($major -lt 20) { throw "node >= 20 is required (found $(node -v))" }
+if ($major -lt 24) { throw "node >= 24 is required (found $(node -v))" }
 
 $Tmp = Join-Path $env:TEMP ("dsh-tg-" + [guid]::NewGuid().ToString('n'))
 New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
