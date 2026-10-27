@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { SANDBOX_HOME } from './sandbox-home.mjs';
 import { handleControl, filterLogLines } from '../control.mjs';
+
+// `/logs file` stats the bridge log. Point it at a file this test owns: on a
+// machine that has run the bridge the real log exists and hides the branch that
+// answers when it does not, which is how CI caught this and a laptop did not.
+mkdirSync(join(SANDBOX_HOME, 'tg-bridge'), { recursive: true });
+writeFileSync(join(SANDBOX_HOME, 'tg-bridge', 'bridge.log'), '2026-10-25T10:00:00.000Z bridge started\n');
 
 const LOG = [
   '2026-10-25T10:00:00.000Z bridge started',

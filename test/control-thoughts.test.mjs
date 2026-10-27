@@ -69,6 +69,33 @@ test('an empty or missing session file yields no reasoning and no throw', () => 
   assert.equal(lastTurnReasoning('C:\\definitely\\not\\here.zstd'), '');
 });
 
+test('the block that says it disappears is sent through the self-deleting path', async () => {
+  // The title promises removal in three minutes. A plain reply keeps it forever,
+  // which is what the person saw: the promise came from the text, not the send.
+  const briefed = [];
+  const { ctx, out } = context({
+    command: '/thoughts',
+    state: { sessions: { '1:2': 'no-such-session' }, profiles: {}, lang: {} },
+    ephemeral: (text) => {
+      briefed.push(text);
+      return 1;
+    },
+  });
+  assert.equal(await handleControl(ctx), true);
+  assert.deepEqual(out, [], 'nothing may go out as a permanent message');
+  assert.equal(briefed.length, 1);
+  assert.match(briefed[0], /рассужден|reasoning|推理/);
+});
+
+test('without the bridge context the report still leaves as a plain reply', async () => {
+  const { ctx, out } = context({
+    command: '/thoughts',
+    state: { sessions: { '1:2': 'no-such-session' }, profiles: {}, lang: {} },
+  });
+  assert.equal(await handleControl(ctx), true);
+  assert.equal(out.length, 1);
+});
+
 test('every control command has a handler and an answer in each language', () => {
   for (const name of CONTROL_COMMANDS) {
     assert.ok(name.length > 0);

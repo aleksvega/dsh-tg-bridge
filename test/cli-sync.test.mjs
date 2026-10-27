@@ -11,8 +11,11 @@ const dir = new URL('../', import.meta.url);
 const cli = readFileSync(new URL('cli.mjs', dir), 'utf8');
 const pkg = JSON.parse(readFileSync(new URL('package.json', dir), 'utf8'));
 
-/** The value assigned to `name`, up to the semicolon that ends the statement. */
-const assignment = (name) => cli.match(new RegExp(`const ${name} = (.*?);\\n`))?.[1] ?? '';
+/** The value assigned to `name`, up to the semicolon that ends the statement.
+ *  The line ending is part of the pattern and must not be assumed: a Windows
+ *  checkout hands the test CRLF, a Linux one LF, and matching only `\n` made
+ *  this pass locally and fail in CI. */
+const assignment = (name) => cli.match(new RegExp(`const ${name} = ([\\s\\S]*?);\\r?\\n`))?.[1] ?? '';
 
 test('the runtime copy list comes from package.json, not from a hand-kept array', () => {
   const value = assignment('RUNTIME_FILES');

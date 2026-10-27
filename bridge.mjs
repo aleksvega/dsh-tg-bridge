@@ -865,6 +865,10 @@ async function runCommandFromButton(typed, { chatId, threadId, key }) {
     }),
     api: tg,
     sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
+    // A report meant to be read once (/thoughts) can ask for a message that
+    // removes itself. Without this the chat is told it will disappear while the
+    // message is a normal one — a promise nothing was keeping.
+    ephemeral: (out) => sendEphemeral(chatId, out, threadId),
     seedTopic: ensureTopicSeed,
     profile: profileOf(key),
     reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),

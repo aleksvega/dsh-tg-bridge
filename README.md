@@ -370,7 +370,7 @@ so a chatty research topic and a terse deploy topic can differ.
 
 The reasoning block itself is model output; `/thoughts` is what reads it back:
 
-- `/thoughts` — the last turn as a message, in parts, deleted after a few minutes;
+- `/thoughts` — the last turn as a message, in parts, deleted after three minutes;
 - `/thoughts file` — the **whole** last turn as `reasoning-<date>-file.md`, sent as a document
   (a five-hour turn is tens of thousands of characters, which no chat message can hold);
 - `/thoughts all` — every turn of the session in one file (a long session is a couple of MB);

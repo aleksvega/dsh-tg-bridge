@@ -1,5 +1,22 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.5
+
+- **New: `/logs file` test no longer needs a machine that has run the bridge.**
+  The test stat'ed the real `bridge.log`; on a laptop it exists, so the branch
+  that answers when it does not was never exercised. It writes its own log into
+  the sandbox home now.
+- **Fixed: `/thoughts` promised a disappearing message and sent a permanent one.**
+  The title said the block would be gone in a few minutes while the send was an
+  ordinary reply — the one thing a person cannot check until they scroll back a
+  day later. The report now goes through the bridge's self-deleting send, the
+  promise names the interval (three minutes), and a test asserts the block never
+  leaves as a permanent message.
+- **Fixed: CI was red for the whole 1.19.x line.** Two faults, both invisible on a
+  developer machine: the Node 20 leg died on the zstd import, and one test matched
+  a whole statement against `\n` only, which a Windows checkout turns into CRLF.
+  Both are fixed and the suite runs green on the real matrix.
+
 ## 1.19.4
 
 - **Fixed: the package claimed Node 20 and died on it.** Every command that touches

@@ -2297,13 +2297,14 @@ export async function handleControl(ctx) {
         }
       }
 
+      const brief = ctx.ephemeral || ((out) => say(out));
       const text = file ? lastTurnReasoning(file, { maxChars: 20000 }) : '';
       if (!text) {
         // Not every turn plans: a one-word answer has no reasoning part at all.
         // Saying "here is what the last turn answered" beats a dead end that
         // looks like a broken command.
         const answered = file ? lastTurnText(file, { maxChars: 1200 }) : '';
-        say(answered
+        brief(answered
           ? `${t(lang, 'ctrl.thoughts.none')}\n\n${t(lang, 'ctrl.thoughts.lastAnswer')}\n\n${answered}\n\n${t(lang, 'ctrl.thoughts.hint')}`
           : `${t(lang, 'ctrl.thoughts.none')}\n\n${t(lang, 'ctrl.thoughts.hint')}`);
         return true;
@@ -2316,7 +2317,7 @@ export async function handleControl(ctx) {
       parts.forEach((part, index) => {
         const last = index === parts.length - 1;
         const head = parts.length > 1 ? `${title} (${index + 1}/${parts.length})` : title;
-        say(`${head}\n\n${part}${last ? `\n\n${t(lang, 'ctrl.thoughts.hint')}` : ''}`);
+        brief(`${head}\n\n${part}${last ? `\n\n${t(lang, 'ctrl.thoughts.hint')}` : ''}`);
       });
       return true;
     }
