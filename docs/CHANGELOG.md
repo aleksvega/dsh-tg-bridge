@@ -1,5 +1,22 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.7
+
+- **Fixed: three files promised Node 20 (and one promised 18) while the package
+  requires 24.** `install.sh`, `install.ps1`, `QUICKSTART.md` and the sanity check
+  inside `setup.mjs` each had their own idea of the floor, so a person on Node 22
+  passed every check and then died on the first session read — the failure looked
+  like a broken plugin, not a version requirement. All four now say 24, and
+  `test/node-floor.test.mjs` fails the build if any of them drifts again.
+- **Changed: the dictionary is one file per locale.** `i18n.mjs` was 2024 lines
+  and every translation change meant scrolling a wall; it is 94 lines plus
+  `i18n/{en,ru,zh}.mjs` at ~640 each. No behaviour change — the existing parity
+  test compares the three tables key by key, and `sync-runtime` learned to create
+  the directory a nested `files[]` entry needs.
+- **New: `docs/REFACTORING.md`.** The order in which the two remaining big modules
+  get split, what breaks during a move, and the rule that a refactor never shares
+  a commit — or a release — with a behaviour change.
+
 ## 1.19.6
 
 - **Security: a stranger the bot can see could steer the owner's live turn.**
