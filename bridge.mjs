@@ -51,44 +51,16 @@ import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.m
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { sessionFile } from './thoughts.mjs';
 import { MENU_PREFIX, commandForName, isMenuPress, keyboardCommand, menuTarget, renderPanel, runsUnasked } from './menu-card.mjs';
-
-const HOME = homedir();
-const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
-// State, config and logs live here. DSH_TG_HOME lets a checkout run with its own
-// directory instead of the default ~/.dsh/tg-bridge.
-const DIR = process.env.DSH_TG_HOME || join(DSH_HOME, 'tg-bridge');
-// Code directory can differ from DIR when the bridge is started by the DSH
-// plugin (code lives in the profile's node_modules, state stays in DIR).
-const SELF_DIR = dirname(fileURLToPath(import.meta.url));
-const GOAL_CMD = join(SELF_DIR, 'goal.mjs');
-const STATE = join(DIR, 'state.json');
-const LOG = join(DIR, 'bridge.log');
-const CRED = join(DSH_HOME, '.credentials.yaml');
-const PENDING_DIR = join(DIR, 'pending');
-const STEER_DIR = join(DIR, 'steer');
-const THOUGHT_DIR = join(DIR, 'thoughts');
-// The helper the agent calls to confirm an addition in the chat while the turn
-// is still running. Lives next to the bridge so an installed copy works too.
-const SAY = join(DIR, 'say.mjs');
-const DONE_FILE = join(DIR, 'done.json');
-const RESTART_MARKER = join(DIR, 'restart.pending');
-// `/restart confirm` leaves a note here for the process that replaces it: the
-// old code exits ~300 ms after spawning the new one, and without this the chat
-// saw "Перезапускаю мост…" and then silence — no proof the bot came back.
-const RESTART_NOTICE = join(fileURLToPath(new URL('.', import.meta.url)), 'restart-notice.json');
-const DONE_TTL_MS = 24 * 60 * 60 * 1000;
-// dsh.cmd runs the Electron binary as Node against this CLI entrypoint; the
-// bridge mirrors that exactly so no shell quoting of task text is needed.
-const APP = join(process.env.LOCALAPPDATA || '', 'Programs', 'DeepSeek Harness');
-const EXE = join(APP, 'DeepSeek Harness.exe');
-const CLI_JS = join(APP, 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js');
+import {
+  APP, CLI_JS, CRED, DIR, DONE_FILE, DONE_TTL_MS, DSH_HOME, EXE, GOAL_CMD, HOME, LOG,
+  PENDING_DIR, PID_FILE, RESTART_MARKER, RESTART_NOTICE, SAY, SELF_DIR, STATE, STEER_DIR,
+  THOUGHT_DIR,
+} from './paths.mjs';
+import {
+  ack, config, done, log, pendingPath, pendingUpdates, saveDone, saveState, state, writeAtomic, writePending,
+} from './state.mjs';
 
 mkdirSync(DIR, { recursive: true });
-
-// Single instance: the watchdog task re-runs this every few minutes, so a live
-// pid means another bridge already owns the bot's getUpdates loop (two pollers
-// make Telegram answer 409 and both go silent).
-const PID_FILE = join(DIR, 'bridge.pid');
 try {
   const other = Number(readFileSync(PID_FILE, 'utf8').trim());
   if (Number.isInteger(other) && other > 0 && other !== process.pid) {
@@ -122,52 +94,12 @@ process.on('exit', (code) => {
   } catch {}
 });
 
-const config = {
-  allowedUserIds: [],
-  profile: 'headless',
-  cwd: join(HOME, 'Documents', 'deepseek-harness', 'default-workspace'),
-  turnTimeoutMs: 20 * 60 * 1000,
-};
 /** Turns currently running, keyed like sessions — `/stop` kills one. */
 const activeTurns = new Map();
 /** Session id each running turn actually adopted, learned from its `session` event. */
 const liveSessions = new Map();
 /** Wall-clock start of the running turn per session key, for the queue notice. */
 const turnStartedAt = new Map();
-try {
-  Object.assign(config, JSON.parse(readFileSync(join(DIR, 'config.json'), 'utf8')));
-} catch {}
-// Old installs wrote these paths relative to the bridge directory, but turns
-// run from the project cwd, where "./transcribe.py" does not exist. Resolve
-// once at load so voice and vision work regardless of the topic's directory.
-if (config.voice?.script && !isAbsolute(config.voice.script)) config.voice.script = join(DIR, config.voice.script);
-if (config.vision?.patch && !isAbsolute(config.vision.patch)) config.vision.patch = join(DIR, config.vision.patch);
-
-const state = (() => {
-  if (!existsSync(STATE)) return { offset: 0, sessions: {} };
-  try {
-    // Strip a UTF-8 BOM: PowerShell's Set-Content adds one and JSON.parse rejects it.
-    return JSON.parse(readFileSync(STATE, 'utf8').replace(/^\uFEFF/, ''));
-  } catch {
-    return { offset: 0, sessions: {} };
-  }
-})();
-/** Atomic write: temp file, fsync, rename — a torn state.json loses sessions. */
-function writeAtomic(path, text) {
-  const tmp = `${path}.tmp-${process.pid}`;
-  const fd = openSync(tmp, 'w');
-  try {
-    writeFd(fd, text, 'utf8');
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
-  renameSync(tmp, path);
-}
-
-function saveState() {
-  writeAtomic(STATE, JSON.stringify(state, null, 2));
-}
 
 /**
  * Which profile runs this topic's turns. `/profile <name>` binds one topic to
@@ -357,100 +289,6 @@ setInterval(() => {
     log(`reminder loop failed: ${error.message}`);
   }
 }, 20_000).unref();
-
-function log(line) {
-  const text = `${new Date().toISOString()} ${line}\n`;
-  try { appendFileSync(LOG, text, 'utf8'); } catch {}
-  process.stdout.write(text);
-}
-
-// ---------------------------------------------------------------- журнал ходов
-//
-// A restart used to swallow whatever message was mid-flight: `offset` advanced
-// before the turn ran, so nothing ever replayed it. The journal is written
-// BEFORE the offset moves and deleted only after the answer reached Telegram,
-// which is the one order that survives a crash (Hermes' update_admission).
-
-/** update ids already answered, persisted, TTL-bound. */
-const done = (() => {
-  try {
-    const raw = JSON.parse(readFileSync(DONE_FILE, 'utf8'));
-    const cutoff = Date.now() - DONE_TTL_MS;
-    return new Map(Object.entries(raw).filter(([, at]) => Number(at) > cutoff));
-  } catch {
-    return new Map();
-  }
-})();
-
-function saveDone() {
-  try {
-    writeAtomic(DONE_FILE, JSON.stringify(Object.fromEntries(done), null, 0));
-  } catch (error) {
-    log(`done.json write failed: ${error.message}`);
-  }
-}
-
-function pendingPath(updateId) {
-  return join(PENDING_DIR, `${updateId}.json`);
-}
-
-/** Persist one update before it is processed. */
-function writePending(update) {
-  try {
-    mkdirSync(PENDING_DIR, { recursive: true });
-    writeAtomic(pendingPath(update.update_id), JSON.stringify(update));
-    return true;
-  } catch (error) {
-    log(`pending write failed for ${update.update_id}: ${error.message}`);
-    return false;
-  }
-}
-
-/** Mark answered: remember the id and drop the file. Called AFTER the send. */
-function ack(updateId) {
-  done.set(String(updateId), Date.now());
-  saveDone();
-  try {
-    unlinkSync(pendingPath(updateId));
-  } catch {}
-}
-
-/** Ids of pending updates still owed an answer, oldest first. */
-function pendingUpdates() {
-  try {
-    mkdirSync(PENDING_DIR, { recursive: true });
-    const cutoff = Date.now() - DONE_TTL_MS;
-    const out = [];
-    for (const file of readdirSync(PENDING_DIR)) {
-      if (!file.endsWith('.json')) continue;
-      const id = Number(file.replace(/\.json$/, ''));
-      const full = join(PENDING_DIR, file);
-      let stat;
-      try {
-        stat = statSync(full);
-      } catch {
-        continue;
-      }
-      // Older than the TTL: Telegram will not replay it either, drop it.
-      if (stat.mtimeMs < cutoff) {
-        try { unlinkSync(full); } catch {}
-        continue;
-      }
-      if (!Number.isInteger(id) || done.has(String(id))) {
-        try { unlinkSync(full); } catch {}
-        continue;
-      }
-      try {
-        out.push({ update: JSON.parse(readFileSync(full, 'utf8')), id });
-      } catch {
-        try { unlinkSync(full); } catch {}
-      }
-    }
-    return out.sort((a, b) => a.id - b.id);
-  } catch {
-    return [];
-  }
-}
 
 function readSecret(name) {
   const yaml = readFileSync(CRED, 'utf8');
@@ -3114,3 +2952,4 @@ async function main() {
 }
 
 main();
+
