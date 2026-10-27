@@ -61,7 +61,8 @@ import {
 } from './state.mjs';
 import { findToken, providerKeys, readSecret, token } from './secrets.mjs';
 import { GENERAL_SAFE, commandOf, immediateCommandOf, langFor, lastTurnTarget, setBotUsername } from './commands.mjs';
-import { sessionKey, threadOf } from './topics.mjs';
+import { sessionKey, threadOf } from './keys.mjs';
+import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, noteSeed, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { downloadFile, send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
 
 /**
@@ -351,64 +352,7 @@ if (!token) {
   process.exit(1);
 }
 
-/**
- * Last topic this chat actually worked in.
- *
- * Mirrors Hermes' `_recover_telegram_topic_thread_id`: when a message arrives
- * without a thread id (Telegram omits it for General and for clients that have
- * not bound the topic yet), routing it to the root session silently forks the
- * conversation. Recovering the newest bound topic keeps one project in one
- * place instead of scattering it between General and its topic.
- */
-function newestBoundTopic(chatId) {
-  let newest = 0;
-  let at = 0;
-  for (const key of Object.keys(state.sessions ?? {})) {
-    const match = new RegExp(`^${chatId}:(\\d+)$`).exec(key);
-    if (!match) continue;
-    const stamped = state.topicTouched?.[match[1]] ?? 0;
-    if (stamped > at) {
-      at = stamped;
-      newest = Number(match[1]);
-    }
-  }
-  return newest;
-}
 
-/** Remember that a topic is active, for {@link newestBoundTopic}. */
-function touchTopic(threadId) {
-  if (!(threadId > 0)) return;
-  state.topicTouched = state.topicTouched ?? {};
-  state.topicTouched[String(threadId)] = Date.now();
-}
-
-/**
- * Recent topic seeds, so a duplicate of the same text arriving in the General
- * chat can be recognised instead of starting a second turn.
- *
- * Telegram delivers a brand-new topic's text twice: once as the topic message
- * and once as a plain group message. Both used to run a turn, which is why a
- * prompt written in General got answered in General while its topic stayed
- * empty.
- */
-const recentSeeds = new Map();
-
-function noteSeed(text, threadId) {
-  const key = String(text ?? '').trim().slice(0, 200);
-  if (!key) return;
-  recentSeeds.set(key, { threadId, at: Date.now() });
-  for (const [candidate, value] of recentSeeds) {
-    if (Date.now() - value.at > 600000) recentSeeds.delete(candidate);
-  }
-}
-
-/** Topic id whose seed carried this same text within the last ten minutes, or 0. */
-function topicSeededRecently(text) {
-  const key = String(text ?? '').trim().slice(0, 200);
-  if (!key) return 0;
-  const hit = recentSeeds.get(key);
-  return hit && Date.now() - hit.at < 600000 ? hit.threadId : 0;
-}
 
 
 /**
@@ -488,90 +432,7 @@ async function voiceToText(msg, voice) {
  * on every panel edit. A failure caches the empty name — a card is not worth a
  * retry storm — and the caller renders the id alone.
  */
-const topicNames = new Map();
-function topicName(chatId, threadId) {
-  const cacheKey = sessionKey(chatId, threadId);
-  if (topicNames.has(cacheKey)) return topicNames.get(cacheKey);
-  topicNames.set(cacheKey, '');
-  tg('getForumTopic', { chat_id: chatId, message_thread_id: threadId })
-    .then((res) => {
-      const name = String(res?.name || '').trim();
-      if (name) topicNames.set(cacheKey, name);
-    })
-    .catch(() => {});
-  return '';
-}
 
-/**
- * Run a command that a button stands for, exactly as if it had been typed.
- *
- * The panel has no second implementation of anything: a press calls this, and
- * this calls `handleControl` with the same context a typed command gets. What
- * a button cannot do is money or state the person did not mean — so a press
- * never falls through to an AI turn.
- */
-
-/** Remember which topics already got their seed message, so it happens once. */
-function topicSeeded(threadId) {
-  return Boolean(state.seededTopics?.[String(threadId)]);
-}
-
-/**
- * Seed a newly created forum topic with the person's own message and pin it.
- *
- * Telegram creates a topic with only a service message ("Topic created"), so
- * the thread looks empty: a title with nothing under it. Posting the incoming
- * text there (a) removes the blank, (b) gives the chat something to scroll
- * back to, and (c) pins the thread to the top of the topic list, which is the
- * behaviour the owner asked for.
- *
- * Returns the seeded message id, or 0 when nothing was done.
- */
-async function ensureTopicSeed(chatId, threadId, text) {
-  if (topicSeeded(threadId)) return 0;
-  const body = { chat_id: chatId, text: String(text ?? '').slice(0, 4000), message_thread_id: threadId, disable_web_page_preview: true };
-  let messageId = 0;
-  try {
-    const res = await tg('sendMessage', body);
-    messageId = res.message_id;
-  } catch (error) {
-    log(`topic ${threadId} seed failed: ${error.message}`);
-    return 0;
-  }
-  if (config.pinTopicSeed !== false) {
-    try {
-      await tg('pinChatMessage', { chat_id: chatId, message_id: messageId, disable_notification: false });
-    } catch (error) {
-      log(`topic ${threadId} pin failed: ${error.message}`);
-    }
-  }
-  state.seededTopics = state.seededTopics ?? {};
-  state.seededTopics[String(threadId)] = messageId;
-  saveState();
-  noteSeed(text, threadId);
-  return messageId;
-}
-
-/**
- * Write one line about a new topic into the General chat, so the main stream
- * reads as a log of what was started instead of a wall of prompts. The full
- * text lives in the topic itself; this is only the pointer.
- */
-async function logTopicToGeneral(chatId, threadId, text, lang = config.lang || 'en') {
-  if (config.topicLog === false) return;
-  const head = String(text ?? '').replace(/\s+/g, ' ').trim();
-  const preview = head.length > 90 ? `${head.slice(0, 90)}…` : head;
-  try {
-    await tg('sendMessage', {
-      chat_id: chatId,
-      text: t(lang, 'msg.topicLog', { preview }),
-      disable_web_page_preview: true,
-    });
-    log(`topic ${threadId} logged to General`);
-  } catch (error) {
-    log(`topic ${threadId} General log failed: ${error.message}`);
-  }
-}
 
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
 function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = config.lang || 'en', env = {}) {

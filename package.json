@@ -51,6 +51,7 @@
     "topics.mjs",
     "telegram.mjs",
     "commands.mjs",
+    "keys.mjs",
     "control.mjs",
     "commands-registry.mjs",
     "agents.mjs",

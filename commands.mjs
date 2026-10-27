@@ -6,7 +6,7 @@
 // nothing here spawns.
 import { resolveLang } from './i18n.mjs';
 import { config, state } from './state.mjs';
-import { sessionKey } from './topics.mjs';
+import { sessionKey } from './keys.mjs';
 import { immediateKind } from './immediate.mjs';
 
 /**
