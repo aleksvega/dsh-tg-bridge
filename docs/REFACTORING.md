@@ -1,5 +1,11 @@
 # Refactoring the bridge without ever shipping a broken version
 
+> **The plan now lives in `openspec/changes/split-giant-files/`** — proposal,
+> design with the per-module map, and 45 tasks. The ceiling is **500 lines per
+> shipped module**, enforced by `test/module-size.test.mjs` rather than by
+> review. This document keeps the invariants and the protocol; where the two
+> disagree on a number or an order, the OpenSpec change wins.
+
 Three modules carry most of the code: `bridge.mjs` (2900 lines, 68 functions),
 `control.mjs` (2600), `i18n.mjs` (2024). Everything else is under 320. That is
 not a style preference — it is a risk profile: a 2900-line file means every
