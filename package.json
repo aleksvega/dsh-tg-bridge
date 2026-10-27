@@ -49,6 +49,7 @@
     "state.mjs",
     "secrets.mjs",
     "topics.mjs",
+    "telegram.mjs",
     "commands.mjs",
     "control.mjs",
     "commands-registry.mjs",

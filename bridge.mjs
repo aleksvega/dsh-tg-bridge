@@ -62,6 +62,59 @@ import {
 import { findToken, providerKeys, readSecret, token } from './secrets.mjs';
 import { GENERAL_SAFE, commandOf, immediateCommandOf, langFor, lastTurnTarget, setBotUsername } from './commands.mjs';
 import { sessionKey, threadOf } from './topics.mjs';
+import { downloadFile, send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
+
+/**
+ * Run a command the same way a typed one runs, for a button that stands for it.
+ * The callback handlers below need this: a press must reach `handleControl` with
+ * exactly the context a typed command gets.
+ */
+async function runCommandFromButton(typed, { chatId, threadId, key }) {
+  const lang = langFor(chatId, threadId);
+  const [head, ...rest] = typed.trim().split(/\s+/);
+  const arg = rest.join(' ');
+  const handled = await handleControl({
+    command: head,
+    arg,
+    text: typed,
+    lang,
+    chatId,
+    threadId,
+    key,
+    state,
+    config,
+    activeTurns,
+    saveState,
+    log,
+    send,
+    jobs: () => ({
+      active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
+      queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
+      max: MAX_PARALLEL,
+    }),
+    api: tg,
+    sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
+    // A report meant to be read once (/thoughts) can ask for a message that
+    // removes itself. Without this the chat is told it will disappear while the
+    // message is a normal one — a promise nothing was keeping.
+    ephemeral: (out) => sendEphemeral(chatId, out, threadId),
+    seedTopic: ensureTopicSeed,
+    profile: profileOf(key),
+    reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
+    stopTurn: (k) => {
+      const child = activeTurns.get(k);
+      if (!child) return false;
+      try {
+        child.kill();
+        activeTurns.delete(k);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  });
+  if (!handled) await send(chatId, t(lang, 'bridge.cb.unknown'), threadId);
+}
 
 mkdirSync(DIR, { recursive: true });
 try {
@@ -297,39 +350,6 @@ if (!token) {
   log('FATAL: bot token not found — run `node cli.mjs init --token <t> --user <id>` or set DSH_TELEGRAM_BOT_TOKEN');
   process.exit(1);
 }
-const api = (method) => `https://api.telegram.org/bot${token}/${method}`;
-
-/**
- * Telegram API call with retries.
- *
- * The log filled with `poll error: fetch failed` for an hour while
- * api.telegram.org was reachable over IPv4: Node's fetch tries the AAAA record
- * first and fails, and a single failed attempt used to drop the message or the
- * reply entirely. Three attempts with backoff turn a flaky network into a
- * short delay instead of silence.
- */
-async function tg(method, body, timeoutMs = 60000, attempts = 3) {
-  let lastError;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const res = await fetch(api(method), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body ?? {}),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!json.ok) throw new Error(`${method}: ${json.description || res.status}`);
-      return json.result;
-    } catch (error) {
-      lastError = error;
-      const retryable = /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up|502|503|504/i.test(String(error?.message ?? error));
-      if (!retryable || attempt === attempts) break;
-      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
-    }
-  }
-  throw lastError;
-}
 
 /**
  * Last topic this chat actually worked in.
@@ -390,34 +410,6 @@ function topicSeededRecently(text) {
   return hit && Date.now() - hit.at < 600000 ? hit.threadId : 0;
 }
 
-/**
- * Download a Telegram file into the bridge dir under a stable name.
- * Voice notes arrive as OGG/Opus, which the local ASR CLI does not decode,
- * so the caller passes the name it wants (including the extension).
- */
-/** Upload a local file to the chat: archives, PDFs, screenshots, builds. */
-async function sendFile(chatId, threadId, filePath, caption = '') {
-  const buf = readFileSync(filePath);
-  const form = new FormData();
-  form.set('chat_id', String(chatId));
-  if (threadId > 0) form.set('message_thread_id', String(threadId));
-  if (caption) form.set('caption', caption.slice(0, 1000));
-  form.set('document', new Blob([buf]), basename(filePath));
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: 'POST', body: form });
-  const json = await res.json().catch(() => ({}));
-  if (!json.ok) throw new Error(`sendDocument: ${json.description || res.status}`);
-  log(`sent file ${basename(filePath)} (${buf.length} B) chat=${chatId}`);
-  return json.result;
-}
-
-async function downloadFile(fileId, fileName) {
-  const file = await tg('getFile', { file_id: fileId });
-  const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
-  if (!res.ok) throw new Error(`file download failed: ${res.status}`);
-  const path = join(DIR, fileName);
-  writeFileSync(path, Buffer.from(await res.arrayBuffer()));
-  return path;
-}
 
 /**
  * Transcribe a local audio file with the speech backend from config.
@@ -518,145 +510,6 @@ function topicName(chatId, threadId) {
  * a button cannot do is money or state the person did not mean — so a press
  * never falls through to an AI turn.
  */
-/**
- * A message that carries buttons. Inline rows are the usual case; a persistent
- * reply keyboard (`/menu on`) and taking it away again are the two other markup
- * shapes a person can end up with, so every call site hands its intent here
- * instead of building `reply_markup` itself.
- */
-async function sendWithMarkup(chatId, threadId, text, extra = {}) {
-  const thread = threadId > 0 ? { message_thread_id: threadId } : {};
-  if (extra.removeKeyboard) {
-    return tg('sendMessage', {
-      chat_id: chatId,
-      text,
-      reply_markup: { remove_keyboard: true },
-      ...thread,
-    }).catch(() => {});
-  }
-  if (extra.persistent) {
-    return tg('sendMessage', {
-      chat_id: chatId,
-      text,
-      reply_markup: { keyboard: extra.persistent, resize_keyboard: true, is_persistent: true },
-      ...thread,
-    }).catch(() => {});
-  }
-  if (extra.keyboard) {
-    return tg('sendMessage', {
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: true,
-      reply_markup: { inline_keyboard: extra.keyboard },
-      ...thread,
-    }).catch(() => {});
-  }
-  return send(chatId, text, threadId);
-}
-
-async function runCommandFromButton(typed, { chatId, threadId, key }) {
-  const lang = langFor(chatId, threadId);
-  const [head, ...rest] = typed.trim().split(/\s+/);
-  const arg = rest.join(' ');
-  const handled = await handleControl({
-    command: head,
-    arg,
-    text: typed,
-    lang,
-    chatId,
-    threadId,
-    key,
-    state,
-    config,
-    activeTurns,
-    saveState,
-    log,
-    send,
-    jobs: () => ({
-      active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
-      queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
-      max: MAX_PARALLEL,
-    }),
-    api: tg,
-    sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
-    // A report meant to be read once (/thoughts) can ask for a message that
-    // removes itself. Without this the chat is told it will disappear while the
-    // message is a normal one — a promise nothing was keeping.
-    ephemeral: (out) => sendEphemeral(chatId, out, threadId),
-    seedTopic: ensureTopicSeed,
-    profile: profileOf(key),
-    reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
-    stopTurn: (k) => {
-      const child = activeTurns.get(k);
-      if (!child) return false;
-      try {
-        child.kill();
-        activeTurns.delete(k);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-  });
-  if (!handled) await send(chatId, t(lang, 'bridge.cb.unknown'), threadId);
-}
-
-async function send(chatId, text, threadId = 0, replyTo = 0) {
-  // Who is reading: the topic's language decides even the fallback line, so an
-  // English or Chinese topic never sees a Russian placeholder.
-  const lang = langFor(chatId, threadId);
-  const plain = config.plainText === true;
-  const parts = plain
-    ? chunk(toPlainText(text) || t(lang, 'bridge.progress.empty'), 3800)
-    : markdownParts(text);
-  let lastId = 0;
-  for (const part of parts) {
-    const html = plain ? '' : toTelegramHtml(part);
-    const body = { chat_id: chatId, text: html || part, disable_web_page_preview: true };
-    if (html) body.parse_mode = 'HTML';
-    // Without message_thread_id every reply lands in the General topic, which is
-    // the whole point of carrying the thread through.
-    if (threadId > 0) body.message_thread_id = threadId;
-    if (replyTo > 0) body.reply_to_message_id = replyTo;
-    let res;
-    try {
-      res = await tg('sendMessage', body);
-    } catch (error) {
-      // The fallback must start from the markdown, not from the HTML: resending
-      // the markup as plain text is exactly how the person ends up reading
-      // `<b>` and `<code>` instead of a sentence.
-      if (!html) throw error;
-      log(`html send failed (${String(error.message).slice(0, 120)}); resending as plain text`);
-      delete body.parse_mode;
-      for (const piece of chunk(toPlainText(part) || t(lang, 'bridge.progress.empty'), 3800)) {
-        body.text = piece;
-        res = await tg('sendMessage', body);
-      }
-    }
-    log(`sent chat=${chatId}${threadId ? ` topic=${threadId}` : ''} msg=${res.message_id} len=${body.text.length}${html ? ' html' : ''}`);
-    lastId = res.message_id;
-  }
-  return lastId;
-}
-
-/**
- * Send a message that deletes itself after `ttlMs`.
- *
- * Reports read once and forgotten (`/thoughts`, an unknown command showing the
- * menu) should not stay in the scrollback forever. The API cannot edit plain
- * text into a spoiler, so the choice is between two kinds of litter: a long
- * reply or a "gone" tombstone. A tombstone wins.
- */
-async function sendEphemeral(chatId, text, threadId = 0, replyTo = 0, ttlMs = 180000) {
-  const id = await send(chatId, text, threadId, replyTo);
-  if (!id) return id;
-  const timer = setTimeout(() => {
-    tg('deleteMessage', { chat_id: chatId, message_id: id })
-      .catch((error) => log(`ephemeral delete failed msg=${id}: ${String(error.message).slice(0, 80)}`));
-  }, ttlMs);
-  timer.unref?.();
-  return id;
-}
 
 /** Remember which topics already got their seed message, so it happens once. */
 function topicSeeded(threadId) {
