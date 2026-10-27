@@ -186,7 +186,7 @@ Send the bot:
 
 ```
 Work:         /cd · /new · /stop · /send · /seed
-Goals:        /goal · /task · /task done|rm <n>
+Goals:        /goal · /task · /task done|rm <n> · /task edit <n> <text>
 Sessions:     /status · /sessions · /resume
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <id> · /prices
@@ -410,6 +410,7 @@ restart and a different session:
 /goal                       show the goal and the checklist
 /task write the migration   add a task
 /task done 2                tick it off
+/task edit 2 shorter words   rewrite it in place, same number
 /task rm 2                  remove it
 /goal done                  close the goal (all tasks done)
 /goal clear                 delete the goal and its tasks

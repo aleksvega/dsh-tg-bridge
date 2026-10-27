@@ -1,11 +1,11 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.19.1",
+  "version": "1.19.2",
   "description": "Telegram bridge for DeepSeek Harness: text, voice, photos and project-per-topic sessions without opening the desktop app",
   "type": "module",
   "main": "plugin-bridge.mjs",
   "bin": {
-    "dsh-tg": "./cli.mjs"
+    "dsh-tg": "cli.mjs"
   },
   "scripts": {
     "start": "node bridge.mjs",
@@ -101,5 +101,9 @@
     "INJECTION-AND-REPLIES.md",
     "SECURITY.md",
     "skills/"
-  ]
+  ],
+  "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/aleksvega/dsh-tg-bridge/issues"
+  }
 }

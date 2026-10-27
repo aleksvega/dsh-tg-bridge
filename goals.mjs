@@ -95,6 +95,21 @@ export function removeTask(state, key, index) {
   return true;
 }
 
+/**
+ * Rewrite one task in place. The number is what the chat has been quoting, so an
+ * edit must not move it; only the words change, and the tone of the checklist
+ * with them (a done line stays done).
+ */
+export function editTask(state, key, index, text) {
+  const goal = goalOf(state, key);
+  const i = Number(index) - 1;
+  const clean = String(text || '').trim().slice(0, MAX_GOAL_CHARS);
+  if (!goal || !clean || !Number.isInteger(i) || i < 0 || i >= goal.tasks.length) return false;
+  goal.tasks[i].text = clean;
+  goal.updatedAt = new Date().toISOString();
+  return true;
+}
+
 export function progressOf(goal) {
   const total = goal?.tasks.length || 0;
   const done = goal?.tasks.filter((t) => t.done).length || 0;

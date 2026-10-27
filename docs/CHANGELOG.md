@@ -1,5 +1,27 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.2
+
+- **Fixed: system commands answered a stranger in Russian.** `/restart`,
+  `/stop`, `/cd`, `/new`, `/help`, the start greeting and reminders each
+  carried their own `|| 'ru'` fallback, so an install whose owner never ran
+  `/lang` — and whose config had no default — spoke Russian to everyone, while
+  `resolveLang` promised English for an unknown reader. One rule now:
+  topic language, then `config.lang`, then English. A topic that chose Russian
+  still gets Russian; the difference is only what happens when nobody chose.
+- **New: `/task edit <n> <text>` rewrites a checklist line in place.** The
+  desktop lets you edit a task; the chat could only delete it and add it again,
+  which renumbered every line below and broke whatever the conversation had been
+  quoting. An edit keeps the number, the position and the done mark;
+  `/task set` is the same action, and an impossible number is refused instead of
+  appending a line.
+- **Docs: the changelog no longer names anyone's providers.** The published
+  changelog recorded the provider accounts and private channels of one install.
+  The portability grep used to skip that file, which hid the one place a public
+  reader could see them; both are fixed, and the grep now covers every file.
+- `package.json` gained the repository's homepage and issue tracker, and npm's
+  own `pkg fix` shortened the `bin` path.
+
 ## 1.19.1
 
 - **Fixed: a tap in the panel ran an explanation instead of the command.** Every
@@ -694,7 +716,7 @@ notifications.
 
 ## 2026-10-24 — v1.3.4
 
-- `/prices` no longer assumes unorouter: it merges the unorouter page and
+- `/prices` no longer assumes one provider: it merges the provider catalog and
   models.dev, prices the model of the configured profile, answers in the
   topic language, and does not crash when both catalogs are unusable.
 - `/plugins add|remove|disable|enable` launch the DSH CLI the same way turns
@@ -896,9 +918,9 @@ notifications.
   across the configured providers).
 - New switch triggers `AUTH`, `403`, `insufficient_user_quota`, `UNKNOWN_MODEL`,
   `MISSING_CREDENTIAL`, with a chat message when falling back to a free model.
-- Providers `taynik`, `neuraldeep`, `ikhdev` added to the headless profile;
-  keys live in `.credentials.yaml` and are passed to the CLI child environment.
-  Subagents use `unorouter/deepseek-v4.1-flash`.
+- Extra providers added to the headless profile; keys live in
+  `.credentials.yaml` and are passed to the CLI child environment.
+  Subagents run on a cheaper model than the topic.
 - Commands come from the single `CONTROL_COMMANDS` list; `/cd`, `/prices` and
   `/seed` were missing from the old hardcoded whitelist and were sent to the
   model as plain text.

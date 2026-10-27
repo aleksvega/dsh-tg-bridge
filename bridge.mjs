@@ -348,7 +348,7 @@ setInterval(() => {
     state.reminders = rows.filter((row) => !ids.has(row.id));
     saveState();
     for (const row of ready) {
-      Promise.resolve(send(String(row.chatId), t(row.lang || 'ru', 'ctrl.remind.due', { text: row.text }), Number(row.threadId) || 0))
+      Promise.resolve(send(String(row.chatId), t(row.lang || config.lang || 'en', 'ctrl.remind.due', { text: row.text }), Number(row.threadId) || 0))
         .then(() => log(`reminder ${row.id} delivered`))
         .catch((error) => log(`reminder ${row.id} delivery failed: ${error.message}`));
     }
@@ -986,7 +986,7 @@ async function ensureTopicSeed(chatId, threadId, text) {
  * reads as a log of what was started instead of a wall of prompts. The full
  * text lives in the topic itself; this is only the pointer.
  */
-async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
+async function logTopicToGeneral(chatId, threadId, text, lang = config.lang || 'en') {
   if (config.topicLog === false) return;
   const head = String(text ?? '').replace(/\s+/g, ' ').trim();
   const preview = head.length > 90 ? `${head.slice(0, 90)}…` : head;
@@ -1003,7 +1003,7 @@ async function logTopicToGeneral(chatId, threadId, text, lang = 'ru') {
 }
 
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
-function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = 'ru', env = {}) {
+function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = config.lang || 'en', env = {}) {
   return new Promise((resolve) => {
     const args = turnArgs({ cli: CLI_JS, profile, extraArgs, sessionId, task });
     const child = spawn(EXE, args, {
@@ -1129,7 +1129,7 @@ function killTurn(key) {
  * thinks for ten minutes still leaves one line in the chat — and the whole trail
  * one tap away.
  */
-async function startProgress(chatId, threadId, lang = 'ru', task = '', chip = '', thoughtFile = '') {
+async function startProgress(chatId, threadId, lang = config.lang || 'en', task = '', chip = '', thoughtFile = '') {
   const started = Date.now();
   const panelKey = sessionKey(chatId, threadId);
   const steps = [];
@@ -2205,7 +2205,7 @@ const approvals = new Map();
 const rewindUsed = new Set();
 let approvalSeq = 0;
 
-function errorKeyboard(key, lang = 'ru') {
+function errorKeyboard(key, lang = config.lang || 'en') {
   return {
     inline_keyboard: [
       [
@@ -2217,7 +2217,7 @@ function errorKeyboard(key, lang = 'ru') {
 }
 
 /** A turn stopped by the clock: the work is not lost, so offer to go on. */
-function continueKeyboard(key, lang = 'ru') {
+function continueKeyboard(key, lang = config.lang || 'en') {
   return {
     inline_keyboard: [
       [
@@ -2228,7 +2228,7 @@ function continueKeyboard(key, lang = 'ru') {
   };
 }
 
-function approvalKeyboard(requestId, lang = 'ru') {
+function approvalKeyboard(requestId, lang = config.lang || 'en') {
   return {
     inline_keyboard: [
       [
@@ -2727,7 +2727,7 @@ function runTurnLive(task, sessionId, key, options = {}) {
           onEvent(event);
         } catch {}
       }
-    }, options.extraArgs ?? [], options.cwd ?? '', options.profile || profileOf(key), options.lang ?? 'ru', options.env ?? {})
+    }, options.extraArgs ?? [], options.cwd ?? '', options.profile || profileOf(key), options.lang ?? config.lang ?? 'en', options.env ?? {})
       .then((result) => finish({ ...result, sessionId: result.sessionId || sessionSeen }))
       .catch((error) => finish({ sessionId: sessionSeen, text: '', error: String(error?.message ?? error) }));
   });
@@ -2776,7 +2776,7 @@ async function main() {
       log(`restart notice failed: ${error.message}`);
     }
     for (const id of config.allowedUserIds) {
-      try { await send(id, `🤖 ${t(config.lang || 'ru', 'msg.started')}`); } catch {}
+      try { await send(id, `🤖 ${t(config.lang || 'en', 'msg.started')}`); } catch {}
     }
   } catch (error) {
     log(`startup notice failed: ${error.message}`);

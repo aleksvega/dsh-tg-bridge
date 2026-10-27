@@ -10,7 +10,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
-import { addTask, clearGoal, doneTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
+import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
 import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from './thoughts.mjs';
 import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
 import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
@@ -421,7 +421,7 @@ function patchRows(profile) {
 }
 
 /** Recent DSH sessions of this workspace, newest first, with their titles. */
-function recentSessions(cwd, limit, lang = 'ru') {  const root = join(DSH_HOME, 'sessions');
+function recentSessions(cwd, limit, lang = 'en') {  const root = join(DSH_HOME, 'sessions');
   const rows = [];
   let dirs = [];
   try {
@@ -736,7 +736,11 @@ export function filterLogLines(lines, filter, count) {
 }
 
 export async function handleControl(ctx) {
-  const { command, arg, send, reply, log, profile, state, key, config, lang } = ctx;
+  const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
+  // The topic's language, then the config default, then English — the same order
+  // `resolveLang` uses. Nothing here may fall back to Russian: a reader who never
+  // chose a language is not necessarily Russian.
+  const lang = normalizeLang(rawLang) || normalizeLang(config?.lang) || 'en';
   // `reply(text, { keyboard })` draws buttons under the message; `say` is the
   // common case of a message with none.
   const say = (text, extra) => (extra ? reply(text, extra) : reply(text));
@@ -817,7 +821,7 @@ export async function handleControl(ctx) {
       const currentGoal = goalOf(state, key);
       if (currentGoal) {
         const { done, total } = progressOf(currentGoal);
-        lines.push(t(lang || 'ru', 'status.goal', {
+        lines.push(t(lang, 'status.goal', {
           done, total, text: currentGoal.text.length > 60 ? `${currentGoal.text.slice(0, 59)}…` : currentGoal.text,
         }));
       }
@@ -1364,7 +1368,7 @@ export async function handleControl(ctx) {
         key,
         at: parsed.at,
         text: parsed.text,
-        lang: lang || 'ru',
+        lang: lang,
         madeAt: now,
       });
       ctx.saveState();
@@ -1558,10 +1562,10 @@ export async function handleControl(ctx) {
 
     case '/restart': {
       if (arg !== 'confirm') {
-        say(t(ctx.lang || 'ru', 'cmd.restart.prompt'));
+        say(t(lang, 'cmd.restart.prompt'));
         return true;
       }
-      say(t(ctx.lang || 'ru', 'cmd.restart.started'));
+      say(t(lang, 'cmd.restart.started'));
       const bridge = fileURLToPath(new URL('./bridge.mjs', import.meta.url));
       // Tell the replacement process where to confirm, so the chat does not go
       // silent after "Перезапускаю мост…" (it did, twice on 2026-10-24).
@@ -1625,7 +1629,7 @@ export async function handleControl(ctx) {
 
     case '/stop': {
       const killed = ctx.stopTurn ? ctx.stopTurn(key) : false;
-      say(killed ? t(ctx.lang || 'ru', 'cmd.stop.killed') : t(ctx.lang || 'ru', 'cmd.stop.nothing'));
+      say(killed ? t(lang, 'cmd.stop.killed') : t(lang, 'cmd.stop.nothing'));
       return true;
     }
 
@@ -1675,7 +1679,7 @@ export async function handleControl(ctx) {
       if (wanted === 'reset') {
         delete state.cwd[key];
         ctx.saveState();
-        say(t(ctx.lang || 'ru', 'cmd.cd.reset'));
+        say(t(lang, 'cmd.cd.reset'));
         return true;
       }
       let target = wanted;
@@ -1685,12 +1689,12 @@ export async function handleControl(ctx) {
         if (existsSync(guess)) target = guess;
       }
       if (!existsSync(target)) {
-        say(t(ctx.lang || 'ru', 'cmd.cd.none', { path: target }));
+        say(t(lang, 'cmd.cd.none', { path: target }));
         return true;
       }
       state.cwd[key] = target;
       ctx.saveState();
-      say(t(ctx.lang || 'ru', 'cmd.cd.bound', { path: target }));
+      say(t(lang, 'cmd.cd.bound', { path: target }));
       return true;
     }
 
@@ -1709,7 +1713,7 @@ export async function handleControl(ctx) {
     }
 
     case '/goal': {
-      const L = lang || 'ru';
+      const L = lang;
       const body = (arg || '').trim();
       const current = goalOf(state, key);
       if (!body) {
@@ -1743,7 +1747,7 @@ export async function handleControl(ctx) {
     case '/tasks': {
       // The list is the control: a tap marks a task done, and the card is
       // redrawn in place. `/task` keeps the typed form for adding.
-      const L = lang || 'ru';
+      const L = lang;
       const current = goalOf(state, key);
       if (!current) { say(t(L, 'task.none')); return true; }
       const rows = taskKeyboard(current);
@@ -1753,7 +1757,7 @@ export async function handleControl(ctx) {
     }
 
     case '/task': {
-      const L = lang || 'ru';
+      const L = lang;
       const body = (arg || '').trim();
       const current = goalOf(state, key);
       if (!body) {
@@ -1762,6 +1766,15 @@ export async function handleControl(ctx) {
       }
       if (body.toLowerCase() === 'help' || body.toLowerCase() === '?') {
         say(t(L, 'task.usage'));
+        return true;
+      }
+      // Editing keeps the number: the chat has been quoting "5." and a delete
+      // plus an add would renumber everything below it.
+      const edit = body.match(/^(?:edit|set)\s+(\d+)\s+([\s\S]+)$/i);
+      if (edit) {
+        const n = Number(edit[1]);
+        say(editTask(state, key, n, edit[2]) ? t(L, 'task.edited', { n }) : t(L, 'task.bad', { n }));
+        ctx.saveState();
         return true;
       }
       const op = body.match(/^(done|rm|remove)\s+(\d+)$/i);
@@ -1903,7 +1916,7 @@ export async function handleControl(ctx) {
     case '/new': {
       delete state.sessions[key];
       ctx.saveState();
-      say(t(ctx.lang || 'ru', 'cmd.new.done'));
+      say(t(lang, 'cmd.new.done'));
       return true;
     }
 
@@ -1966,7 +1979,7 @@ export async function handleControl(ctx) {
     case '/help': {
       // One translated body keeps the help in step with the menu; the Russian
       // text stays as the fallback when a key is missing.
-      const helpLang = normalizeLang(state.lang?.[key] || config.lang) || 'ru';
+      const helpLang = lang;
       // `/help <command>` answers about one command: the list alone forced a
       // reader to guess which of /task and /tasks they wanted, and the pairs
       // that look alike are exactly the ones worth a sentence each.
