@@ -214,6 +214,7 @@ export default {
   'msg.restarted': '桥已重启，连接正常（pid {pid}）。\n主题和会话不变，可以继续。',
   'cmd.restart.prompt': '重启桥：/restart confirm。重启 DSH 应用：/app restart confirm。',
   'cmd.restart.started': '正在重启桥…',
+  'msg.generalGuard': "这里是「全部」主题，用来开新话题。{cmd} 会改动「{topic}」，请打开那个话题再发送。这里可以直接读：/status、/sessions、/stop。",
   'msg.unknownCommand': '未知命令：{cmd}。打开 /help 查看机器人支持的全部命令。',
   'msg.langSet': '界面语言已切换为中文。',
   'msg.reasoningOn': '工作记录已开启：💭 会显示在进度消息里。\n关闭：/reasoning off',

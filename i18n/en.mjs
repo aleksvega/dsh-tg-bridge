@@ -214,6 +214,7 @@ export default {
   'msg.restarted': 'Bridge restarted — back online (pid {pid}).\nThe topic and session are the same; keep going.',
   'cmd.restart.prompt': 'To restart the bridge: /restart confirm. For the DSH app: /app restart confirm.',
   'cmd.restart.started': 'Restarting the bridge…',
+  'msg.generalGuard': "This is the General topic, where topics are started. {cmd} changes “{topic}”, so open that topic and send it there. Reading works here: /status, /sessions, /stop.",
   'msg.unknownCommand': 'Unknown command: {cmd}. Open /help — it lists everything this bot can do.',
   'msg.langSet': 'Language set to English.',
   'msg.reasoningOn': 'Working notes on: 💭 lines will appear in the progress message.\nOff: /reasoning off',

@@ -736,6 +736,19 @@ function commandOf(text) {
   return `/${match[1].toLowerCase().replace(/[.-]+/g, '')}`;
 }
 
+/**
+ * Commands that may run from the General topic without changing anything there.
+ *
+ * The lobby rule moves a General message into the newest topic; for these that is
+ * the whole point (you want the status of the work you are looking at, and `/stop`
+ * must work from anywhere). Everything else is answered in General with the name
+ * of the topic it would have changed.
+ */
+const GENERAL_SAFE = new Set([
+  'status', 'sessions', 'branches', 'jobs', 'version', 'doctor', 'logs',
+  'stop', 'help', 'menu', 'prices', 'thoughts',
+]);
+
 /** Canonical immediate command name for a message, or '' when it must queue. */
 function immediateCommandOf(text) {
   const trimmed = String(text ?? '').trim();
@@ -1530,6 +1543,9 @@ async function handleMessage(msg, album = null) {
   }
 
   let threadId = threadOf(msg);
+  // Whether the person typed in the General topic (the "All" stream), before the
+  // lobby rule below moves the message into a topic.
+  const typedInGeneral = threadId === 0;
   // 3. The General-chat twin of an already-seeded topic: keep the log line,
   //    skip the turn — the topic message already owns this work.
   const twin = threadId === 0 ? topicSeededRecently(msg.text ?? msg.caption ?? '') : 0;
@@ -1550,6 +1566,8 @@ async function handleMessage(msg, album = null) {
       threadId = recovered;
     }
   }
+  // The topic a General message was moved into, or 0 when it stayed where it was.
+  const recoveredTopic = typedInGeneral && threadId > 0 ? threadId : 0;
   touchTopic(threadId);
 
   const key = sessionKey(chatId, threadId);
@@ -1644,6 +1662,19 @@ async function handleMessage(msg, album = null) {
     log(`command alias: ${head} -> ${effective} ${effectiveArg}`);
   }
   if (effectiveArg === 'restartconfirm' || effectiveArg === 'restart.confirm') effectiveArg = 'restart confirm';
+
+  // General is the lobby: a prompt written there runs in the most recently active
+  // topic so one project stays in one place. A command that CHANGES things must
+  // not silently change a topic the person is not looking at — `/new` there wiped
+  // the session of another topic and `/rewind` rolled one back, and the answer
+  // appeared in that topic rather than where it was typed. Reading commands and
+  // `/stop` still follow the work, because that is what the lobby is for.
+  if (recoveredTopic > 0 && effective && !GENERAL_SAFE.has(effective.slice(1))) {
+    const named = topicName(chatId, recoveredTopic) || `#${recoveredTopic}`;
+    log(`refused ${effective} in General; it belongs to topic ${recoveredTopic}`);
+    await send(chatId, t(lang, 'msg.generalGuard', { cmd: effective, topic: named }), 0);
+    return;
+  }
 
   // An unknown slash command must never become an AI turn: it burns money and
   // answers something the person did not ask. Answer with the menu instead.

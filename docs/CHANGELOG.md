@@ -1,5 +1,16 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.10
+
+- **A command typed in the General topic no longer changes another topic.**
+  General ("Все") is the lobby: a message written there is moved into the most
+  recently active topic so one project stays in one place, and the answer appears
+  there. That is right for a prompt and for reading — but `/new` typed in General
+  wiped the session of a topic the person was not looking at, and `/rewind` rolled
+  one back. Reading commands and `/stop` still follow the work; everything that
+  changes state is answered in General with the name of the topic it would have
+  changed. A command never creates a topic.
+
 ## 1.19.9
 
 - **`/tasks` is a command of its own again.** It had been an alias of `/task`,

@@ -214,6 +214,7 @@ export default {
   'msg.restarted': 'Мост перезапущен — на связи (pid {pid}).\nТема и сессия прежние, можно продолжать.',
   'cmd.restart.prompt': 'Перезапуск моста: /restart confirm. Приложение DSH: /app restart confirm.',
   'cmd.restart.started': 'Перезапускаю мост…',
+  'msg.generalGuard': "Это общая тема «Все» — здесь темы начинаются. {cmd} меняет «{topic}», поэтому откройте ту тему и отправьте команду там. Читать можно и здесь: /status, /sessions, /stop.",
   'msg.unknownCommand': 'Неизвестная команда: {cmd}. Открой /help — там всё, что умеет бот.',
   'msg.langSet': 'Язык переключён на русский.',
   'msg.reasoningOn': 'Заметки по ходу включены: 💭 будут появляться в сообщении прогресса.\nВыключить: /reasoning off',
