@@ -1180,7 +1180,7 @@ async function startProgress(chatId, threadId, lang = config.lang || 'en', task 
   const steps = [];
   const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
-  const usage = { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, outputTotal: 0 };
   let messageId = 0;
   let lastEdit = 0;
   let dirty = false;
@@ -1235,7 +1235,7 @@ async function startProgress(chatId, threadId, lang = config.lang || 'en', task 
       // number is the turn's average — output tokens over wall time — because
       // that is what "долго" means to the reader: a slow provider and a turn
       // that spends its minutes in tools look identical without it.
-      speed: speedOf(usage.outputTokens, Date.now() - started),
+      speed: speedOf(usage.outputTotal, Date.now() - started),
       final,
       steps,
       thoughts,
@@ -1357,7 +1357,14 @@ async function startProgress(chatId, threadId, lang = config.lang || 'en', task 
       if (event.type === 'status' && event.usage) {
         if (Number.isFinite(event.usage.inputTokens)) usage.inputTokens = event.usage.inputTokens;
         if (Number.isFinite(event.usage.cacheReadTokens)) usage.cacheReadTokens = event.usage.cacheReadTokens;
-        if (Number.isFinite(event.usage.outputTokens)) usage.outputTokens = event.usage.outputTokens;
+        // `outputTokens` is per step, not cumulative: a turn of twenty steps
+        // reports twenty small numbers, and dividing the last one by the whole
+        // turn would claim 0.6 tok/s for a turn that ran at eighty. Sum the
+        // changes, and keep the last value so a repeated event adds nothing.
+        if (Number.isFinite(event.usage.outputTokens) && event.usage.outputTokens > 0) {
+          if (event.usage.outputTokens !== usage.outputTokens) usage.outputTotal += event.usage.outputTokens;
+          usage.outputTokens = event.usage.outputTokens;
+        }
         schedule();
         return;
       }
@@ -2887,8 +2894,8 @@ async function main() {
     // inside handleMessage: the steer branch below reaches the running agent
     // without going through handleMessage, so a stranger the bot can see used
     // to be able to inject text into the owner's live turn.
-    if (!allowedSender(msg)) {
-      log(`ignored update from ${msg.from?.id} (chat ${msg.chat?.id}${msg.message_thread_id ? ` topic=${msg.message_thread_id}` : ''})`);
+    if (!allowedSender(msg, config)) {
+      log(`ignored update from ${msg.from?.id} (chat ${msg.chat?.id}${msg.message_thread_id ? ` topic=${msg.message_thread_id}` : ''}) allowlist=${JSON.stringify(config.allowedUserIds ?? [])}`);
       ack(update.update_id);
       return;
     }

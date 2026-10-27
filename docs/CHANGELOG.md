@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.12
+
+- **The speed number added in 1.19.11 was wrong.** The harness reports
+  `outputTokens` per step, not for the turn, so dividing the last step by the
+  whole clock claimed 0.6 tok/s for a turn that was running at eighty. The panel
+  now sums the per-step numbers and divides that, and the test asserts the sum
+  rather than the assignment.
+- **The bot answers again.** 1.19.11 moved the allowlist check to the very front
+  of every update and called `allowedSender(msg)` without the config, so the
+  list of allowed users was read from `undefined` and came back empty: every
+  message, the owner's own included, was logged as `ignored update` and dropped
+  silently. One argument restores it, and the wiring test now asserts
+  `allowedSender(msg, config)` rather than a bare call name, which is exactly
+  how the regression got through.
+
 ## 1.19.11
 
 - **The turn panel shows how fast it is generating**, in tokens per second, next

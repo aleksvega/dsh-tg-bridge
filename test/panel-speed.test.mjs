@@ -27,8 +27,10 @@ test('no measurement means no number, not a zero', () => {
 });
 
 test('the bridge tracks output tokens and never divides by a fraction of a second', () => {
-  assert.match(source, /outputTokens: 0 \}/, 'usage must start at zero');
+  assert.match(source, /outputTokens: 0, outputTotal: 0 \}/, 'usage must start at zero, with a running total');
+  assert.match(source, /usage\.outputTotal \+= event\.usage\.outputTokens/, 'per-step tokens must be summed, not overwritten');
   assert.match(source, /event\.usage\.outputTokens/, 'the status event carries it');
+  assert.match(source, /speedOf\(usage\.outputTotal/, 'the speed uses the running total');
   const helper = source.slice(source.indexOf('function speedOf'), source.indexOf('function speedOf') + 500);
   assert.match(helper, /ms < 3000/, 'a three-second turn is not a measurement');
   assert.match(helper, /outputTokens \/ \(ms \/ 1000\)/);

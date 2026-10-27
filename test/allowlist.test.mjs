@@ -26,8 +26,8 @@ test('an empty allowlist refuses everything', () => {
 test('every update is checked before the steer branch can reach the agent', () => {
   const source = readFileSync(join(here, '..', 'bridge.mjs'), 'utf8').replace(/\r\n/g, '\n');
   const accept = source.slice(source.indexOf('const accept = (update'), source.indexOf('const accept = (update') + 1200);
-  const check = accept.indexOf('allowedSender(msg)');
+  const check = accept.indexOf('allowedSender(msg, config)');
   const steer = accept.indexOf('steerRunningTurn');
-  assert.notEqual(check, -1, 'accept must check the allowlist itself');
+  assert.notEqual(check, -1, 'accept must pass config to allowedSender');
   assert.ok(check < steer || steer === -1, 'the check must come before anything that reaches the agent');
 });
