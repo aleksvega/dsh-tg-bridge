@@ -32,7 +32,7 @@ a bot that answers, one step at a time.
 
 ## Requirements
 
-- Node.js ≥ 20
+- Node.js ≥ 24 (the version DeepSeek Harness ships; sessions are zstd-compressed)
 - DeepSeek Harness `0.2.1-rc.2` or newer in the `0.2.x` line (`>=0.2.1-rc.2 <0.3.0`)
 - DeepSeek Harness installed (`~/.dsh/profiles/headless`)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
@@ -69,7 +69,7 @@ can be listed next to them:
 
 One command: your bot token and your numeric id. Nothing to edit by hand.
 
-**Any platform with Node.js ≥ 20**
+**Any platform with Node.js ≥ 24**
 
 ```bash
 npx dsh-tg-bridge@latest init --token 123456789:AA... --user 123456789

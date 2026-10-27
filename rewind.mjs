@@ -18,7 +18,14 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
-import { zstdCompressSync, zstdDecompressSync } from 'node:zlib';
+import * as zlib from 'node:zlib';
+
+// Session files are zstd frames. Node24 has the codec; anything older would fail
+// here with a module error nobody can act on, so the failure names the fix.
+const { zstdCompressSync, zstdDecompressSync } = zlib;
+if (typeof zstdCompressSync !== 'function') {
+  throw new Error('dsh-tg-bridge needs Node 24 or newer: session files are zstd-compressed');
+}
 
 const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 

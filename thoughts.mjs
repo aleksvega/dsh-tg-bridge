@@ -7,7 +7,14 @@
 // current turn, which keeps the command cheap on a 13 MB log with 16k frames.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { zstdDecompressSync } from 'node:zlib';
+import * as zlib from 'node:zlib';
+
+// Session files are zstd frames. Node24 has the codec; anything older would fail
+// here with a module error nobody can act on, so the failure names the fix.
+const { zstdDecompressSync } = zlib;
+if (typeof zstdDecompressSync !== 'function') {
+  throw new Error('dsh-tg-bridge needs Node 24 or newer: session files are zstd-compressed');
+}
 
 const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 

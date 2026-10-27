@@ -1,5 +1,23 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.4
+
+- **Fixed: the package claimed Node 20 and died on it.** Every command that touches
+  a session reads zstd frames, and `node:zlib` only grew the zstd codec in Node 24 —
+  the version DeepSeek Harness ships in its own runtime. The suite went red on the
+  Node 20 leg of CI for a month of releases, which nobody saw because the badge was
+  not part of the release gate. `engines.node` now says `>=24`, CI runs 24, and a
+  test fails the build if the declared floor and the CI matrix ever drift apart
+  again.
+- **Fixed: the failure is now readable.** Importing a missing export is a syntax
+  error thrown before any code runs, so an old Node got
+  `does not provide an export named 'zstdDecompressSync'` and nothing else. The
+  zstd import is guarded: the message names the requirement.
+- **Fixed: a test only passed on one line ending.** `cli-sync` matched
+  `const RUNTIME_FILES = ...;\n`, which is false on a Windows checkout that hands
+  the test CRLF — so the test was green locally and red in CI. It matches either
+  ending now.
+
 ## 1.19.3
 
 - **New: `/plugins info <name>` — what a package is before it gets in.** The card
