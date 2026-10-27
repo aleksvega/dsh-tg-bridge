@@ -46,6 +46,7 @@
     "plugin-bridge.mjs",
     "cordis.patch.yml",
     "control.mjs",
+    "commands-registry.mjs",
     "agents.mjs",
     "agentsets.mjs",
     "settings.mjs",

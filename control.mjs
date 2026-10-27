@@ -25,6 +25,7 @@ import { explainCommand } from './help-explain.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
 import { isNewer, pluginInfo, rowLine, searchPlugins } from './plugin-search.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -684,33 +685,7 @@ function taskView(goal, lang) {
 }
 
 
-export const CONTROL_COMMANDS = [
-  'status', 'models', 'model', 'effort', 'profile', 'agents', 'preset', 'permissions', 'plan',
-  'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
-  'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
-  'prices', 'help', 'doctor', 'logs', 'lang', 'reasoning', 'goal', 'task', 'tasks',
-  'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
-  'rewind', 'fork', 'branches', 'menu',
-];
-
-/**
- * Old spellings that no longer have a job of their own. A phone keyboard turns
- * `task` into `tasks` and `model` into `models` without the person noticing, so
- * each pair is ONE command: one name in `/help` and the panel, and the other
- * spelling quietly routed to it. A name that is documented is a name a person
- * can mistype; a name that is not documented is a name nobody has to remember.
- */
-export const COMMAND_ALIASES = {
-  models: 'model',
-  plugin: 'plugins',
-  agentset: 'crew',
-};
-
-/**
- * What `/help`, the panel and the Telegram menu are allowed to say. Aliases are
- * deliberately absent: they work, and they are never advertised.
- */
-export const DOCUMENTED_COMMANDS = CONTROL_COMMANDS.filter((name) => !COMMAND_ALIASES[name]);
+export { CONTROL_COMMANDS, COMMAND_ALIASES, DOCUMENTED_COMMANDS };
 
 /**
  * Working notes ("💭" lines in the progress message) are on unless the topic or
