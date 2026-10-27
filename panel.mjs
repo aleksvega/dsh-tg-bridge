@@ -101,15 +101,21 @@ export function progressPanel({
   // group can run two topics at once and the cards look identical; the head is
   // the only part that survives the card being quoted or forwarded.
   topic = '',
+  // Average generation speed of this turn in tokens per second, 0 when unknown.
+  // It rides in the head next to the clock: the clock alone cannot tell a slow
+  // provider from a turn that spends its minutes in tools.
+  speed = 0,
 } = {}) {
   const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
   const mark = String(chip).trim() ? ` · ${String(chip).trim()}` : '';
   const where = String(topic || '').trim() ? `\n${String(topic).trim()}` : '';
+  // The speed sits right after the clock so the two read as one measurement.
+  const rate = Number(speed) > 0 ? ` · ${Math.round(Number(speed))} ${t(lang, 'status.speed')}` : '';
   const head = final
-    ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}${mark}${where}`
+    ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`
     : snippet
-      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${mark}${where}`
-      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${mark}${where}`;
+      ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`
+      : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`;
   const mind = thoughts.map((line) => `💭 ${line}`);
   const base = [head, ...mind, cache].filter(Boolean).join('\n').length;
 

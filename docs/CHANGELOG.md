@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.11
+
+- **The turn panel shows how fast it is generating**, in tokens per second, next
+  to the clock: `⏳ работаю… 412 с · 37 т/с`. The clock alone could not answer
+  "почему так долго" — a slow provider and a turn that spends its minutes in a
+  test run look identical. The number is the turn's average, output tokens over
+  wall time, and it is absent below three seconds rather than wrong.
+- **A steer is confirmed the moment it is queued.** It used to produce nothing
+  at all: the `steer-inbox` plugin hands the addition to the running agent at its
+  next step, and a step can be a six-minute test run, so the addition looked
+  lost. There is now one short line at queue time; the 90-second notice is kept
+  for a job the plugin really has not picked up.
+
 ## 1.19.10
 
 - **A command typed in the General topic no longer changes another topic.**

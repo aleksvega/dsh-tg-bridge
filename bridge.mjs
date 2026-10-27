@@ -1147,6 +1147,21 @@ function killTurn(key) {
 
 
 /**
+ * Average generation speed of a turn, in tokens per second, or 0 when unknown.
+ *
+ * Output tokens over wall time, not over "time spent generating": the bridge
+ * sees one stream and cannot separate thinking from tool calls, and the honest
+ * question the number answers is "is this turn moving", not "how fast is the
+ * provider". A turn younger than a couple of seconds says nothing — one token
+ * in one second is not a measurement.
+ */
+function speedOf(outputTokens, ms) {
+  if (!Number.isFinite(outputTokens) || outputTokens <= 0) return 0;
+  if (!Number.isFinite(ms) || ms < 3000) return 0;
+  return Math.round(outputTokens / (ms / 1000));
+}
+
+/**
  * One editable status message per turn.
  *
  * Hermes shows the working steps; without them a long turn is indistinguishable
@@ -1165,7 +1180,7 @@ async function startProgress(chatId, threadId, lang = config.lang || 'en', task 
   const steps = [];
   const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
-  const usage = { inputTokens: 0, cacheReadTokens: 0 };
+  const usage = { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0 };
   let messageId = 0;
   let lastEdit = 0;
   let dirty = false;
@@ -1216,6 +1231,11 @@ async function startProgress(chatId, threadId, lang = config.lang || 'en', task 
       // name comes from Telegram, cached: one API call per topic per process.
       topic: threadId ? t(lang, 'bridge.progress.topic', { n: threadId, name: topicName(chatId, threadId) || t(lang, 'bridge.progress.topicNoName') }) : '',
       seconds: Math.round((Date.now() - started) / 1000),
+      // How fast this turn is actually generating, in tokens per second. The
+      // number is the turn's average — output tokens over wall time — because
+      // that is what "долго" means to the reader: a slow provider and a turn
+      // that spends its minutes in tools look identical without it.
+      speed: speedOf(usage.outputTokens, Date.now() - started),
       final,
       steps,
       thoughts,
@@ -1330,10 +1350,14 @@ async function startProgress(chatId, threadId, lang = config.lang || 'en', task 
         return;
       }
       // Usage rides on the status events; keep the latest numbers so the final
-      // line can show the cache hit rate of this very turn.
+      // line can show the cache hit rate of this very turn, and so the head can
+      // show how fast it is going — "долго" is usually either a slow provider or
+      // a turn that spends its time in tools, and the panel could not tell them
+      // apart.
       if (event.type === 'status' && event.usage) {
         if (Number.isFinite(event.usage.inputTokens)) usage.inputTokens = event.usage.inputTokens;
         if (Number.isFinite(event.usage.cacheReadTokens)) usage.cacheReadTokens = event.usage.cacheReadTokens;
+        if (Number.isFinite(event.usage.outputTokens)) usage.outputTokens = event.usage.outputTokens;
         schedule();
         return;
       }
@@ -2068,6 +2092,12 @@ function steerRunningTurn(msg, text, sessionId, thread) {
     say: SAY,
   });
   log(`steer ${job.id} -> ${sessionId} (${text.length} chars)`);
+  // Confirm the moment the job is written, not 90 seconds later. The plugin
+  // hands it to the running agent at its next step, and a step can be a
+  // six-minute test run: without this line the addition looked lost, which is
+  // exactly what "steer стала хуже" describes. The wait notice below then only
+  // speaks when the job really has not been picked up.
+  send(msg.chat.id, t(lang, 'steer.queued'), thread).catch(() => {});
   watchSteer(job, msg, text, thread, lang);
   return job;
 }
