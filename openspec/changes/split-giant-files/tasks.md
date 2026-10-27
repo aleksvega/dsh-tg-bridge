@@ -7,30 +7,30 @@ root boots.
 
 ## 1. Make the ceiling enforceable before moving anything
 
-- [ ] 1.1 Add `test/module-size.test.mjs`: read `package.json.files[]`, count lines of every `.mjs`, fail above 500; a `MIGRATION` set lists the files still too large so the test is green from the first commit.
-- [ ] 1.2 Add `test/import-cycles.test.mjs`: build the import graph of the shipped modules, fail on a cycle.
-- [ ] 1.3 Extract `paths.mjs` (70 lines): the path constants only, no imports beyond `node:os`/`node:path`/`node:url`.
-- [ ] 1.4 Extract `state.mjs` (131): `config`, `state`, `writeAtomic`, `saveState`, `log`, `done`, `saveDone`, `ack`, `writePending`, `pendingUpdates`. Drop `bridge.mjs` from the `MIGRATION` set only when it is under 500, not earlier.
+- [x] 1.1 Add `test/module-size.test.mjs`: read `package.json.files[]`, count lines of every `.mjs`, fail above 500; a `MIGRATION` set lists the files still too large so the test is green from the first commit.
+- [x] 1.2 Add `test/import-cycles.test.mjs`: build the import graph of the shipped modules, fail on a cycle.
+- [x] 1.3 Extract `paths.mjs` (70 lines): the path constants only, no imports beyond `node:os`/`node:path`/`node:url`.
+- [x] 1.4 Extract `state.mjs` (131): `config`, `state`, `writeAtomic`, `saveState`, `log`, `done`, `saveDone`, `ack`, `writePending`, `pendingUpdates`. Drop `bridge.mjs` from the `MIGRATION` set only when it is under 500, not earlier.
 - [ ] 1.5 Release a patch with a CHANGELOG line "no behaviour change" and the line count before/after.
 
 ## 2. Transport
 
-- [ ] 2.1 Extract `secrets.mjs` (65): `readSecret`, `providerKeys`, `findToken`, `token`.
-- [ ] 2.2 Extract `telegram.mjs` (154): `api`, `tg`, `sendFile`, `downloadFile`, `sendWithMarkup`, `send`, `sendEphemeral`; `bridge.mjs` keeps a re-export of `send` so call sites stay untouched during the step.
-- [ ] 2.3 Grep the test tree for every moved symbol and point the test at the new path in the same commit.
+- [x] 2.1 Extract `secrets.mjs` (65): `readSecret`, `providerKeys`, `findToken`, `token`.
+- [x] 2.2 Extract `telegram.mjs` (154): `api`, `tg`, `sendFile`, `downloadFile`, `sendWithMarkup`, `send`, `sendEphemeral`; `bridge.mjs` keeps a re-export of `send` so call sites stay untouched during the step.
+- [x] 2.3 Grep the test tree for every moved symbol and point the test at the new path in the same commit.
 
 ## 3. Keys and commands
 
-- [ ] 3.1 Extract `commands.mjs` (78): `commandOf`, `GENERAL_SAFE`, `immediateCommandOf`, `langFor`, `lastTurnTarget`, `botUsername`.
-- [ ] 3.2 Extract `topics.mjs` (165): thread/session keys, seed dedupe, `topicName`, `topicSeeded`, `ensureTopicSeed`, `logTopicToGeneral`.
-- [ ] 3.3 Keep `test/general-lobby.test.mjs` and `test/topic-seed*.test.mjs` green — they read the source, so update their paths deliberately, not by deletion.
+- [x] 3.1 Extract `commands.mjs` (78): `commandOf`, `GENERAL_SAFE`, `immediateCommandOf`, `langFor`, `lastTurnTarget`, `botUsername`.
+- [x] 3.2 Extract `topics.mjs` (165): thread/session keys, seed dedupe, `topicName`, `topicSeeded`, `ensureTopicSeed`, `logTopicToGeneral`.
+- [x] 3.3 Keep `test/general-lobby.test.mjs` and `test/topic-seed*.test.mjs` green — they read the source, so update their paths deliberately, not by deletion.
 
 ## 4. The turn
 
-- [ ] 4.1 Extract `turn.mjs` (226): `runTurn`, `runTurnLive`, `typingLoop`, `killTurn`, `speedOf`.
-- [ ] 4.2 Pass `activeTurns` and `liveSessions` explicitly if the move would otherwise duplicate them; that is a second commit with its own test.
-- [ ] 4.3 Extract `progress.mjs` (237): `startProgress` and its timers; `panel.mjs` stays a pure renderer.
-- [ ] 4.4 `test/panel-speed.test.mjs` and `test/turn-*.test.mjs` green.
+- [x] 4.1 Extract `turn.mjs` (226): `runTurn`, `runTurnLive`, `typingLoop`, `killTurn`, `speedOf`.
+- [x] 4.2 Pass `activeTurns` and `liveSessions` explicitly if the move would otherwise duplicate them; that is a second commit with its own test.
+- [x] 4.3 Extract `progress.mjs` (237): `startProgress` and its timers; `panel.mjs` stays a pure renderer.
+- [x] 4.4 `test/panel-speed.test.mjs` and `test/turn-*.test.mjs` green.
 
 ## 5. Queue, steer, albums, approvals
 
