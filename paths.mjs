@@ -37,6 +37,9 @@ export const DONE_TTL_MS = 24 * 60 * 60 * 1000;
 export const APP = join(process.env.LOCALAPPDATA || '', 'Programs', 'DeepSeek Harness');
 export const EXE = join(APP, 'DeepSeek Harness.exe');
 export const CLI_JS = join(APP, 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js');
+export const DSH_CMD = join(APP, 'resources', 'runtime', 'cli', 'bin', 'dsh.cmd');
+// One directory per profile: a profile is a plugin set plus a patch of settings.
+export const PROFILES = join(DSH_HOME, 'profiles');
 // Single instance: the watchdog task re-runs this every few minutes, so a live
 // pid means another bridge already owns the bot's getUpdates loop (two pollers
 // make Telegram answer 409 and both go silent).
