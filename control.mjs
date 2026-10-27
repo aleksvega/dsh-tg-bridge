@@ -10,7 +10,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from './i18n.mjs';
-import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, removeTask, setGoal } from './goals.mjs';
+import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from './goals.mjs';
 import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from './thoughts.mjs';
 import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from './agents.mjs';
 import { setRowConfig, unsetRowConfig } from './profile-edit.mjs';
@@ -24,7 +24,7 @@ import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from './menu-
 import { explainCommand } from './help-explain.mjs';
 import { profileValues, resolveSettings } from './settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from './update-policy.mjs';
-import { rowLine, searchPlugins } from './plugin-search.mjs';
+import { isNewer, pluginInfo, rowLine, searchPlugins } from './plugin-search.mjs';
 
 const HOME = homedir();
 const DSH_HOME = process.env.DSH_HOME || join(HOME, '.dsh');
@@ -762,7 +762,7 @@ export async function handleControl(ctx) {
     const [maybeAction] = String(arg || '').trim().split(/\s+/);
     // `/plugins add|remove|disable|enable …` is the same work as `/plugin …`;
     // the case bodies read `arg`, which already holds the action and its value.
-    if (['add', 'remove', 'disable', 'enable', 'search', 'find'].includes((maybeAction || '').toLowerCase())) {
+    if (['add', 'remove', 'disable', 'enable', 'search', 'find', 'info', 'about', 'update', 'upgrade'].includes((maybeAction || '').toLowerCase())) {
       effective = '/plugin';
     }
   }
@@ -1474,6 +1474,86 @@ export async function handleControl(ctx) {
         );
         return true;
       }
+      if (action === 'info' || action === 'about') {
+        // What the desktop marketplace shows before you install: who wrote it,
+        // under what licence, and — the one that decides the outcome — whether
+        // the manifest declares itself a DSH plugin at all.
+        const got = await pluginInfo(value, { fetchImpl: ctx.fetch || fetch });
+        if (!got.ok) {
+          say(got.status === 404
+            ? t(lang, 'ctrl.plugin.infoMissing', { name: value })
+            : t(lang, 'ctrl.plugin.infoFailed', { err: got.error }));
+          return true;
+        }
+        const info = got.info;
+        const have = readJson(join(PROFILES, target, 'node_modules', info.name, 'package.json'))?.version || '';
+        const lines = [
+          `${info.name} ${info.version}`,
+          info.description ? `${info.description}` : '',
+          have
+            ? t(lang, 'ctrl.plugin.infoInstalled', { version: have, profile: target })
+            : t(lang, 'ctrl.plugin.infoNotInstalled', { profile: target }),
+          have && isNewer(info.version, have)
+            ? t(lang, 'ctrl.plugin.infoNewer', { version: info.version, name: info.name })
+            : '',
+          info.license ? t(lang, 'ctrl.plugin.infoLicense', { value: info.license }) : '',
+          info.repository ? t(lang, 'ctrl.plugin.infoRepo', { value: info.repository }) : '',
+          info.keywords.length ? t(lang, 'ctrl.plugin.infoKeywords', { list: info.keywords.join(', ') }) : '',
+          t(lang, info.bundle ? 'ctrl.plugin.infoBundle' : 'ctrl.plugin.infoPlain'),
+          info.engines ? `DSH: ${info.engines}` : '',
+        ].filter(Boolean);
+        say(lines.join('\n'), have ? {} : {
+          keyboard: [[{ text: `+ ${info.name}`, callback_data: `pl:i:${info.name}` }]],
+        });
+        return true;
+      }
+      if (action === 'update' || action === 'upgrade') {
+        // Saying one word must not start a pnpm run per plugin: a wordless
+        // request reports what is behind and offers one button per package, and
+        // an update happens only when its name is named.
+        const names = value ? [value] : pluginsOf(target).bundles;
+        if (!value) {
+          const shown = [];
+          for (const name of names) {
+            const have = readJson(join(PROFILES, target, 'node_modules', name, 'package.json'))?.version || '';
+            const got = await pluginInfo(name, { fetchImpl: ctx.fetch || fetch });
+            if (!got.ok || !have || !isNewer(got.info.version, have)) continue;
+            shown.push({ name, from: have, to: got.info.version });
+          }
+          if (!shown.length) {
+            say(t(lang, 'ctrl.plugin.upToDateAll', { profile: target }));
+            return true;
+          }
+          say(
+            [
+              t(lang, 'ctrl.plugin.updateTitle', { n: shown.length, profile: target }),
+              '',
+              ...shown.map((row) => `${row.name} ${row.from} → ${row.to}`),
+              '',
+              t(lang, 'ctrl.plugin.updateHint'),
+            ].join('\n'),
+            { keyboard: shown.slice(0, 8).map((row) => [{ text: `↑ ${row.name}`, callback_data: `pl:u:${row.name}` }]) },
+          );
+          return true;
+        }
+        const name = value;
+        const have = readJson(join(PROFILES, target, 'node_modules', name, 'package.json'))?.version || '';
+        const got = await pluginInfo(name, { fetchImpl: ctx.fetch || fetch });
+        if (!got.ok) {
+          say(t(lang, 'ctrl.plugin.updateFailed', { name, err: got.error }));
+          return true;
+        }
+        if (have && !isNewer(got.info.version, have)) {
+          say(t(lang, 'ctrl.plugin.upToDate', { name, version: have }));
+          return true;
+        }
+        say(t(lang, 'ctrl.plugin.updating', { profile: target, n: 1 }));
+        const result = await dshPlugin(target, ['add', `${name}@latest`]);
+        say(result.code === 0
+          ? t(lang, 'ctrl.plugin.updated', { name, from: have || '—', to: got.info.version })
+          : t(lang, 'ctrl.plugin.updateFailed', { name, err: result.out.slice(-300) }));
+        return true;
+      }
       if (!action || !value) {
         say(t(lang, 'ctrl.plugin.usage'));
         return true;
@@ -1732,15 +1812,25 @@ export async function handleControl(ctx) {
         say(goalView(goal, L));
         return true;
       }
+      if (word === 'reopen') {
+        // The way back from `/goal done`, and the only way: editing the text of a
+        // closed goal keeps it closed.
+        const again = reopenGoal(state, key);
+        if (!again) { say(t(L, 'goal.reopenFailed')); return true; }
+        ctx.saveState();
+        say(t(L, 'goal.reopened'));
+        return true;
+      }
       if (word === 'clear') {
         say(t(L, clearGoal(state, key) ? 'goal.cleared' : 'goal.none'));
         if (goalOf(state, key) === null) ctx.saveState();
         return true;
       }
+      const wasClosed = Boolean(current?.done);
       const goal = setGoal(state, key, body);
       if (!goal) { say(t(L, 'goal.usage')); return true; }
       ctx.saveState();
-      say(goalView(goal, L));
+      say([t(L, 'goal.set'), wasClosed ? t(L, 'goal.stillClosed') : '', goalView(goal, L)].filter(Boolean).join('\n'));
       return true;
     }
 

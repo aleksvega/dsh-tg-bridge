@@ -1,5 +1,27 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.3
+
+- **New: `/plugins info <name>` — what a package is before it gets in.** The card
+  shows the version, what the package does, its licence, its repository, and the
+  line that decides the outcome: whether the manifest declares `dsh.bundle`. A
+  package that does not declare it is an ordinary npm package and DSH will not
+  load it — the chat now says that instead of installing it hopefully.
+- **New: `/plugins update` — a report first, installs one at a time.** A wordless
+  call compares every installed bundle with the registry and answers with a list
+  plus one up-arrow button per package; the button runs
+  `/plugins update <name>`, which is the only thing that starts pnpm. Saying one
+  word must not start twenty installs.
+- **Fixed: a closed goal stayed closed only until someone fixed a typo.**
+  `/goal <text>` reset the `done` flag, so editing the wording silently reopened
+  the work. The mark now survives a re-wording, the card says the goal is still
+  closed, and `/goal reopen` is the explicit way back.
+- **Fixed: the plugin tests could install into the desktop profile.** One test
+  walked the real profile and ran pnpm for every bundle it found — while this
+  release was being prepared it upgraded 14 packages on the development machine.
+  Every test that imports `control.mjs` now gets a throwaway `DSH_HOME` from
+  `test/sandbox-home.mjs`, and a guard test fails the suite if a new one forgets.
+
 ## 1.19.2
 
 - **Fixed: system commands answered a stranger in Russian.** `/restart`,

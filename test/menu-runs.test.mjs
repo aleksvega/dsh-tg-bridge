@@ -3,6 +3,7 @@
 // through the real handleControl without throwing, and it has to say something:
 // a press that answers with silence looks like a dead bot.
 import test from "node:test";
+import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
 import { CONTROL_COMMANDS, handleControl } from "../control.mjs";
 import { commandForName, menuCommands, runsUnasked } from "../menu-card.mjs";

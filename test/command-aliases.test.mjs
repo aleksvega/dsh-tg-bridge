@@ -2,6 +2,7 @@
 // noticing, so the pair must be the same command — and the second spelling must
 // never be advertised, or the confusion comes back through the documentation.
 import test from "node:test";
+import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from "../control.mjs";

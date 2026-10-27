@@ -2,6 +2,7 @@
 // that node --check cannot see and no test called, so this calls every command
 // for real, with the smallest context that is still honest.
 import test from "node:test";
+import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
 import { CONTROL_COMMANDS, handleControl } from "../control.mjs";
 

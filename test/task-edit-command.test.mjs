@@ -2,6 +2,7 @@
 // number is a refusal with the same sentence as the other bad numbers.
 import test from "node:test";
 import assert from "node:assert/strict";
+import "./sandbox-home.mjs";
 import { handleControl } from "../control.mjs";
 import { addTask, goalOf, setGoal } from "../goals.mjs";
 

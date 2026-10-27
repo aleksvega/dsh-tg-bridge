@@ -2365,6 +2365,22 @@ async function handleCallback(query) {
     return;
   }
 
+  // The up arrow on the update card. Same shape as the plus of a search result:
+  // the name was printed by the command that read the registry, and the tap runs
+  // `/plugin update <name>` — nothing else.
+  if (data.startsWith('pl:u:')) {
+    const wanted = data.slice(5);
+    if (!/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(wanted)) {
+      await answer(t(lang, 'bridge.cb.unknown'));
+      return;
+    }
+    await clearKeyboard();
+    await answer(`/plugin update ${wanted}`);
+    log(`plugin update via button: ${wanted}`);
+    await runCommandFromButton(`/plugin update ${wanted}`, { chatId, threadId, key, lang });
+    return;
+  }
+
   if (data.startsWith('fk:')) {
     // A branch button from /branches. It does what `/resume <id>` does, so the
     // topic moves onto that branch and the answer comes from the command

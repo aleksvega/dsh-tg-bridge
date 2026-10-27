@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { LANGS, keysOf, t } from "../i18n.mjs";
 import { MENU_GROUPS, renderPanel } from "../menu-card.mjs";
 import { renderSettingsCard } from "../settings-card.mjs";
+import "./sandbox-home.mjs";
 import { handleControl } from "../control.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");

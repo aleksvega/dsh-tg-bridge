@@ -3,6 +3,7 @@
 // and the restart prompt used to break by hardcoding Russian.
 import test from "node:test";
 import assert from "node:assert/strict";
+import "./sandbox-home.mjs";
 import { handleControl } from "../control.mjs";
 import { resolveLang } from "../i18n.mjs";
 

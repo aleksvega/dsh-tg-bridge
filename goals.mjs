@@ -29,7 +29,9 @@ export function setGoal(state, key, text) {
   goals[key] = {
     text: clean,
     tasks: goals[key]?.tasks || [],
-    done: false,
+    // Re-wording a closed goal does not reopen it: the person said "done", and a
+    // typo fix is not a new commitment. `/goal reopen` is the explicit way back.
+    done: goals[key]?.done || false,
     createdAt: goals[key]?.createdAt || now,
     updatedAt: now,
   };
@@ -41,6 +43,15 @@ export function clearGoal(state, key) {
   if (!goals[key]) return false;
   delete goals[key];
   return true;
+}
+
+/** Undo the "done" mark, for a goal that turned out not to be finished. */
+export function reopenGoal(state, key) {
+  const goal = goalOf(state, key);
+  if (!goal || !goal.done) return null;
+  goal.done = false;
+  goal.updatedAt = new Date().toISOString();
+  return goal;
 }
 
 export function finishGoal(state, key) {
