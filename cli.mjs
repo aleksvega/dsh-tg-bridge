@@ -38,7 +38,13 @@ function syncRuntime() {
   if (resolve(DIR) === resolve(RUNTIME)) return;
   mkdirSync(RUNTIME, { recursive: true });
   for (const file of RUNTIME_FILES) {
-    if (existsSync(join(DIR, file))) copyFileSync(join(DIR, file), join(RUNTIME, file));
+    const from = join(DIR, file);
+    const to = join(RUNTIME, file);
+    if (!existsSync(from)) continue;
+    // `files[]` may name a nested module (`i18n/en.mjs`); its directory has to
+    // exist before the copy or the sync aborts halfway through.
+    mkdirSync(dirname(to), { recursive: true });
+    copyFileSync(from, to);
   }
   // Model overlays ship in `patches/` of the package. A checkout without that
   // directory is valid: fallbacks and vision are then simply not configured.

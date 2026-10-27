@@ -101,7 +101,10 @@
     "install.sh",
     "INJECTION-AND-REPLIES.md",
     "SECURITY.md",
-    "skills/"
+    "skills/",
+    "i18n/en.mjs",
+    "i18n/ru.mjs",
+    "i18n/zh.mjs"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
