@@ -48,6 +48,8 @@
     "paths.mjs",
     "state.mjs",
     "secrets.mjs",
+    "topics.mjs",
+    "commands.mjs",
     "control.mjs",
     "commands-registry.mjs",
     "agents.mjs",

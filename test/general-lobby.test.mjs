@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'bridge.mjs'), 'utf8');
+// The list moved to `commands.mjs` in the split; the guard that consults it is
+// still in the poller. Both halves are asserted, each where it now lives.
+const commands = readFileSync(join(here, '..', 'commands.mjs'), 'utf8');
 
 test('a state-changing command typed in General is refused, not redirected', () => {
   assert.match(source, /const recoveredTopic = typedInGeneral && threadId > 0 \? threadId : 0;/);
@@ -20,7 +23,9 @@ test('a state-changing command typed in General is refused, not redirected', () 
 });
 
 test('the lobby still lets a person read and stop from General', () => {
-  const list = source.slice(source.indexOf('const GENERAL_SAFE'), source.indexOf(']);', source.indexOf('const GENERAL_SAFE')));
+  const at = commands.indexOf('const GENERAL_SAFE');
+  assert.ok(at > 0, 'GENERAL_SAFE must exist in commands.mjs');
+  const list = commands.slice(at, commands.indexOf(']);', at));
   for (const name of ['status', 'sessions', 'stop', 'help']) {
     assert.ok(list.includes(`'${name}'`), `${name} must work from General`);
   }

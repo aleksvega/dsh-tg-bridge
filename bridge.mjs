@@ -60,6 +60,8 @@ import {
   ack, config, done, log, pendingPath, pendingUpdates, saveDone, saveState, state, writeAtomic, writePending,
 } from './state.mjs';
 import { findToken, providerKeys, readSecret, token } from './secrets.mjs';
+import { GENERAL_SAFE, commandOf, immediateCommandOf, langFor, lastTurnTarget, setBotUsername } from './commands.mjs';
+import { sessionKey, threadOf } from './topics.mjs';
 
 mkdirSync(DIR, { recursive: true });
 try {
@@ -329,16 +331,6 @@ async function tg(method, body, timeoutMs = 60000, attempts = 3) {
   throw lastError;
 }
 
-function threadOf(msg) {
-  const id = msg.message_thread_id ?? msg.reply_to_message?.message_thread_id;
-  return Number.isInteger(id) && id > 0 ? id : 0;
-}
-
-/** One DSH session per chat, and per topic inside a forum supergroup. */
-function sessionKey(chatId, threadId) {
-  return threadId > 0 ? `${chatId}:${threadId}` : String(chatId);
-}
-
 /**
  * Last topic this chat actually worked in.
  *
@@ -495,76 +487,6 @@ async function voiceToText(msg, voice) {
   return result;
 }
 
-/** Bot username from getMe, needed to unwrap `/cmd@bot` in groups. */
-let botUsername = '';
-
-/**
- * Normalized command name (`/new`), or '' for ordinary text.
- * In groups Telegram delivers `/new@deepifiya_bot`, which must still count.
- *
- * The pattern deliberately allows `-` and `.`: `/app-restart-confirm` and
- * `/app.restart.confirm` are what people actually type when they recall a
- * multi-word command, and returning '' for them silently ran a whole AI turn
- * instead (a real miss on 2026-10-20). Punctuation is dropped from the name.
- */
-function commandOf(text) {
-  const match = /^\/([A-Za-z0-9_.-]+)(?:@([A-Za-z0-9_]+))?$/.exec(text);
-  if (match === null) return '';
-  if (match[2] && botUsername && match[2].toLowerCase() !== botUsername.toLowerCase()) return '';
-  return `/${match[1].toLowerCase().replace(/[.-]+/g, '')}`;
-}
-
-/**
- * Commands that may run from the General topic without changing anything there.
- *
- * The lobby rule moves a General message into the newest topic; for these that is
- * the whole point (you want the status of the work you are looking at, and `/stop`
- * must work from anywhere). Everything else is answered in General with the name
- * of the topic it would have changed.
- */
-const GENERAL_SAFE = new Set([
-  'status', 'sessions', 'branches', 'jobs', 'version', 'doctor', 'logs',
-  'stop', 'help', 'menu', 'prices', 'thoughts',
-]);
-
-/** Canonical immediate command name for a message, or '' when it must queue. */
-function immediateCommandOf(text) {
-  const trimmed = String(text ?? '').trim();
-  if (!trimmed.startsWith('/')) return '';
-  const [head, ...rest] = trimmed.split(/\s+/);
-  const collapsed = commandOf(head).replace(/^\//, '');
-  return immediateKind(collapsed, rest);
-}
-
-/**
- * Language for a chat and topic.
- *
- * Extracting the formatting helpers into `format.mjs` took this function with
- * them, and the two `langFor` call sites stayed behind — so `send()` threw
- * `langFor is not defined` on its first line and the restart notice never
- * reached the chat. Nothing caught it: the error was logged and swallowed by
- * the outer `try`, and the process kept running. It is a one-line wrapper, and
- * the tests below pin the call sites so a missing name fails there instead.
- */
-function langFor(chatId, threadId = 0) {
-  return resolveLang(state, sessionKey(chatId, threadId), null, config);
-}
-
-/**
- * Where a release notice goes: the last chat a turn ran in.
- *
- * `state.sessions[key]` is a session id, not a record, so the order is by last
- * use — the bridge records it in `state.lastKey` whenever it starts a turn. With
- * no session at all (a fresh install that never talked) a notice is pointless,
- * and nothing is sent.
- */
-function lastTurnTarget() {
-  const key = typeof state.lastKey === 'string' ? state.lastKey : '';
-  const [chat, thread] = key.split(':');
-  const chatId = Number(chat);
-  if (!Number.isInteger(chatId) || chatId <= 0) return null;
-  return { chatId, threadId: Number(thread) || 0 };
-}
 
 /**
  * The forum topic's own title, for a card that has to say where it is.
@@ -2634,7 +2556,7 @@ async function main() {
   }
   try {
     const me = await tg('getMe');
-    botUsername = me.username || '';
+    setBotUsername(me.username || '');
     log(`bot @${me.username}`);
     // Confirm the restart in the topic it was asked from, not in the DM: the
     // person who typed `/restart confirm` was looking at that thread.
