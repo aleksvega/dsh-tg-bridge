@@ -47,6 +47,7 @@
     "cordis.patch.yml",
     "paths.mjs",
     "state.mjs",
+    "secrets.mjs",
     "control.mjs",
     "commands-registry.mjs",
     "agents.mjs",
