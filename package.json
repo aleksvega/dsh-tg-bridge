@@ -52,6 +52,8 @@
     "telegram.mjs",
     "commands.mjs",
     "keys.mjs",
+    "keyboards.mjs",
+    "progress.mjs",
     "control.mjs",
     "commands-registry.mjs",
     "agents.mjs",

@@ -11,7 +11,9 @@ import { progressPanel } from '../panel.mjs';
 import { t } from '../i18n.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, '..', 'bridge.mjs'), 'utf8');
+// The panel and its token bookkeeping moved to `progress.mjs`; the assertions
+// follow the code instead of being dropped.
+const source = readFileSync(join(here, '..', 'progress.mjs'), 'utf8');
 
 test('the speed is shown next to the clock, in the topic language', () => {
   const ru = progressPanel({ lang: 'ru', seconds: 42, final: false, speed: 37 });
