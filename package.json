@@ -104,7 +104,8 @@
     "skills/",
     "i18n/en.mjs",
     "i18n/ru.mjs",
-    "i18n/zh.mjs"
+    "i18n/zh.mjs",
+    "docs/REFACTORING.md"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
