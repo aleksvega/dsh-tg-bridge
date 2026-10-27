@@ -123,7 +123,14 @@
     "i18n/en.mjs",
     "i18n/ru.mjs",
     "i18n/zh.mjs",
-    "docs/REFACTORING.md"
+    "docs/REFACTORING.md",
+    "control/cmd-agents.mjs",
+    "control/cmd-bridge.mjs",
+    "control/cmd-plugin.mjs",
+    "control/cmd-session.mjs",
+    "control/cmd-skills.mjs",
+    "control/cmd-task.mjs",
+    "control/cmd-views.mjs"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
