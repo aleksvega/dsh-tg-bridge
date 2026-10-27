@@ -69,7 +69,10 @@ can be listed next to them:
 
 One command: your bot token and your numeric id. Nothing to edit by hand.
 
-**Any platform with Node.js ≥ 24**
+**Windows, macOS or Linux — Node.js 24 or newer.** `init` and the bridge run
+anywhere; `setup` (stop, autostart, restart) is **Windows-only** today, so on
+macOS and Linux use `sh install.sh`, which registers `launchd` or `systemd --user`.
+`node setup.mjs --check` reports state on every platform.
 
 ```bash
 npx dsh-tg-bridge@latest init --token 123456789:AA... --user 123456789
@@ -131,10 +134,12 @@ bridge restart, so after adding commands run `dsh-tg menu`. The full settings
 table, permissions, checks and common errors are in
 [docs/TELEGRAM-SETUP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TELEGRAM-SETUP.md).
 
-**Autostart** is installed by the setup: `launchd` on macOS, `systemd --user` on
-Linux. On Windows `setup` registers the `DSH-TG-Bridge` task, which runs the
-guarded supervisor (the same launcher on logon and every five minutes) so a
-crashed bridge comes back without a second poller.
+**Autostart** has two routes. `sh install.sh` writes `launchd` on macOS and
+`systemd --user` on Linux; `dsh-tg setup` registers the `DSH-TG-Bridge` task on
+Windows, which runs the guarded supervisor (the same launcher on logon and every
+five minutes) so a crashed bridge comes back without a second poller. On macOS
+and Linux `setup` declines and names `install.sh`, because it stops the old
+bridge with `taskkill` and registers autostart through `schtasks`.
 
 **Manual install** (if you want full control):
 

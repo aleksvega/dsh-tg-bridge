@@ -1,12 +1,32 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.9
+
+- **`/tasks` is a command of its own again.** It had been an alias of `/task`,
+  which made the tappable checklist — the thing the README advertises —
+  unreachable, and made `/tasks 1`, the obvious way to mean "task 1", add a task
+  whose text was "1". The card also refused to draw for goals with fewer than
+  three tasks, which is most goals.
+- **`/plugin add` installs into the topic's profile.** It wrote to the literal
+  `desktop` whatever profile the topic ran on, so on a fresh machine the only
+  in-chat install landed in a profile that does not exist. The `headless` /
+  `desktop` word is now read at either end of the line, as the help text always
+  said.
+- **`setup` refuses on macOS and Linux instead of failing obscurely.** It stops
+  the old bridge with `taskkill` and registers autostart through `schtasks`, yet
+  the README promised "any platform" and `launchd`/`systemd` from that command.
+  It now names `install.sh` and exits 2; `--check` still runs everywhere.
+- **`init` calls a missing headless profile a blocker**, because with no profile
+  the bot answers every message with an error. It names the one command that
+  fixes it.
+
 ## 1.19.8
 
 - **Fixed: sync-runtime copied only the root .mjs files, so the dictionary
   split in 1.19.7 left the runtime directory with an import that could not
   resolve — the bridge would refuse to start after the next /restart confirm.**
   It now copies exactly what package.json says the package is made of,
-  including subdirectories, and 	est/sync-runtime.test.mjs runs the real script
+  including subdirectories, and test/sync-runtime.test.mjs runs the real script
   into a temp directory and boots the result. Caught minutes after publishing
   1.19.7, before anyone restarted into it.
 

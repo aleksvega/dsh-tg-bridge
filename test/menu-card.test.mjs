@@ -124,7 +124,9 @@ test('the panel never offers an old spelling of a command', () => {
   }
   for (const page of MENU_GROUPS) {
     for (const button of allButtons(renderPanel({ t: tr('en'), page }))) {
-      assert.ok(!/\/tasks|\/models|\/agentset|\/plugin\b/.test(button.text), `${button.text} advertises an alias`);
+      // `/tasks` is no longer an alias: it is the tap card, and the only way to
+      // tick a task without typing.
+      assert.ok(!/\/models|\/agentset|\/plugin\b/.test(button.text), `${button.text} advertises an alias`);
     }
   }
 });

@@ -60,6 +60,24 @@ function acquireLock(owner) {
 
 const check = new Set(process.argv.slice(2)).has('--check');
 
+// This script stops the bridge with taskkill and registers autostart through
+// schtasks. README used to promise "any platform with Node >= 24" and launchd /
+// systemd from this command, so on macOS and Linux `npx dsh-tg-bridge@latest
+// setup` died on the first step with an ENOENT nobody could read. Refusing with
+// the path that does work is the honest half of that promise; `--check` still
+// runs everywhere because reading state never needed Windows.
+if (process.platform !== 'win32' && !check) {
+  console.error(
+    [
+      'setup: autostart and restart are Windows-only in this version.',
+      `This machine is ${process.platform}. Use the installer, which knows this platform:`,
+      '  sh install.sh          # launchd on macOS, systemd --user on Linux',
+      'Reading the current state works everywhere: node setup.mjs --check',
+    ].join('\n'),
+  );
+  process.exit(2);
+}
+
 /**
  * Every step is written to setup.log as well as stdout.
  *

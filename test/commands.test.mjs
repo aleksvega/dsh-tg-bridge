@@ -40,7 +40,10 @@ test('every documented command is listed in /help', () => {
   const silent = DOCUMENTED_COMMANDS.filter((name) => !documented.has(name));
   assert.deepEqual(silent, [], `commands a person cannot discover: ${silent.join(', ')}`);
   assert.ok(CONTROL_COMMANDS.length >= DOCUMENTED_COMMANDS.length);
-  assert.ok(Object.keys(COMMAND_ALIASES).length >= 4, 'the alias table went missing');
+  // `/tasks` used to be listed here: it is a command of its own now, because the
+  // tappable checklist the README advertises lived in a case the alias made
+  // unreachable, and `/tasks 1` added a task called "1".
+  assert.ok(Object.keys(COMMAND_ALIASES).length >= 3, 'the alias table went missing');
 });
 
 test('/settings is reachable, in all three languages', () => {

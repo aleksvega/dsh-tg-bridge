@@ -176,16 +176,21 @@ function writeConfig({ userId, cwd, voice }, dryRun) {
   console.log(`  config.json: создан (id ${userId}, voice ${voice ? 'вкл' : 'выкл'})`);
 }
 
-/** A missing headless profile cannot be invented: DSH ships its bundles. */
+/**
+ * A missing headless profile cannot be invented: DSH ships its bundles. The
+ * message is a blocker, not a hint — with no profile the bridge answers every
+ * message with an error — so it says that, names the one command that fixes it,
+ * and init reports the run as failed instead of "дальше: setup".
+ */
 function checkProfile() {
   const profile = join(DSH_HOME, 'profiles', 'headless');
   if (existsSync(profile)) {
     console.log('  профиль headless: на месте');
     return true;
   }
-  console.log('  профиль headless: НЕ НАЙДЕН');
-  console.log('    создай его один раз в приложении DSH: Settings → Profiles → headless,');
-  console.log('    либо скопируй шаблон из сборки: dsh --profile headless --dump-default-config');
+  console.log('  профиль headless: НЕ НАЙДЕН — без него бот не ответит ни на одно сообщение');
+  console.log('    создай его один раз: dsh --profile headless --dump-default-config');
+  console.log('    затем повтори init: npx dsh-tg-bridge@latest init --token … --user …');
   return false;
 }
 

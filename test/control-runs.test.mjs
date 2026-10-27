@@ -33,7 +33,9 @@ test("/help <alias> answers as the command that owns the job", async () => {
   // The pairs used to be explained apart. One letter apart is a mistake a phone
   // keyboard makes for the person, so there is one command and the old spelling
   // is answered with it — the reader never learns a second name.
-  const pairs = [["task", "tasks"], ["model", "models"], ["plugins", "plugin"], ["crew", "agentset"]];
+  // `/tasks` left this list: it is a command of its own now, because the tap
+  // card the README advertises sat in a case the alias made unreachable.
+  const pairs = [["model", "models"], ["plugins", "plugin"], ["crew", "agentset"]];
   for (const [one, many] of pairs) {
     const first = context("/help", one);
     const second = context("/help", many);

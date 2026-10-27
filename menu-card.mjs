@@ -17,7 +17,7 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './control.mjs';
 const SECTIONS = {
   work: ['cd', 'seed', 'send', 'sessions', 'rewind', 'fork', 'branches'],
   session: ['resume', 'profile', 'agents'],
-  goals: ['goal', 'task', 'plan', 'jobs', 'remind'],
+  goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
   talk: ['effort', 'reasoning', 'thoughts', 'prices', 'lang'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['settings', 'update', 'version', 'subscribe', 'doctor', 'logs', 'restart', 'app', 'help'],
@@ -69,6 +69,7 @@ const LABELS = {
   agents: '/agents',
   goal: '/goal <text>',
   task: '/task <text>',
+  tasks: '/tasks',
   plan: '/plan',
   jobs: '/jobs',
   remind: '/remind +15m',

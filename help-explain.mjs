@@ -10,7 +10,7 @@ import { t } from './i18n.mjs';
 /** The /help group each command is listed under. */
 const SECTION = {
   cd: 'Work', new: 'Work', stop: 'Work', send: 'Work', seed: 'Work',
-  goal: 'Goals', task: 'Goals',
+  goal: 'Goals', task: 'Goals', tasks: 'Goals',
   status: 'Sessions', sessions: 'Sessions', resume: 'Sessions', rewind: 'Sessions', fork: 'Sessions',
   branches: 'Sessions', profile: 'Sessions',
   agents: 'Agents', model: 'Models', prices: 'Models', thoughts: 'Models',

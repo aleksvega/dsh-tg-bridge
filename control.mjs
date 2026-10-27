@@ -642,7 +642,9 @@ function agentsetKeyboard(set, lang, boundId) {
 function taskKeyboard(goal) {
   if (!goal || goal.done) return [];
   const rows = [];
-  for (let i = 0; i + 2 < Math.min(goal.tasks.length, 90); i += 3) {
+  // `i + 2 < length` drew no rows at all for a goal with one or two tasks —
+  // exactly the goals a person has when they want to tick the first one.
+  for (let i = 0; i < Math.min(goal.tasks.length, 90); i += 3) {
     rows.push(goal.tasks.slice(i, i + 3).map((task, k) => {
       const n = i + k + 1;
       return { text: `${task.done ? '✅' : '⬜'} ${n}`, data: `t:${n}` };
@@ -699,7 +701,6 @@ export const CONTROL_COMMANDS = [
  * can mistype; a name that is not documented is a name nobody has to remember.
  */
 export const COMMAND_ALIASES = {
-  tasks: 'task',
   models: 'model',
   plugin: 'plugins',
   agentset: 'crew',
@@ -1448,8 +1449,19 @@ export async function handleControl(ctx) {
 
     case '/plugin': {
       const [action, ...rest] = (arg || '').split(/\s+/);
-      const target = (rest[0] === 'headless' || rest[0] === 'desktop') && rest.length > 1 ? rest.shift() : 'desktop';
-      const value = rest.join(' ').trim();
+      // The profile used to be the literal 'desktop' no matter which topic asked
+      // and no matter which profile the install had — on a fresh machine the only
+      // in-chat install therefore wrote into a profile that does not exist. The
+      // topic's own profile is the default now, and an explicit `headless` or
+      // `desktop` word overrides it: `/plugin add x`, `/plugin add headless x`
+      // and `/plugin add x headless` all mean the same thing, because the help
+      // text says "add headless or desktop at the end".
+      const profileWord = (word) => word === 'headless' || word === 'desktop';
+      const words = rest.filter(Boolean).slice();
+      let target = activeProfile;
+      if (words.length > 1 && profileWord(words[0])) target = words.shift();
+      else if (words.length > 1 && profileWord(words[words.length - 1])) target = words.pop();
+      const value = words.join(' ').trim();
       if (action === 'search' || action === 'find') {
         // The marketplace, from the chat. A word is optional: with none, the
         // registry lists what DSH plugins exist at all — the question the
@@ -1850,12 +1862,17 @@ export async function handleControl(ctx) {
     case '/tasks': {
       // The list is the control: a tap marks a task done, and the card is
       // redrawn in place. `/task` keeps the typed form for adding.
+      //
+      // This case used to be unreachable: `/tasks` was an alias of `/task`, so
+      // the advertised tap card never appeared and `/tasks 1` — the obvious way
+      // to mean "task 1" — silently added a task called "1".
       const L = lang;
       const current = goalOf(state, key);
       if (!current) { say(t(L, 'task.none')); return true; }
       const rows = taskKeyboard(current);
-      if (rows.length === 0) { say(goalView(current, L)); return true; }
-      await reply(goalView(current, L), { keyboard: rows });
+      const hint = String(arg || '').trim() ? `\n${t(L, 'task.tasksHint')}` : '';
+      if (rows.length === 0) { say(`${taskView(current, L)}${hint}`); return true; }
+      await reply(`${taskView(current, L)}${hint}`, { keyboard: rows });
       return true;
     }
 
