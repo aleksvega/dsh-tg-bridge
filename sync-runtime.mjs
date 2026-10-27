@@ -22,15 +22,36 @@ const target = flag > -1 && process.argv[flag + 1]
 if (!existsSync(target)) mkdirSync(target, { recursive: true });
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
-const names = readdirSync(here).filter((name) => name.endsWith('.mjs') || name === 'package.json');
+// Copy what `package.json` says the package is made of, not just the root .mjs
+// files: a module in a subdirectory (`i18n/en.mjs`) is imported by name, so a
+// root-only sync leaves the runtime with an import that cannot resolve and the
+// bridge refuses to start after `/restart confirm`. Directories are copied
+// recursively, and everything else in the runtime (config, state, logs) is left
+// alone because it is not in `files[]`.
+const entries = JSON.parse(readFileSync(join(here, 'package.json'), 'utf8')).files || [];
 let copied = 0;
-
-for (const name of names) {
-  if (name === 'sync-runtime.mjs') continue;
-  const to = join(target, name);
+const copyOne = (from, to) => {
   if (existsSync(to)) copyFileSync(to, `${to}.bak-${stamp}`);
-  copyFileSync(join(here, name), to);
+  mkdirSync(dirname(to), { recursive: true });
+  copyFileSync(from, to);
   copied += 1;
+};
+
+const copyTree = (fromDir, toDir) => {
+  for (const name of readdirSync(fromDir, { withFileTypes: true })) {
+    const from = join(fromDir, name.name);
+    const to = join(toDir, name.name);
+    if (name.isDirectory()) copyTree(from, to);
+    else copyOne(from, to);
+  }
+};
+
+// package.json is not in files[] (npm adds it itself) but /version reads it.
+for (const entry of ['package.json', ...entries]) {
+  const from = join(here, entry);
+  if (!existsSync(from)) continue;
+  if (entry.endsWith('/')) copyTree(from, join(target, entry.replace(/\/$/, '')));
+  else copyOne(from, join(target, entry));
 }
 
 const version = (() => {

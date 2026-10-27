@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.19.8
+
+- **Fixed: sync-runtime copied only the root .mjs files, so the dictionary
+  split in 1.19.7 left the runtime directory with an import that could not
+  resolve — the bridge would refuse to start after the next /restart confirm.**
+  It now copies exactly what package.json says the package is made of,
+  including subdirectories, and 	est/sync-runtime.test.mjs runs the real script
+  into a temp directory and boots the result. Caught minutes after publishing
+  1.19.7, before anyone restarted into it.
+
 ## 1.19.7
 
 - **Fixed: three files promised Node 20 (and one promised 18) while the package
