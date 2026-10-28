@@ -141,6 +141,20 @@ export async function readVoiceIntoText(msg, chatId, threadId, lang) {
 }
 
 /**
+ * A transcript as the turn should read it: the words, plus the fact that they
+ * came out of a speech recogniser.
+ *
+ * Without the note the model treats a misheard name as a deliberate word and
+ * answers the wrong question — "dodge" heard as "дождь" turns a car into
+ * weather. The note asks for a question where the guessing would start, and it
+ * is part of the prompt rather than the chat: the person already sees the
+ * transcript echoed above the reply.
+ */
+export function voicePromptText(heard, lang) {
+  return t(lang, 'prompt.voice', { text: String(heard ?? '').trim() });
+}
+
+/**
  * Attachments -> the prompt text that hands them to the turn.
  *
  * Takes a list because Telegram delivers an album as several messages sharing
@@ -168,14 +182,14 @@ export async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
         continue;
       }
       const heard = await readVoiceIntoText(msg, chatId, threadId, lang);
-      if (heard) parts.push(heard);
+      if (heard) parts.push(voicePromptText(heard, lang));
       continue;
     }
     // An audio file sent as a document is a voice note with a different
     // wrapper: transcribe it instead of handing over a path nobody can listen to.
     if (msg.document?.mime_type?.startsWith('audio/') && voiceOn) {
       const heard = await readVoiceIntoText({ ...msg, audio: msg.document }, chatId, threadId, lang);
-      if (heard) parts.push(heard);
+      if (heard) parts.push(voicePromptText(heard, lang));
       continue;
     }
     // Photo handling: the turn's own model reads the file through `read_image`.

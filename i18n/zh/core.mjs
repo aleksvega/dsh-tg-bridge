@@ -165,6 +165,7 @@ export default {
   'msg.voiceNotRecognized': '没能识别这条语音{detail}',
   'prompt.photo': '查看路径 {path} 的图片并详细描述：文字（逐字，保留原语言）、界面元素、物体。',
   'prompt.file': '用户发来文件：{path}（{type}，{size} 字节）。',
+  'prompt.voice': '🎤 这是语音消息的转写文本，由语音识别生成。人名、拉丁字母、文件名和生僻词可能听错。如果某个词看起来没有意义，请询问本意，不要自行猜测：下面是被听到的内容，不一定是原话。\n\n{text}',
   'prompt.note': '请求：{note}',
   'prompt.fileText': '用户发来文本文件：{path}（{type}，{size} 字节）。内容在标记之间：\n<file>\n{body}\n</file>',
   'prompt.photoMidTurn': '图片是在本轮进行中发来的，只附上了路径：如果无法打开图片，请用一句话说明。',

@@ -1,5 +1,21 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.1
+
+- **A voice note now arrives as a transcript, and says so.** The turn used to get
+  the recognised words with nothing marking where they came from, so a misheard
+  word was read as a deliberate one: "dodge" recognised as "дождь" turned a car
+  into weather, and the answer was about the wrong subject. The prompt now opens
+  with a line saying the text was produced by speech recognition, that names,
+  Latin words and rare terms may be misheard, and that the model should ask what
+  was meant instead of guessing. The echo in the chat is unchanged — the person
+  still sees what was heard before the reply. `test/voice-marker.test.mjs`.
+- **The published package no longer names a provider.** `model-probe.mjs` fell
+  back to a hard-coded provider environment variable while its own comment
+  promised that nothing was hardcoded; the probe now reads the first provider row
+  of the profile, with `DSH_PROBE_BASE_URL` and `DSH_PROBE_KEY_ENV` as the generic
+  overrides.
+
 ## 1.20.0
 
 - **A turn shows its answer, not its reasoning.** When a turn ended without a

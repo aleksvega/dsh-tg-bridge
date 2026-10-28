@@ -59,8 +59,12 @@ export function firstProvider() {
       if (found.baseUrl && found.keyEnv) break;
     }
   }
-  const baseUrl = (process.env.UNOROUTER_BASE_URL || found.baseUrl || '').trim().replace(/\/+$/, '');
-  const keyEnv = process.env.UNOROUTER_API_KEY ? 'UNOROUTER_API_KEY' : found.keyEnv;
+  // The profile row is the source of truth. These two overrides exist for the
+  // one case the file cannot describe — pointing the probe at a different host
+  // while debugging — and they carry no provider name, because the package is
+  // public and a name here would ship someone's vendor with it.
+  const baseUrl = (process.env.DSH_PROBE_BASE_URL || found.baseUrl || '').trim().replace(/\/+$/, '');
+  const keyEnv = (process.env.DSH_PROBE_KEY_ENV || '').trim() || found.keyEnv;
   cachedProvider = baseUrl ? { baseUrl, keyEnv } : null;
   return cachedProvider;
 }

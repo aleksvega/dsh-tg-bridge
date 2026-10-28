@@ -165,6 +165,7 @@ export default {
   'msg.voiceNotRecognized': 'Could not make out the voice message{detail}',
   'prompt.photo': 'Look at the image at {path} and describe it in detail: text (verbatim, keeping its language), interface elements, objects.',
   'prompt.file': 'The user sent a file: {path} ({type}, {size} bytes).',
+  'prompt.voice': '🎤 This is a transcript of a voice message, produced by speech recognition. Names, Latin words, file names and rare terms may be misheard. If a word makes no sense, ask what was meant instead of guessing — the text below is what was heard, not what was said.\n\n{text}',
   'prompt.note': 'The request: {note}',
   'prompt.fileText': 'The user sent a text file: {path} ({type}, {size} bytes). Its content is between the markers:\n<file>\n{body}\n</file>',
   'prompt.photoMidTurn': 'The image arrived mid-turn, so only its path is attached: if you cannot open images, say so in one line.',
