@@ -130,7 +130,10 @@
     "control/cmd-session.mjs",
     "control/cmd-skills.mjs",
     "control/cmd-task.mjs",
-    "control/cmd-views.mjs"
+    "control/cmd-views.mjs",
+    "i18n/en/",
+    "i18n/ru/",
+    "i18n/zh/"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {

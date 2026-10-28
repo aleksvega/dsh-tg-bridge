@@ -19,9 +19,6 @@ const LIMIT = 500;
 
 const MIGRATION = new Set([
   'bridge.mjs',
-  'i18n/en.mjs',
-  'i18n/ru.mjs',
-  'i18n/zh.mjs',
 ]);
 
 /** Every shipped module: `files[]`, with the declared directories expanded. */
