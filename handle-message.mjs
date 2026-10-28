@@ -20,9 +20,9 @@ import { renderPrices } from './prices.mjs';
 import { settingsChipOf, turnProfileOf } from './profile-view.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { startProgress } from './progress.mjs';
-import { MAX_PARALLEL, lastPrompt, queues } from './queue.mjs';
+import { lastPrompt, maxParallel, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
-import { config, done, log, saveState, state } from './state.mjs';
+import { config, done, log, saveConfig, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
 import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnStartedAt, typingLoop } from './turn.mjs';
@@ -226,15 +226,15 @@ ${t(lang, 'help.body')}`,
       config,
       activeTurns,
       saveState,
+      saveConfig,
       log,
       send,
-      // What `/jobs` shows: the turns that hold a slot right now and how many
-      // wait behind them. `queues` counts a topic that is running too, so the
-      // waiters are the keys without an active turn.
+      // What `/jobs` shows: the turns holding a slot, and the keys without an
+      // active turn waiting behind them.
       jobs: () => ({
         active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
         queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
-        max: MAX_PARALLEL,
+        max: maxParallel(),
       }),
       api: tg,
       sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),

@@ -113,6 +113,8 @@ Optional provider settings live in `config.json`:
 | `vision.patch` | opt-in overlay profile for photo turns; default `""` — the turn's own model reads images |
 | `vision.enabled` | set `true` to run photo turns on `vision.patch` instead of the topic profile |
 | `fallbackModels` | free-model fallbacks; default `[]` |
+| `maxParallel` | how many topics run at once, 1–8, default `3`; also `/jobs 5` in the chat |
+| `replayWindowMs` | how old a journaled update may be and still be replayed after a restart; default `600000` (10 min) |
 
 Get your id from [@userinfobot](https://t.me/userinfobot), the token from
 [@BotFather](https://t.me/BotFather).

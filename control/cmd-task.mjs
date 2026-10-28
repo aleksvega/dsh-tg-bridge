@@ -32,6 +32,7 @@ import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
+import { CAP_CHOICES, CAP_MAX, CAP_MIN, setParallel } from '../jobs-cap.mjs';
 
 export async function handleTaskCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
@@ -155,8 +156,27 @@ export async function handleTaskCommands(ctx) {
       // What survives — and what a person waiting on a reply actually needs —
       // is the bridge's queue: which topics are running now, for how long, and
       // how many waits behind them.
+      //
+      // The card also owns the ceiling. It was a config-file key nobody could
+      // reach from the chat, and a wrong value showed up as "your message is
+      // waiting for a free slot" with no way to widen it. `/jobs 5` sets it, and
+      // so does a button — both through `setParallel`, so they cannot disagree,
+      // and the card is redrawn either way, so the answer is the new state.
+      const asked = String(arg || '').trim();
+      let set = null;
+      if (asked) {
+        set = setParallel(asked, { config, saveConfig: ctx.saveConfig, log });
+        if (!set.ok) {
+          say(t(lang, 'ctrl.jobs.capRange', { min: CAP_MIN, max: CAP_MAX }));
+          return true;
+        }
+      }
       const snapshot = ctx.jobs ? ctx.jobs() : { active: [], queued: 0, max: 0 };
-      const lines = [t(lang, 'ctrl.jobs.title')];
+      const lines = [];
+      // One message: what changed, then the state it changed to. Two messages
+      // for one tap is noise in a chat that is already long.
+      if (set) lines.push(t(lang, set.saved ? 'ctrl.jobs.capSet' : 'ctrl.jobs.capUnsaved', { n: set.n }), '');
+      lines.push(t(lang, 'ctrl.jobs.title'));
       if (snapshot.active.length === 0) {
         lines.push(t(lang, 'ctrl.jobs.idle'));
       } else {
@@ -168,7 +188,15 @@ export async function handleTaskCommands(ctx) {
       }
       lines.push(t(lang, 'ctrl.jobs.queued', { n: snapshot.queued, max: snapshot.max }));
       lines.push(t(lang, 'ctrl.jobs.hint'));
-      say(lines.join('\n'));
+      const cap = Number(snapshot.max) || 0;
+      lines.push(t(lang, 'ctrl.jobs.cap', { n: cap }));
+      // The numbers a person actually picks from. `jb:` is answered in
+      // callbacks.mjs by running `/jobs <n>`, the same command this argument runs.
+      const rows = [CAP_CHOICES.map((n) => ({
+        text: n === cap ? `• ${n}` : String(n),
+        data: `jb:${n}`,
+      }))];
+      say(lines.join('\n'), { keyboard: rows });
       return true;
     }
     case '/remind': {

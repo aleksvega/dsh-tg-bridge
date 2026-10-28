@@ -1,5 +1,35 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.23.0
+
+- **Buttons were never sent.** Every card built its keyboard as `{ text, data }`
+  — a payload, not a Telegram field. Telegram wants `callback_data` and rejects
+  the *entire message* when it sees `data`, and every send wrapped its API call
+  in `.catch(() => {})`, so `/menu`, `/settings` and the task card drew nothing
+  for four releases and said nothing about it. One conversion now happens at the
+  transport edge (`inlineKeyboard`), a button with no payload is dropped instead
+  of sinking the message, and a keyboard Telegram refuses is logged and retried
+  as text without buttons. Verified against the live API, not only in a test.
+- **One typed command, one answer — across restarts.** `/update confirm` on
+  1.22.0 installed the release and then threw on an undefined name. It was never
+  acked, so it stayed in the journal; each restart replayed it, it threw again,
+  and one command produced "already on 1.22.0" three times. A command that
+  throws is now answered in one line and acked, a replayed turn gets exactly one
+  retry, and a journal entry older than the replay window is dropped instead of
+  being re-run as a fresh turn.
+- **The parallel ceiling is reachable from the chat.** It was a config-file key
+  (`maxParallel`, 1–8) nobody could find; a fourth topic simply said "waiting for
+  a free slot" with no way to widen it. `/jobs 5` sets it, the `/jobs` card
+  carries a row of buttons for 1–8, and both go through one function, so a tap
+  cannot store a value the command would refuse. Written to `config.json`; a
+  failed write still applies to the running process and says so.
+- **Three refactor casualties that `node --check` cannot see.** `saveState` was
+  called but never destructured in `cmd-bridge.mjs` and `cmd-plugin.mjs`, `tg`
+  was used but not imported in `steer.mjs`, and `deliverTurn` had been renamed to
+  `redeliver` while two call sites kept the old name. A new guard test
+  (`test/unresolved-calls.test.mjs`) scans every shipped module for a call to a
+  helper it neither declares nor imports.
+
 ## 1.22.0
 
 - **💭 notes actually reach the progress card.** Two files exist for one topic:

@@ -9,13 +9,13 @@ import { resolveLang, t } from './i18n.mjs';
 import { sessionKey } from './keys.mjs';
 import { commandForName, isMenuPress, menuTarget, renderPanel, runsUnasked } from './menu-card.mjs';
 import { DIR, DSH_HOME, LOG } from './paths.mjs';
-import { MAX_PARALLEL, approvals, enqueue, lastPrompt, rewindUsed } from './queue.mjs';
+import { approvals, enqueue, lastPrompt, maxParallel, rewindUsed } from './queue.mjs';
 import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { runCommandFromButton } from './run-command.mjs';
 import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
 import { config, done, log, saveState, state } from './state.mjs';
-import { send, sendFile, tg } from './telegram.mjs';
+import { inlineKeyboard, send, sendFile, tg } from './telegram.mjs';
 import { sessionFile } from './thoughts.mjs';
 import { activeTurns, killTurn, profileOf } from './turn.mjs';
 import { readFileSync } from 'node:fs';
@@ -142,6 +142,16 @@ export async function handleCallback(query) {
     return;
   }
 
+  // A parallel-slot button from the /jobs card. It runs the command the card
+  // advertises, so validation and storage live in one place and a tap cannot
+  // write a value `/jobs <n>` would refuse. The command redraws the card, so the
+  // answer to the press is the new state, not a second message about it.
+  if (data.startsWith('jb:')) {
+    await clearKeyboard();
+    await runCommandFromButton(`/jobs ${data.slice(3)}`, { chatId, threadId, key });
+    return;
+  }
+
   if (isMenuPress(data)) {
     // The panel is a set of cards: the hub, then one page per section. Moving
     // between them edits this message, so browsing costs no new messages. A
@@ -154,7 +164,7 @@ export async function handleCallback(query) {
         chat_id: chatId,
         message_id: messageId,
         text: card.text,
-        reply_markup: { inline_keyboard: card.keyboard },
+        reply_markup: { inline_keyboard: inlineKeyboard(card.keyboard) },
         ...(threadId > 0 ? { message_thread_id: threadId } : {}),
       }).catch(() => {});
       await answer(t(lang, 'bridge.cb.done'));
@@ -262,7 +272,7 @@ export async function handleCallback(query) {
       chat_id: chatId,
       message_id: messageId,
       text,
-      reply_markup: { inline_keyboard: taskRows(goal) },
+      reply_markup: { inline_keyboard: inlineKeyboard(taskRows(goal)) },
     }).catch(() => {});
     await answer(t(lang, goal.tasks[n - 1]?.done ? 'bridge.cb.taskDone' : 'bridge.cb.taskUndone'));
     log(`task ${n} toggled for ${key}`);
@@ -315,7 +325,7 @@ export async function handleCardPress(query, ctx) {
       chat_id: chatId,
       message_id: messageId,
       text: card.text,
-      reply_markup: { inline_keyboard: card.keyboard },
+      reply_markup: { inline_keyboard: inlineKeyboard(card.keyboard) },
       ...(threadId > 0 ? { message_thread_id: threadId } : {}),
     }).catch((error) => log(`settings card redraw failed: ${error.message}`));
     await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
@@ -348,7 +358,7 @@ export async function handleCardPress(query, ctx) {
       replies.push(String(text ?? ''));
       return Promise.resolve(0);
     },
-    jobs: () => ({ active: [], queued: 0, max: MAX_PARALLEL }),
+    jobs: () => ({ active: [], queued: 0, max: maxParallel() }),
     api: tg,
     sendFile: () => Promise.resolve(0),
     profile: profileOf(key),

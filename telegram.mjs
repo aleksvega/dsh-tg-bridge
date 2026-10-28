@@ -84,6 +84,40 @@ export async function downloadFile(fileId, fileName) {
  * shapes a person can end up with, so every call site hands its intent here
  * instead of building `reply_markup` itself.
  */
+/**
+ * Rows of buttons, in the one shape Telegram accepts.
+ *
+ * The cards build buttons as `{ text, data }` — a payload, not a Telegram field,
+ * because the card does not know or care where it will be drawn. Telegram wants
+ * `callback_data` and rejects the *whole message* with "Text buttons are not
+ * allowed in the inline keyboard" when it sees `data` instead. That rejection was
+ * swallowed by the `.catch(() => {})` on every send, so `/menu`, `/settings` and
+ * the task card drew nothing at all and said nothing about it.
+ *
+ * One conversion here, at the edge, so a card can keep its own vocabulary.
+ */
+export function inlineKeyboard(rows) {
+  if (!Array.isArray(rows)) return rows;
+  const out = [];
+  for (const row of rows) {
+    if (!Array.isArray(row)) { out.push(row); continue; }
+    const buttons = [];
+    for (const button of row) {
+      if (!button || typeof button !== 'object') { buttons.push(button); continue; }
+      const { data, ...rest } = button;
+      const payload = rest.callback_data ?? rest.url ?? rest.web_app ?? data;
+      // A button with neither a payload nor a link is a label Telegram refuses —
+      // and it refuses the whole message, not the button.
+      if (payload === undefined) continue;
+      buttons.push(rest.callback_data !== undefined || rest.url !== undefined || rest.web_app !== undefined
+        ? rest
+        : { ...rest, callback_data: String(payload) });
+    }
+    if (buttons.length > 0) out.push(buttons);
+  }
+  return out;
+}
+
 export async function sendWithMarkup(chatId, threadId, text, extra = {}) {
   const thread = threadId > 0 ? { message_thread_id: threadId } : {};
   if (extra.removeKeyboard) {
@@ -107,9 +141,15 @@ export async function sendWithMarkup(chatId, threadId, text, extra = {}) {
       chat_id: chatId,
       text,
       disable_web_page_preview: true,
-      reply_markup: { inline_keyboard: extra.keyboard },
+      reply_markup: { inline_keyboard: inlineKeyboard(extra.keyboard) },
       ...thread,
-    }).catch(() => {});
+    }).catch((error) => {
+      // Silence here cost a release: the card never appeared and the log said
+      // nothing. A keyboard Telegram refuses is a bug in this repo, so say which
+      // button it was and still deliver the text without buttons.
+      log(`inline keyboard rejected (${String(error.message).slice(0, 160)}); sending without buttons`);
+      return tg('sendMessage', { chat_id: chatId, text, disable_web_page_preview: true, ...thread }).catch(() => {});
+    });
   }
   return send(chatId, text, threadId);
 }

@@ -76,6 +76,28 @@ export function saveDone() {
   }
 }
 
+/**
+ * Write config.json back.
+ *
+ * Only for a setting the owner changed from the chat: `config` is the live
+ * object every module reads, so mutating it first and persisting second means a
+ * failed write costs the restart, not the current setting. Re-reads the file so
+ * keys written by hand (tokens, profiles) are not dropped by a stale copy.
+ */
+export function saveConfig() {
+  try {
+    let onDisk = {};
+    try {
+      onDisk = JSON.parse(readFileSync(join(DIR, 'config.json'), 'utf8').replace(/^\uFEFF/, ''));
+    } catch {}
+    writeAtomic(join(DIR, 'config.json'), `${JSON.stringify({ ...onDisk, ...config }, null, 2)}\n`);
+    return true;
+  } catch (error) {
+    log(`config.json write failed: ${error.message}`);
+    return false;
+  }
+}
+
 export function pendingPath(updateId) {
   return join(PENDING_DIR, `${updateId}.json`);
 }
@@ -127,7 +149,10 @@ export function pendingUpdates() {
         continue;
       }
       try {
-        out.push({ update: JSON.parse(readFileSync(full, 'utf8')), id });
+        // `at` is the moment the update arrived, which is what the replay loop
+        // needs to tell "this was mid-flight when we died" from "this has been
+        // sitting here for hours and the person has long since moved on".
+        out.push({ update: JSON.parse(readFileSync(full, 'utf8')), id, at: stat.mtimeMs });
       } catch {
         try { unlinkSync(full); } catch {}
       }

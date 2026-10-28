@@ -11,7 +11,7 @@ import { langFor } from './commands.mjs';
 import { resolveLang, t } from './i18n.mjs';
 import { sessionKey, threadOf } from './keys.mjs';
 import { RESTART_MARKER } from './paths.mjs';
-import { config, log, state } from './state.mjs';
+import { config, log, saveConfig, state } from './state.mjs';
 import { busyNotices, clearBusyNotice, steerAvailable, steerMediaMessage } from './steer.mjs';
 import { send, tg } from './telegram.mjs';
 import { liveSessions, profileOf, turnStartedAt } from './turn.mjs';
@@ -21,7 +21,7 @@ let handle = () => { throw new Error('queue: message handler is not wired'); };
 export function setMessageHandler(fn) { handle = fn; }
 
 /** A steer that outlived its turn becomes a turn of its own. */
-const redeliver = (key, message) => enqueue(key, () => handle(message));
+export const redeliver = (key, message) => enqueue(key, () => handle(message));
 // Per-topic turn queues: one turn at a time inside a topic, different topics run
 // in parallel. Bounded, because every turn is a full Electron process.
 export const queues = new Map();

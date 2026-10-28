@@ -3,8 +3,8 @@
 import { langFor } from './commands.mjs';
 import { handleControl } from './control.mjs';
 import { t } from './i18n.mjs';
-import { MAX_PARALLEL } from './queue.mjs';
-import { config, log, saveState, state } from './state.mjs';
+import { maxParallel, queues } from './queue.mjs';
+import { config, log, saveConfig, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
 import { ensureTopicSeed } from './topics.mjs';
 import { activeTurns, profileOf, turnStartedAt } from './turn.mjs';
@@ -25,12 +25,13 @@ export async function runCommandFromButton(typed, { chatId, threadId, key }) {
     config,
     activeTurns,
     saveState,
+    saveConfig,
     log,
     send,
     jobs: () => ({
       active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
       queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
-      max: MAX_PARALLEL,
+      max: maxParallel(),
     }),
     api: tg,
     sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),

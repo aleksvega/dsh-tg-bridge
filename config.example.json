@@ -8,6 +8,7 @@
   "turnTimeoutMs": 0,
   "busyNoticeMs": 45000,
   "maxParallel": 3,
+  "replayWindowMs": 600000,
   "approvalTimeoutMs": 600000,
   "generalLobby": true,
   "topicLog": true,

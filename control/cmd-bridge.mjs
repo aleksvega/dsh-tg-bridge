@@ -63,7 +63,7 @@ function versionCard(lang) {
 }
 
 export async function handleBridgeCommands(ctx) {
-  const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
+  const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang, saveState } = ctx;
   // The topic's language, then the config default, then English. Never Russian:
   // a group that has no opinion still must not guess a language.
   const lang = normalizeLang(rawLang) || normalizeLang(config?.lang) || 'en';

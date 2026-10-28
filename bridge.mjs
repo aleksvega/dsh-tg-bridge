@@ -32,7 +32,7 @@ import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { mediaPrompt, readVoiceIntoText } from './media.mjs';
 import { busyNotices, clearBusyNotice, steerAvailable, steerMediaMessage, steerRunningTurn } from './steer.mjs';
-import { MAX_PARALLEL, approvals, bufferAlbum, enqueue, lastPrompt, queues, rewindUsed, setMessageHandler } from './queue.mjs';
+import { MAX_PARALLEL, approvals, bufferAlbum, enqueue, lastPrompt, queues, redeliver, rewindUsed, setMessageHandler } from './queue.mjs';
 import { applyAsetJob, settingsChipOf, turnProfileOf } from './profile-view.mjs';
 import { handleMessage } from './handle-message.mjs';
 import { boundSetOf, handleCallback, handleCardPress, renderTaskCard, taskRows } from './callbacks.mjs';
@@ -204,7 +204,23 @@ async function main() {
       Promise.resolve()
         .then(() => handleMessage(msg))
         .then(() => ack(update.update_id))
-        .catch((error) => log(`command ${immediate} failed: ${error.message}`));
+        // A command that threw is answered by the log, not by a replay. Leaving
+        // it pending meant every restart ran it again: `/update` installed the
+        // release, died on an undefined name, was never acked, and the journal
+        // replayed it four times — the chat got "already on 1.22.0" three times
+        // for one typed command.
+        .catch(async (error) => {
+          log(`command ${immediate} failed: ${error.message}`);
+          // The person typed a command and got nothing back: silence reads as
+          // "still working". One line, then the update is done with.
+          const lang = resolveLang(state, queueKey, msg, config);
+          await send(
+            msg.chat.id,
+            t(lang, 'msg.commandFailed', { cmd: immediate, err: String(error.message).slice(0, 200) }),
+            thread,
+          ).catch(() => {});
+          ack(update.update_id);
+        });
       return;
     }
     // Telegram splits an album into one update per file, all sharing a
@@ -229,7 +245,7 @@ async function main() {
       if (activeTurns.has(queueKey) && sessionId) {
         if (steerText && !steerMedia) {
           try {
-            const job = steerRunningTurn(msg, steerText, sessionId, thread, deliverTurn);
+            const job = steerRunningTurn(msg, steerText, sessionId, thread, redeliver);
             log(`steer handled outside the queue: ${job.id}`);
             ack(update.update_id);
           } catch (error) {
@@ -243,7 +259,7 @@ async function main() {
         // the voicemail in a directory nobody reads again.
         ack(update.update_id);
         const lang = resolveLang(state, queueKey, msg, config);
-        void steerMediaMessage(msg, sessionId, queueKey, thread, lang, deliverTurn).catch((error) => {
+        void steerMediaMessage(msg, sessionId, queueKey, thread, lang, redeliver).catch((error) => {
           // The attachment could not be prepared (download, transcription). It
           // still deserves an answer, so let the normal path take it: it retries
           // the same work and reports the failure itself.
@@ -263,8 +279,11 @@ async function main() {
           ack(update.update_id);
           if (replay) log(`replayed update ${update.update_id} after restart`);
         } catch (error) {
-          // Keep the pending file: the next start retries it once.
-          log(`turn error for update ${update.update_id}: ${error.message}`);
+          // One retry, then the answer is owed by nobody: a turn that throws the
+          // same way on every start would otherwise be replayed on every restart
+          // until the TTL, filling the chat with identical failures.
+          log(`turn error for update ${update.update_id}: ${error.message}${replay ? ' (already a retry, dropping)' : ''}`);
+          if (replay) ack(update.update_id);
         }
       },
       // Only plain text prompts can queue behind a turn; commands are
@@ -308,10 +327,27 @@ async function main() {
   // leave the update pending forever, so the bridge replayed it, died, and was
   // restarted by the supervisor — every ninety seconds, with a stack trace and
   // nothing else. Drop the entry after reporting it.
+  //
+  // And a replay is only for what was genuinely mid-flight. After a bad release
+  // left nineteen updates unacked, the next start would have re-run a whole
+  // evening of turns the owner had already been answered for — the same money
+  // twice, in messages he had read. Age is the only signal the journal carries
+  // that separates "we died under this" from "this was answered or abandoned
+  // long ago", so anything older than the window is dropped and said out loud.
+  const replayWindowMs = Number(config.replayWindowMs) > 0
+    ? Number(config.replayWindowMs)
+    : 10 * 60 * 1000;
   const owed = pendingUpdates();
-  if (owed.length > 0) {
-    log(`replaying ${owed.length} pending update(s) from the journal`);
-    for (const { update } of owed) {
+  const now = Date.now();
+  const fresh = owed.filter(({ at }) => !at || now - at <= replayWindowMs);
+  const stale = owed.filter(({ at }) => at && now - at > replayWindowMs);
+  if (stale.length > 0) {
+    log(`dropping ${stale.length} pending update(s) older than ${Math.round(replayWindowMs / 60000)} min: ${stale.map(({ id }) => id).join(', ')}`);
+    for (const { id } of stale) ack(id);
+  }
+  if (fresh.length > 0) {
+    log(`replaying ${fresh.length} pending update(s) from the journal`);
+    for (const { update } of fresh) {
       try {
         accept(update, true);
       } catch (error) {

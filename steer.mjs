@@ -13,7 +13,7 @@ import { config, log, state } from './state.mjs';
 import { resolveLang, t } from './i18n.mjs';
 import { sessionKey } from './keys.mjs';
 import { activeTurns } from './turn.mjs';
-import { send } from './telegram.mjs';
+import { send, tg } from './telegram.mjs';
 import { mediaPrompt } from './media.mjs';
 /**
  * Queue notices, one per topic. A notice exists only while the person is
