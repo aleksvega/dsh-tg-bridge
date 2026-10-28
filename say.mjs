@@ -123,7 +123,16 @@ async function main() {
   if (args.thought) {
     try {
       mkdirSync(THOUGHTS, { recursive: true });
-      const file = join(THOUGHTS, `${chatId}_${threadId || 0}.jsonl`);
+      // The turn's own file when the bridge exported one: two turns in the same
+      // topic then never mix, and the panel reads that file directly. The stable
+      // per-topic name stays the fallback for a shell that lost the env, and the
+      // panel reads both — so a note never lands in a file nobody reads, which
+      // is exactly what made 💭 stay empty while the file on disk kept growing.
+      const explicit = (process.env.DSH_TG_THOUGHT || '').trim();
+      const own = explicit && explicit.split(/[\\/]/).pop()?.startsWith(`${chatId}_${threadId || 0}_`)
+        ? explicit
+        : '';
+      const file = own || join(THOUGHTS, `${chatId}_${threadId || 0}.jsonl`);
       appendFileSync(file, `${JSON.stringify({ at: Date.now(), text: args.text })}\n`, 'utf8');
       console.log(file);
     } catch (error) {

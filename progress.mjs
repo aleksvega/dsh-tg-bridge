@@ -14,6 +14,7 @@ import { tg } from './telegram.mjs';
 import { topicName } from './topics.mjs';
 import { t } from './i18n.mjs';
 import { addStep, progressPanel, stepLine } from './panel.mjs';
+import { recentThoughts } from './notes.mjs';
 import { continueKeyboard, errorKeyboard } from './keyboards.mjs';
 
 /**
@@ -60,26 +61,27 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   // message shows the last two, so the person sees the decision trail without
   // a second stream of chat messages. The path is unique per turn (see
   // startTurn) so two turns never share one file.
+  //
+  // Two writers exist and they do not agree on the path. The turn's own file
+  // (`DSH_TG_THOUGHT`) is only reachable when the tool shell inherits the
+  // bridge's environment, and tool shells usually do not — so `say.mjs` falls
+  // back to the stable per-topic file. Reading only the first path silently
+  // dropped every note: the 💭 block stayed empty for a whole session while the
+  // topic file on disk kept growing. Read both, keep this turn's lines only.
   const notes = thoughtFile || join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
+  const topicNotes = join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
   let thoughts = [];
   try {
     mkdirSync(THOUGHT_DIR, { recursive: true });
-    writeFileSync(notes, '');
+    // Start this turn's file empty — but never truncate the stable per-topic
+    // file, which is shared history and the only record when a turn wrote
+    // through the fallback path.
+    if (thoughtFile) writeFileSync(notes, '');
   } catch {}
   const thoughtTimer = setInterval(() => {
-    let next = [];
-    try {
-      next = readFileSync(notes, 'utf8')
-        .split('\n')
-        .filter(Boolean)
-        .slice(-2)
-        .map((line) => {
-          try { return String(JSON.parse(line).text || '').slice(0, 140); } catch { return ''; }
-        })
-        .filter(Boolean);
-    } catch {}
-    if (next.join('\n') !== thoughts.join('\n')) {
-      thoughts = next;
+    const merged = recentThoughts([notes, topicNotes], started);
+    if (merged.join('\n') !== thoughts.join('\n')) {
+      thoughts = merged;
       schedule();
     }
   }, 3000);

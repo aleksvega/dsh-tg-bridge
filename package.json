@@ -54,6 +54,7 @@
     "keys.mjs",
     "keyboards.mjs",
     "progress.mjs",
+    "notes.mjs",
     "turn.mjs",
     "control.mjs",
     "control/release.mjs",

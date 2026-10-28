@@ -12,8 +12,8 @@ import { resolveLang, t } from './i18n.mjs';
 import { sessionKey, threadOf } from './keys.mjs';
 import { RESTART_MARKER } from './paths.mjs';
 import { config, log, state } from './state.mjs';
-import { clearBusyNotice, steerAvailable, steerMediaMessage } from './steer.mjs';
-import { tg } from './telegram.mjs';
+import { busyNotices, clearBusyNotice, steerAvailable, steerMediaMessage } from './steer.mjs';
+import { send, tg } from './telegram.mjs';
 import { liveSessions, profileOf, turnStartedAt } from './turn.mjs';
 
 /** The message handler is wired in by the entry module: it owns the turn. */
@@ -27,10 +27,25 @@ const redeliver = (key, message) => enqueue(key, () => handle(message));
 export const queues = new Map();
 export const waiting = [];
 export let running = 0;
+/** Default cap; `config.maxParallel` overrides it for one install. */
 export const MAX_PARALLEL = 3;
 
+/**
+ * How many turns may run at once.
+ *
+ * Three was a guess that fit a small machine, and it is a real ceiling: with
+ * three long turns in flight a fourth topic waited with no message at all, so a
+ * prompt in a fresh topic looked exactly like a dead bot. The number is a
+ * setting now, and waiting for a slot is announced (see `enqueue`).
+ */
+export function maxParallel() {
+  const raw = Number(config?.maxParallel);
+  if (!Number.isFinite(raw)) return MAX_PARALLEL;
+  return Math.min(8, Math.max(1, Math.round(raw)));
+}
+
 export function acquire() {
-  if (running < MAX_PARALLEL) {
+  if (running < maxParallel()) {
     running += 1;
     return Promise.resolve();
   }
@@ -112,7 +127,21 @@ export function enqueue(key, task, onBusy) {
   const prev = queues.get(key) || Promise.resolve();
   const queued = queues.has(key);
   const run = prev
-    .then(() => acquire())
+    .then(() => {
+      // A turn waiting for a free slot used to wait in total silence: with three
+      // long turns running, a prompt in a fourth topic showed nothing at all —
+      // not even "queued" — so the bot looked dead in that topic. Say it once,
+      // in the topic that is waiting; `clearBusyNotice` removes it when the turn
+      // actually starts.
+      if (!queued && running >= maxParallel()) {
+        const [chatId, threadId] = String(key).split(':');
+        const lang = resolveLang(state, key, null, config);
+        Promise.resolve(send(chatId, t(lang, 'msg.slotWait', { max: maxParallel() }), Number(threadId) || 0))
+          .then((messageId) => { if (messageId) busyNotices.set(key, { chatId, messageId }); })
+          .catch(() => {});
+      }
+      return acquire();
+    })
     .then(async () => {
       // The person was told "your message is queued"; that notice has done its
       // job the moment the turn starts and must not linger in the chat.
