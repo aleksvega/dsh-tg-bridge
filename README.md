@@ -17,7 +17,7 @@ a bot that answers, one step at a time.
 - **Photos**: the turn's own model reads them through `read_image`, text and UI
   included; no second model is needed (a vision overlay stays opt-in).
 - **Project per topic**: `/cd my-app`, and all turns run from that directory.
-- **Goal and checklist per topic**: `/goal`, `/task`; both survive restarts and are prepended to every turn.
+- **Goal and checklist per topic**: `/goal`, `/tasks`; both survive restarts and are prepended to every turn.
 - **Live progress**: one edited message per turn — steps, a timer and the cache hit rate, plus
   the model's reasoning in a collapsed block you can tap open. A long turn adds a second
   collapsed block with every tool call, so the whole run stays in the chat as one message.
@@ -191,7 +191,7 @@ Send the bot:
 
 ```
 Work:         /cd · /new · /stop · /send · /seed
-Goals:        /goal (plan + checklist) · /goal reopen · /task (checklist only) · /task done|rm|edit <n>
+Goals:        /goal (plan + checklist) · /goal reopen · /tasks (checklist only) · /tasks done|rm|edit <n>
 Sessions:     /status · /sessions · /resume
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <id> · /prices
@@ -413,10 +413,10 @@ restart and a different session:
 ```
 /goal ship the release      set or replace the goal
 /goal                       show the goal and the checklist
-/task write the migration   add a task
-/task done 2                tick it off
-/task edit 2 shorter words   rewrite it in place, same number
-/task rm 2                  remove it
+/tasks write the migration   add a task
+/tasks done 2                tick it off
+/tasks edit 2 shorter words   rewrite it in place, same number
+/tasks rm 2                  remove it
 /goal reopen                open a closed goal again
 /goal done                  close the goal (all tasks done)
 /goal clear                 delete the goal and its tasks

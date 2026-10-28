@@ -91,7 +91,7 @@ Type, don't explain:
 
 - `/cd /path/to/project` — all turns then run there.
 - `/model` — pick a model; `/permissions` — how much it may do.
-- `/goal <what done looks like>` and `/task <step>`, then bare `/task` — a plan they
+- `/goal <what done looks like>` and `/tasks <step>`, then bare `/tasks` — a plan they
   can tap off as it moves.
 - `/stop` — kills a long answer; `/restart confirm` — reloads code after an update.
 - `/help` — every command.

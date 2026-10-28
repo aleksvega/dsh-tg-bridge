@@ -82,7 +82,7 @@ Everything below is typed in the chat, not in a terminal.
 | Cheaper or stronger model | `/model` then pick, or `/model <id>` |
 | More freedom for commands | `/permissions` |
 | See what it is doing | it posts a live progress message; `/thoughts` toggles the 💭 notes |
-| A plan you can tick off | `/goal <what done looks like>`, then `/task <step>`, then bare `/task` to tap items |
+| A plan you can tick off | `/goal <what done looks like>`, then `/tasks <step>`, then bare `/tasks` to tap items |
 | Stop a long answer | `/stop` |
 | Tell me about new versions, or stop | /update on / /update off — neither one installs anything |
 | Install an update, then load it | /update confirm, then /restart confirm |

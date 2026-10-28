@@ -50,10 +50,15 @@ test('a one-task goal still gets the tap card', async () => {
   assert.ok(out[0].keyboard?.length, 'the card must carry buttons even for a single task');
 });
 
-test('/tasks 1 shows the list and adds nothing', async () => {
+test('/tasks 1 ticks that task, and adds nothing', async () => {
+  // A bare number is the obvious way to say "task 1", so it means exactly that —
+  // it used to add a task literally named "1", which is why `/tasks` had to be
+  // split off from `/task`. One command now handles both forms.
   const { out, state, ctx } = harness([{ text: 'a', done: false }, { text: 'b', done: false }]);
   await handleControl(ctx('/tasks', '1'));
   assert.equal(state.goals['1:2'].tasks.length, 2, 'no task may be invented from an argument');
-  assert.match(out[0].text, /2\. b/);
-  assert.match(out[0].text, /\/task done\|rm\|edit/, 'the hint says which command does change the list');
+  assert.equal(state.goals['1:2'].tasks[0].done, true, 'the number names the task to tick');
+  assert.match(out[0].text, /Task 1 done/);
+  assert.match(out.at(-1).text, /2\. b/, 'the card comes back, redrawn');
+  assert.ok(out.at(-1).keyboard?.length, 'and it is still tappable');
 });

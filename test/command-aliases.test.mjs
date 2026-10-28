@@ -1,4 +1,4 @@
-﻿// One name per job. A phone keyboard turns `task` into `tasks` without the person
+// One name per job. A phone keyboard turns `task` into `tasks` without the person
 // noticing, so the pair must be the same command — and the second spelling must
 // never be advertised, or the confusion comes back through the documentation.
 import test from "node:test";
@@ -42,7 +42,7 @@ test("a renamed command keeps its old spelling as an alias", () => {
 test("the help sentence of a pair names its command only once", () => {
   // A sentence like "… the list is /tasks" teaches the alias back.
   for (const lang of LANGS) {
-    for (const canonical of ["task", "model", "plugins", "crew"]) {
+    for (const canonical of ["tasks", "model", "plugins", "crew"]) {
       const said = t(lang, `ctrl.help.about.${canonical}`);
       assert.ok(said.length > 20, `${lang}/${canonical} has no sentence`);
       const leaked = names(said).filter((name) => COMMAND_ALIASES[name]);

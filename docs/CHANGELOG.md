@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.2
+
+- **`/task` and `/tasks` are one command again, and the menu shows it once.**
+  They had been split because `/tasks`, as an alias, swallowed the argument:
+  `/tasks 1` added a task whose text was "1". Splitting fixed that and doubled
+  the list — two nearly identical names, one of which did nothing the other could
+  not. `/tasks` now takes the argument itself: a bare number ticks that task,
+  `done|rm|edit <n>` say it out loud, any other text adds, and no argument shows
+  the card. `/task` still works and is never advertised, the way `models` and
+  `plugin` already work. `ctrl.help.about.task` folded into
+  `ctrl.help.about.tasks`; `/help`, the panel, the README and the start guide
+  teach one name.
+
 ## 1.20.1
 
 - **A voice note now arrives as a transcript, and says so.** The turn used to get

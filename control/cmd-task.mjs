@@ -84,31 +84,43 @@ export async function handleTaskCommands(ctx) {
       return true;
     }
     case '/tasks': {
-      // The list is the control: a tap marks a task done, and the card is
-      // redrawn in place. `/task` keeps the typed form for adding.
+      // One command, one name. The card is the control — a tap marks a task
+      // done — and the same command takes the typed form:
       //
-      // This case used to be unreachable: `/tasks` was an alias of `/task`, so
-      // the advertised tap card never appeared and `/tasks 1` — the obvious way
-      // to mean "task 1" — silently added a task called "1".
+      //   /tasks              the card, a button per task
+      //   /tasks 3            mark task 3 done, then redraw the card
+      //   /tasks done 3       the same, said out loud
+      //   /tasks rm 3         remove it
+      //   /tasks edit 3 text  reword it, keeping the number
+      //   /tasks any text     add it
+      //
+      // `/task` still works as an undocumented alias: a phone keyboard turns one
+      // spelling into the other without the person noticing, and a name that is
+      // never advertised is a name nobody has to remember. The menu used to show
+      // both, which is what made the list look like noise.
       const L = lang;
+      const body = String(arg || '').trim();
       const current = goalOf(state, key);
       if (!current) { say(t(L, 'task.none')); return true; }
-      const rows = taskKeyboard(current);
-      const hint = String(arg || '').trim() ? `\n${t(L, 'task.tasksHint')}` : '';
-      if (rows.length === 0) { say(`${taskView(current, L)}${hint}`); return true; }
-      await reply(`${taskView(current, L)}${hint}`, { keyboard: rows });
-      return true;
-    }
-    case '/task': {
-      const L = lang;
-      const body = (arg || '').trim();
-      const current = goalOf(state, key);
-      if (!body) {
-        say(current ? taskView(current, L) : t(L, 'task.none'));
-        return true;
-      }
       if (body.toLowerCase() === 'help' || body.toLowerCase() === '?') {
         say(t(L, 'task.usage'));
+        return true;
+      }
+      if (/^\d+$/.test(body)) {
+        const n = Number(body);
+        say(t(L, doneTask(state, key, n) ? 'task.done' : 'task.bad', { n }));
+        ctx.saveState();
+        const goal = goalOf(state, key);
+        const rows = goal ? taskKeyboard(goal) : [];
+        if (rows.length) await reply(taskView(goal, L), { keyboard: rows });
+        else say(taskView(goal, L));
+        return true;
+      }
+      if (!body) {
+        const rows = taskKeyboard(current);
+        const hint = String(arg || '').trim() ? `\n${t(L, 'task.tasksHint')}` : '';
+        if (rows.length === 0) { say(`${taskView(current, L)}${hint}`); return true; }
+        await reply(`${taskView(current, L)}${hint}`, { keyboard: rows });
         return true;
       }
       // Editing keeps the number: the chat has been quoting "5." and a delete
@@ -131,11 +143,11 @@ export async function handleTaskCommands(ctx) {
         ctx.saveState();
         return true;
       }
-      if (!current) setGoal(state, key, t(L, 'goal.default'));
-      const n = addTask(state, key, body);
-      if (!n) { say(t(L, 'task.usage')); return true; }
+      const added = addTask(state, key, body);
+      if (!added) { say(t(L, 'task.usage')); return true; }
       ctx.saveState();
-      say(`${t(L, 'task.added', { n })}\n${goalView(goalOf(state, key), L)}`);
+      const goal = goalOf(state, key);
+      say(`${t(L, 'task.added', { n: added })}\n${goalView(goal, L)}`);
       return true;
     }
     case '/jobs': {

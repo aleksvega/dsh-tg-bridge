@@ -26,6 +26,7 @@ export const COMMAND_ALIASES = {
   models: 'model',
   plugin: 'plugins',
   agentset: 'crew',
+  task: 'tasks',
 };
 
 /**
