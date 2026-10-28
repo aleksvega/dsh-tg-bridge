@@ -5,9 +5,10 @@
 // sitting. A rule in a document does not stop that from happening again; a test
 // that fails the build does.
 //
-// `MIGRATION` is the progress bar: every refactoring step deletes its own entry,
-// no step adds one, and the second test fails if an entry stops being true — a
-// stale entry would let a file grow back past the ceiling unnoticed.
+// `MIGRATION` used to list the files still waiting for their split. It is empty
+// now — `bridge.mjs` was the last entry and is down to 411 lines — and it stays
+// in the test so a future 600-line module cannot be grandfathered in silently:
+// adding an entry means editing this file in the same commit, in the open.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,9 +18,7 @@ import assert from 'node:assert/strict';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIMIT = 500;
 
-const MIGRATION = new Set([
-  'bridge.mjs',
-]);
+const MIGRATION = new Set([]);
 
 /** Every shipped module: `files[]`, with the declared directories expanded. */
 export function shippedModules(root = ROOT) {

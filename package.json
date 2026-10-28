@@ -138,7 +138,10 @@
     "steer.mjs",
     "queue.mjs",
     "profile-view.mjs",
-    "handle-message.mjs"
+    "handle-message.mjs",
+    "callbacks.mjs",
+    "run-command.mjs",
+    "job-loops.mjs"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
