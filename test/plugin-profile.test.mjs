@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, '..', 'control.mjs'), 'utf8');
+const source = readFileSync(join(here, '..', 'control', 'cmd-plugin.mjs'), 'utf8');
 
 /** The body of one `case '/name':` arm, up to the next case label. */
 function arm(name) {

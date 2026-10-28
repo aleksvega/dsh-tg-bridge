@@ -7,7 +7,7 @@
 //   a section   — the commands of one job, a way back, and a way onward.
 // A section teaches the command names by showing them, which is why the labels
 // are the commands themselves. Nothing here advertises an old spelling.
-import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './control.mjs';
+import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
 
 /**
  * Six sections, in the order a person usually needs them. Every documented

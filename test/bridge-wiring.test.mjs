@@ -7,9 +7,20 @@
 // dangling call site that `node --check` accepts but the runtime does not.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../bridge.mjs', import.meta.url), 'utf8');
+
+/**
+ * Every module a turn can reach. `bridge.mjs` is the entry, but its keys now
+ * live in the modules it calls — `queue.mjs` asks for the approval strings,
+ * `steer.mjs` for the steer notices — so the scan must cover the layer too, or
+ * a key that only moved is reported as missing.
+ */
+const layer = readdirSync(new URL('../', import.meta.url))
+  .filter((name) => name.endsWith('.mjs') && name !== 'bridge.mjs' && name !== 'scan-secrets.mjs')
+  .map((name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8'))
+  .join('\n');
 
 /** Words that look like a call because the next token is a paren. */
 const PARAM_LIST = /^(?:async|await|function|constructor|typeof|void|delete|new|in|of|instanceof)$/;
@@ -75,9 +86,9 @@ test('every i18n key used by the bridge exists in every language', async () => {
   const body = code(source);
   // `t()` is often called with a template argument, so read the keys straight
   // from the source with the strings intact.
-  const keys = new Set([...source.matchAll(/\bt\(\s*[A-Za-z_$][\w$]*\s*,\s*'([^']+)'/g)].map((m) => m[1]));
-  // control.mjs and panel.mjs carry most of the keys now; the bridge only needs
-  // to contribute its own.
+  const keys = new Set([...`${source}\n${layer}`.matchAll(/\bt\(\s*[A-Za-z_$][\w$]*\s*,\s*'([^']+)'/g)].map((m) => m[1]));
+  // control.mjs and panel.mjs carry most of the keys now; the bridge and its
+  // layer only need to contribute their own.
   assert.ok(keys.size >= 40, `the scan must see the real call sites, saw ${keys.size}`);
   for (const lang of ['en', 'ru', 'zh']) {
     const unused = [...keys].filter((key) => {

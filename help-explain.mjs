@@ -4,7 +4,7 @@
 // letter apart and did different jobs, which is a mistake a phone keyboard makes
 // for the person. The old spellings still work, and asking about one answers with
 // the command that owns the job — nothing here ever advertises an alias.
-import { COMMAND_ALIASES, CONTROL_COMMANDS } from './control.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS } from './commands-registry.mjs';
 import { t } from './i18n.mjs';
 
 /** The /help group each command is listed under. */

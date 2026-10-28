@@ -1,0 +1,475 @@
+// One incoming message becomes one turn.
+//
+// The largest single piece of the bridge on purpose: it is the one place that
+// knows what a message is (text, photo, album, button-sized command) and how a
+// topic's session, profile, request and progress panel fit together. Everything
+// it calls lives in a module of its own.
+
+import { GENERAL_SAFE, commandOf } from './commands.mjs';
+import { CONTROL_COMMANDS, handleControl, modelOf, reasoningOf } from './control.mjs';
+import { explainFailure } from './failures.mjs';
+import { goalOf, renderPromptBlock } from './goals.mjs';
+import { resolveLang, t } from './i18n.mjs';
+import { sessionKey, threadOf } from './keys.mjs';
+import { mediaPrompt } from './media.mjs';
+import { keyboardCommand } from './menu-card.mjs';
+import { describeVerdicts, firstLiveModel, probeHint, probeModel } from './model-probe.mjs';
+import { stepLine } from './panel.mjs';
+import { DIR, GOAL_CMD, THOUGHT_DIR } from './paths.mjs';
+import { renderPrices } from './prices.mjs';
+import { settingsChipOf, turnProfileOf } from './profile-view.mjs';
+import { ensureProfile } from './profiles.mjs';
+import { startProgress } from './progress.mjs';
+import { MAX_PARALLEL, lastPrompt, queues } from './queue.mjs';
+import { token } from './secrets.mjs';
+import { config, done, log, saveState, state } from './state.mjs';
+import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
+import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
+import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnStartedAt, typingLoop } from './turn.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+export async function handleMessage(msg, album = null) {
+  const chatId = msg.chat.id;
+  const from = msg.from?.id;
+
+  // 1. Never react to our own output: the bot's seeded topic message comes back
+  //    through getUpdates as a normal group message and used to start a turn.
+  if (msg.from?.is_bot) {
+    log(`ignored own/service message from bot ${from} (chat ${chatId})`);
+    return;
+  }
+  // 2. Service messages (topic created, pins, joins) carry no task text.
+  const attachments = album && album.length ? album : [msg];
+  if (!msg.text && !msg.caption && !attachments.some((m) => m.voice || m.audio || m.photo || m.document || m.video || m.video_note || m.animation)) {
+    log(`ignored service message chat=${chatId} thread=${msg.message_thread_id ?? 0}`);
+    return;
+  }
+
+  let threadId = threadOf(msg);
+  // Whether the person typed in the General topic (the "All" stream), before the
+  // lobby rule below moves the message into a topic.
+  const typedInGeneral = threadId === 0;
+  // 3. The General-chat twin of an already-seeded topic: keep the log line,
+  //    skip the turn — the topic message already owns this work.
+  const twin = threadId === 0 ? topicSeededRecently(msg.text ?? msg.caption ?? '') : 0;
+  if (twin > 0) {
+    log(`duplicate of topic ${twin} seen in General; answering in the topic instead`);
+    threadId = twin;
+  }
+
+  // 4. Lobby rule (Hermes' topic mode): the General thread is where topics are
+  //    started, not where work runs. A message with no thread id goes to the
+  //    most recently active topic instead of forking a root session — that is
+  //    exactly how a prompt typed in General used to be answered in General
+  //    while its topic stayed empty.
+  if (threadId === 0 && config.generalLobby !== false) {
+    const recovered = newestBoundTopic(chatId);
+    if (recovered > 0) {
+      log(`General message recovered into topic ${recovered}`);
+      threadId = recovered;
+    }
+  }
+  // The topic a General message was moved into, or 0 when it stayed where it was.
+  const recoveredTopic = typedInGeneral && threadId > 0 ? threadId : 0;
+  touchTopic(threadId);
+
+  const key = sessionKey(chatId, threadId);
+  // Language for everything this turn shows: topic choice, config, then Telegram.
+  const learned = !state.lang?.[key];
+  const lang = resolveLang(state, key, msg, config);
+  // First message in a topic teaches the bridge what it speaks, and the button
+  // presses that follow have no message of their own — keep the answer.
+  if (learned && state.lang?.[key]) saveState();
+  const where = `${chatId}${threadId ? ` topic=${threadId}` : ''}`;
+  if (!config.allowedUserIds.includes(from) && !config.allowedUserIds.includes(chatId)) {
+    log(`ignored message from ${from} (chat ${chatId})`);
+    return;
+  }
+  let text = (msg.text || msg.caption || '').trim();
+  // Voice notes, audio files, photos and documents: transcribe or download
+  // locally, then treat the resulting text exactly like typed text. The same
+  // helper feeds the mid-turn steer path, so an attachment means the same
+  // thing whether the turn is idle or already running.
+  //
+  // A file almost always arrives with a caption, so the presence of text must
+  // not be taken as "no attachment": that dropped every captioned document.
+  let extraArgs = [];
+  let turnProfile = '';
+  if (!msg.text && attachments.some((m) => m.voice || m.audio || m.photo || m.document || m.video || m.video_note || m.animation)) {
+    const built = await mediaPrompt(attachments, chatId, threadId, lang);
+    if (built.text) text = built.text;
+    extraArgs = built.extraArgs;
+    turnProfile = built.profile || '';
+  }
+  if (!text) return;
+  log(`in ${where} from=${from} len=${text.length}${msg.is_topic_message ? ' topic-message' : ''}`);
+  // A bound set replaces the profile for this turn only: the media route above
+  // still wins, because it carries a per-turn model the person chose out loud.
+  if (!turnProfile) turnProfile = turnProfileOf(key);
+
+  // A brand-new forum topic starts empty: the title says what the person wants
+  // but the thread itself has no message, so scrolling back shows a blank
+  // hole. Seed it with the incoming text and pin the seed, which also pins the
+  // topic to the top of the list — the owner asked for exactly that.
+  //
+  // Seeding runs once per topic: a message written inside an existing topic is
+  // already visible there, and seeding it again would duplicate the person's
+  // own words.
+  if (threadId > 0 && msg.is_topic_message && !topicSeeded(threadId)) {
+    const seed = await ensureTopicSeed(chatId, threadId, text);
+    if (seed) {
+      log(`topic ${threadId} seeded with message=${seed}`);
+      await logTopicToGeneral(chatId, threadId, text, lang);
+    }
+  }
+
+  // A tap on the persistent keyboard (`/menu on`) arrives as its own label,
+  // with no slash: "Меню", "Статус", "Стоп", "Новый". Only while the keyboard is
+  // on — the same word typed by hand is a prompt, not a command. The label is
+  // matched in every language, because the keyboard outlives a /lang switch.
+  if (state.menu?.[key]) {
+    const mapped = ['ru', 'en', 'zh']
+      .map((code) => keyboardCommand(text, { t: (k, v) => t(code, k, v) }))
+      .find(Boolean);
+    if (mapped) {
+      log(`menu key "${text}" -> ${mapped} for ${key}`);
+      text = mapped;
+    }
+  }
+
+  const space = text.indexOf(' ');
+  const head = space === -1 ? text : text.slice(0, space);
+  const command = commandOf(head);
+  const arg = space === -1 ? '' : text.slice(space + 1).trim();
+
+  // `/apprestart.confirm` (no space) is a real way to mistype the service
+  // command and used to fall through to a full AI turn. Map the collapsed
+  // forms onto the canonical command + argument instead.
+  //
+  // Heads are matched WITHOUT their punctuation, so `/apprestart.confirm` and
+  // `/app-restart-confirm` both arrive here as "apprestartconfirm".
+  const collapsed = command.replace(/^\//, '').replace(/[.-]+/g, '');
+  const known = new Set(CONTROL_COMMANDS);
+  let effective = known.has(collapsed) ? `/${collapsed}` : '';
+  let effectiveArg = arg;
+  if (collapsed === 'apprestart' || collapsed === 'apprestartconfirm') {
+    effective = '/app';
+    // The dotted/solid form already says "restart", so confirm is the only
+    // missing word: `/apprestart.confirm` must mean `/app restart confirm`.
+    effectiveArg = arg || 'restart confirm';
+  } else if (collapsed === 'restartconfirm') {
+    effective = '/restart';
+    effectiveArg = arg || 'confirm';
+  }
+  if (effective && effective !== command) {
+    log(`command alias: ${head} -> ${effective} ${effectiveArg}`);
+  }
+  if (effectiveArg === 'restartconfirm' || effectiveArg === 'restart.confirm') effectiveArg = 'restart confirm';
+
+  // General is the lobby: a prompt written there runs in the most recently active
+  // topic so one project stays in one place. A command that CHANGES things must
+  // not silently change a topic the person is not looking at — `/new` there wiped
+  // the session of another topic and `/rewind` rolled one back, and the answer
+  // appeared in that topic rather than where it was typed. Reading commands and
+  // `/stop` still follow the work, because that is what the lobby is for.
+  if (recoveredTopic > 0 && effective && !GENERAL_SAFE.has(effective.slice(1))) {
+    const named = topicName(chatId, recoveredTopic) || `#${recoveredTopic}`;
+    log(`refused ${effective} in General; it belongs to topic ${recoveredTopic}`);
+    await send(chatId, t(lang, 'msg.generalGuard', { cmd: effective, topic: named }), 0);
+    return;
+  }
+
+  // An unknown slash command must never become an AI turn: it burns money and
+  // answers something the person did not ask. Answer with the menu instead.
+  if (command && !effective) {
+    log(`unknown command ${head} from ${from}`);
+    // Ephemeral: a mistyped command is usually a typo of a real one, so the menu
+    // appears long enough to pick from it and then clears itself.
+    await sendEphemeral(
+      chatId,
+      `${t(lang, 'msg.unknownCommand', { cmd: head })}
+
+${t(lang, 'help.body')}`,
+      threadId,
+      msg.message_id
+    );
+    return;
+  }
+
+  if (effective) {
+    const handled = await handleControl({
+      command: effective,
+      lang,
+      arg: effectiveArg,
+      text,
+      chatId,
+      threadId,
+      key,
+      state,
+      config,
+      activeTurns,
+      saveState,
+      log,
+      send,
+      // What `/jobs` shows: the turns that hold a slot right now and how many
+      // wait behind them. `queues` counts a topic that is running too, so the
+      // waiters are the keys without an active turn.
+      jobs: () => ({
+        active: [...activeTurns.keys()].map((topic) => ({ key: topic, startedAt: turnStartedAt.get(topic) || 0 })),
+        queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
+        max: MAX_PARALLEL,
+      }),
+      api: tg,
+      sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
+      seedTopic: ensureTopicSeed,
+      profile: profileOf(key),
+      prices: (filter) => {
+        const route = modelOf(profileOf(key));
+        // A provider page is optional: without `pricesUrl` the answer comes from
+        // the public models.dev catalog, so no install is tied to one vendor.
+        return renderPrices(filter, {
+          model: route.model,
+          provider: route.provider,
+          pageUrl: config.pricesUrl || '',
+          lang,
+        });
+      },
+      reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
+      stopTurn: (k) => {
+        const child = activeTurns.get(k);
+        if (!child) return false;
+        try {
+          child.kill();
+          activeTurns.delete(k);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    });
+    if (handled) return;
+  }
+
+  // Remember this prompt so the «Повторить» button after a failure has
+  // something to resend. Bounded: only the latest prompt per topic matters.
+  lastPrompt.set(key, msg);
+
+  const stop = { done: false };
+  const typing = typingLoop(chatId, threadId, stop);
+  const started = Date.now();
+  // Capture the session BEFORE the turn starts. A second message for the same
+  // topic can overwrite `state.sessions[key]` while this turn is still running
+  // (two messages a few seconds apart, or a copy-paste), and the late writer
+  // then attached a fresh session id to a conversation that already had one.
+  const sessionAtStart = state.sessions[key];
+  // Remember the topic a turn is running in: it is where a release notice goes,
+  // since a notice is about the install and the install serves every topic.
+  if (state.lastKey !== key) {
+    state.lastKey = key;
+    saveState();
+  }
+  // Project directory bound to this topic (set with /cd); config.cwd otherwise.
+  const cwd = (state.cwd && state.cwd[key]) || config.cwd;
+  // What the person actually wrote, before any injected block: the progress
+  // message echoes it back so the first thing they see names their task, not a
+  // generic spinner.
+  const request = text;
+
+  // Desktop-style goal: the topic's goal and task list travel with every turn,
+  // so a fresh session after /new still knows what the project is aiming at.
+  // Without a goal the turn still gets the one line that says how to start one:
+  // a plan nobody can see is not a plan, and the agent cannot ask a question it
+  // does not know exists.
+  const topicGoal = goalOf(state, key);
+  if (topicGoal) text = `${renderPromptBlock(topicGoal, key, GOAL_CMD)}\n\n---\n\n${text}`;
+  else text = `${t(lang, 'prompt.taskHint', { goal: GOAL_CMD, key })}\n\n---\n\n${text}`;
+
+  // Working notes: the agent writes a 💭 line at each decision point with
+  // `say.mjs --thought`, and the progress message shows the last two. Off means
+  // no instruction at all, so nothing is written and nothing is displayed.
+  //
+  // Each turn gets a file of its own, named `<chat>_<thread>_<turn>.jsonl`, and
+  // its path travels with the turn: two topics working at once used to share
+  // one note file, so each saw the other's lines and `say.mjs` had to guess
+  // which topic a note belonged to. The bridge keeps a stable alias for the
+  // topic (what older tools and the panel read) pointing at this turn's file.
+  const turnId = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
+  const thoughtFile = join(THOUGHT_DIR, `${chatId}_${threadId || 0}_${turnId}.jsonl`);
+  // The alias is the plain topic name too; it is written as the turn's file so
+  // a reader that never heard of DSH_TG_THOUGHT still finds this turn's notes.
+  const thoughtEnv = { DSH_TG_THOUGHT: thoughtFile };
+  if (reasoningOf(state, config, key)) {
+    text = `${t(lang, 'prompt.reasoning', { say: join(DIR, 'say.mjs') })}\n\n---\n\n${text}`;
+  }
+
+  // Live progress: one status message per turn, rewritten as the agent works.
+  // Without it a long turn and a hung turn looked exactly alike in the chat.
+  const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key), thoughtFile);
+  // Turn telemetry for the log: what the agent did, how much it cost, on which
+  // model. Without it /logs shows only "in" and "sent" — useless when asking
+  // "why did this take 9 minutes".
+  const telemetry = { steps: 0, tools: 0, inputTokens: 0, cacheReadTokens: 0, model: modelOf(profileOf(key)).model };
+  const onEvent = (event) => {
+    try {
+      // The id of the session this process actually works in. A new topic has
+      // no id until the CLI emits one, and steering needs it before that.
+      if (event.type === 'session' && event.sessionId) liveSessions.set(key, event.sessionId);
+      progress.handle(event);
+      if (event.type === 'tool_call') {
+        telemetry.tools += 1;
+        telemetry.steps += 1;
+        log(`  tool[${telemetry.steps}] ${(stepLine(event) || event.tool || 'tool').slice(0, 140)}`);
+      } else if (event.type === 'tool_result') {
+        const failed = event.status && event.status !== 'completed';
+        log(`  tool[${telemetry.steps}] ${failed ? 'ERROR' : 'ok'} ${String(event.tool || '').slice(0, 40)}`);
+      } else if (event.type === 'status' && event.usage) {
+        if (Number.isFinite(event.usage.inputTokens)) telemetry.inputTokens = event.usage.inputTokens;
+        if (Number.isFinite(event.usage.cacheReadTokens)) telemetry.cacheReadTokens = event.usage.cacheReadTokens;
+      }
+    } catch {}
+  };
+  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+  if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
+    delete state.sessions[key];
+    log(`session dropped for ${where}: recorded in another directory, starting fresh`);
+    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+  }
+  // Provider failover: the headless profile has no failover plugin, so one busy
+  // route ("all providers are busy", 503, or a turn that emits nothing at all)
+  // used to end as silence. Retry the SAME prompt on the next model in the
+  // chain before giving up — the person cares about an answer, not the vendor.
+  const chain = Array.isArray(config.fallbackModels) ? config.fallbackModels : [];
+  // A dead paid balance is not a "busy provider": it must trigger the free
+  // chain as well, otherwise the bridge sits on AUTH 403 and gives up.
+  const FALLBACK_TRIGGERS = /RATE_LIMIT|503|all providers|нет активности|EMPTY_RESPONSE|TIMEOUT|overloaded|AUTH|403|insufficient_user_quota|quota|UNKNOWN_MODEL|MISSING_CREDENTIAL/i;
+  const QUOTA_LIKE = /insufficient_user_quota|AUTH\b|\b403\b|\b401\b|quota|balance|баланс|payment|billing/i;
+  // "get_channel_failed / all providers are busy" is the provider's own channel
+  // pool, not the model: when it is down, it is down for every model in the
+  // chain. One probe then answers in seconds what four full turns spent 741
+  // seconds discovering.
+  const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|503/i;
+  const tried = [];
+  for (const entry of chain) {
+    if (!result.error || !FALLBACK_TRIGGERS.test(result.error)) break;
+    if (!entry.patch || !existsSync(entry.patch)) continue;
+    // The provider's channel pool is down: every model in the chain will answer
+    // the same 503. Ask once, quickly, and say so instead of burning a turn per
+    // model. A probe that DOES answer proves the pool is back — then the chain
+    // goes on, and the fallback at hand is tried as usual.
+    if (tried.length >= 1 && CHANNEL_DOWN.test(result.error)) {
+      const verdict = await probeModel(config.primaryModel || 'deepseek-v4.1-flash-1017');
+      log(`channel down after ${tried.length} model(s): probe says ${verdict.kind}; not trying ${entry.model}`);
+      if (!verdict.ok) break;
+    }
+    const quotaLike = QUOTA_LIKE.test(result.error);
+    // Quota failures never deserve a retry of the same model: the balance is
+    // gone, so waiting is pure loss. Anything else gets one retry at most.
+    const reason = quotaLike ? t(lang, 'bridge.fallback.quota') : t(lang, 'bridge.fallback.noAnswer');
+    tried.push(`${entry.model}: ${String(result.error).slice(0, 120)}`);
+    log(`fallback to ${entry.model} for ${where} reason=${quotaLike ? 'quota' : 'transient'} after: ${String(result.error).slice(0, 120)}`);
+    telemetry.model = entry.model;
+    await send(chatId, t(lang, 'bridge.fallback.switched', {
+      reason,
+      model: entry.model,
+      free: entry.free ? ' (free)' : '',
+    }), threadId);
+    result = await runTurnLive(text, sessionAtStart, key, {
+      onEvent,
+      onAbort: () => killTurn(key),
+      onHeartbeat: () => progress.heartbeat(), env: thoughtEnv,
+      // Same overlay problem as the vision turn: the host CLI has no --patch.
+      // A patch file that is missing or unreadable must not turn into an empty
+      // --profile argument, so the topic's own profile is the fallback.
+      profile: ensureProfile(entry.patch) || profileOf(key) || config.profile,
+      cwd,
+      lang,
+    });
+    if (!result.error) break;
+  }
+  // Every model refused. Before saying "all models are unavailable", ask each
+  // channel directly with a 1-token request: a 503 storm usually clears within
+  // seconds, and the verdict tells the person whether the balance is gone or the
+  // provider is merely busy — the old message always claimed quota.
+  let probeKind = '';
+  if (result.error && FALLBACK_TRIGGERS.test(result.error)) {
+    const models = [config.primaryModel || 'deepseek-v4.1-flash-1017', ...chain.map((entry) => entry.model)];
+    const { live, verdicts } = await firstLiveModel(models);
+    if (live) {
+      log(`probe: ${live.model} answers after ${verdicts.length} check(s), retrying the turn there`);
+      const entry = chain.find((item) => item.model === live.model);
+      result = await runTurnLive(text, sessionAtStart, key, {
+        onEvent,
+        onAbort: () => killTurn(key),
+        onHeartbeat: () => progress.heartbeat(),
+        profile: entry ? ensureProfile(entry.patch) : turnProfile,
+        cwd,
+        lang,
+      });
+    } else {
+      // Nothing answers: the verdict is the only useful part of the failure.
+      probeKind = describeVerdicts(verdicts);
+      log(`probe: no channel answers (${verdicts.map((v) => `${v.model}:${v.kind}`).join(', ')})`);
+    }
+  }
+  // Every model refused — or the provider's own channel pool was down and the
+// chain stopped early, which is the same answer to the person: one message
+// naming the causes, not a cascade of errors.
+  if (result.error && tried.length > 0 && (probeKind || tried.length >= (Array.isArray(config.fallbackModels) ? config.fallbackModels.length : 0))) {
+    log(`all fallbacks exhausted for ${where}: ${tried.length} probe=${probeKind || 'n/a'}`);
+    const verdictLine = probeKind ? `\n${probeHint(probeKind, lang)}` : '';
+    result = {
+      sessionId: result.sessionId,
+      text: '',
+      error: t(lang, 'bridge.fallback.allDown', { list: tried.map((line) => `• ${line}`).join('\n') }) + verdictLine,
+    };
+  }
+  // A session opened in the desktop UI holds its write handle, so the CLI
+  // refuses to adopt it. Retry once, then continue in a fresh session instead
+  // of failing the user's message.
+  if (result.error && /already owned by an active write handle/i.test(result.error)) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+    if (result.error && /already owned by an active write handle/i.test(result.error)) {
+      delete state.sessions[key];
+      saveState();
+      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+      if (!result.error) result.text = `${t(lang, 'bridge.fallback.sessionBusy')}\n\n${result.text}`;
+    }
+  }
+  stop.done = true;
+  await typing;
+  // Name the cause once, in a short stable code, so a screenshot of the error is
+  // enough to find the fix — and every code has a concrete next step, not "try again".
+  if (result.error) result.error = explainFailure(result.error, lang);
+  await progress.finish(result);
+
+  // Never move a topic onto a different session once it has one. A retry that
+  // fell back to a fresh session (busy write handle, stale id) is reported in
+  // the reply, but persisting it would silently fork the conversation and drop
+  // the project context the next message depends on.
+  if (result.sessionId && !result.error) {
+    if (!sessionAtStart) {
+      state.sessions[key] = result.sessionId;
+      saveState();
+    } else if (result.sessionId !== sessionAtStart) {
+      log(`kept session ${sessionAtStart} for ${where} (turn ran in ${result.sessionId})`);
+      state.sessions[key] = sessionAtStart;
+      saveState();
+    }
+  }
+  const seconds = Math.round((Date.now() - started) / 1000);
+  const cachePct = telemetry.cacheReadTokens
+    ? Math.round((telemetry.cacheReadTokens / Math.max(1, telemetry.cacheReadTokens + telemetry.inputTokens)) * 100)
+    : 0;
+  const summary = `tools=${telemetry.tools} tokens=${telemetry.inputTokens} cache=${cachePct}% model=${telemetry.model} cwd=${cwd}`;
+  if (result.error) {
+    // The status message already carries the failure (progress.finish turned it
+    // into the error report), so only the log gets the detail here — a second
+    // ⚠️ message would just duplicate it.
+    log(`turn failed ${where} ${seconds}s ${summary} :: ${result.error.slice(0, 400)}`);
+    return;
+  }
+  log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);
+  await send(chatId, result.text || t(lang, 'bridge.progress.emptyReply'), threadId);
+}

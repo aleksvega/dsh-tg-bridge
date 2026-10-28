@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const source = readFileSync(new URL('../bridge.mjs', import.meta.url), 'utf8');
+// The router moved to `callbacks.mjs`; the guard is asserted where it lives now.
+const source = readFileSync(new URL('../callbacks.mjs', import.meta.url), 'utf8');
 
 /** The body of handleCallback, so assertions cannot match the message path. */
 function callbackBody() {
