@@ -136,7 +136,8 @@
     "i18n/zh/",
     "media.mjs",
     "steer.mjs",
-    "queue.mjs"
+    "queue.mjs",
+    "profile-view.mjs"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
