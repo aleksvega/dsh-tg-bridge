@@ -73,6 +73,7 @@ export default {
   'status.speed': 'tok/s',
   'status.cacheLine': '🧠 cache: {pct}% ({k}k from cache)',
   'msg.topicLog': '📌 New topic: {preview}\n→ work happens in the topic, this is the log.',
+  'topic.untitled': 'New topic',
   'msg.transcribing': '🎤 Transcribing…',
   'status.steps': 'steps',
   'status.thinking': 'waiting for the model',

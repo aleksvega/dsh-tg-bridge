@@ -73,6 +73,7 @@ export default {
   'status.speed': 'tok/s',
   'status.cacheLine': '🧠 缓存：{pct}%（{k}k 来自缓存）',
   'msg.topicLog': '📌 新主题：{preview}\n→ 工作在主题里进行，这里是日志。',
+  'topic.untitled': '新主题',
   'msg.transcribing': '🎤 正在转写…',
   'status.steps': '步',
   'status.thinking': '等待模型',

@@ -24,7 +24,7 @@ import { MAX_PARALLEL, lastPrompt, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
 import { config, done, log, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
-import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
+import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnStartedAt, typingLoop } from './turn.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -58,16 +58,32 @@ export async function handleMessage(msg, album = null) {
     threadId = twin;
   }
 
-  // 4. Lobby rule (Hermes' topic mode): the General thread is where topics are
-  //    started, not where work runs. A message with no thread id goes to the
-  //    most recently active topic instead of forking a root session — that is
-  //    exactly how a prompt typed in General used to be answered in General
-  //    while its topic stayed empty.
+  // 4. Lobby rule: the General thread is where topics are started, not where
+  //    work runs. A prompt written there used to be moved into the most
+  //    recently active topic, which silently dropped it into another project's
+  //    conversation — the owner hit that twice. Now the prompt opens a topic of
+  //    its own, named from its first words, with the person's message copied in
+  //    as the first message and pinned.
+  //
+  //    Commands are not prompts: `/status` typed in General asks about the
+  //    bridge, it does not start a project. They keep the old recovery, and the
+  //    guard below still refuses a state-changing one.
   if (threadId === 0 && config.generalLobby !== false) {
-    const recovered = newestBoundTopic(chatId);
-    if (recovered > 0) {
-      log(`General message recovered into topic ${recovered}`);
-      threadId = recovered;
+    const raw = (msg.text || msg.caption || '').trim();
+    const looksLikeCommand = raw.startsWith('/');
+    if (!looksLikeCommand && raw) {
+      const started = await startTopicFromMessage(chatId, msg, raw);
+      if (started > 0) {
+        threadId = started;
+        log(`General prompt started topic ${threadId}`);
+      }
+    }
+    if (threadId === 0) {
+      const recovered = newestBoundTopic(chatId);
+      if (recovered > 0) {
+        log(`General message recovered into topic ${recovered}`);
+        threadId = recovered;
+      }
     }
   }
   // The topic a General message was moved into, or 0 when it stayed where it was.

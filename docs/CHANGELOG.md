@@ -1,5 +1,25 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.4
+
+- **A prompt written in General ("Все") now starts its own topic.** The old
+  lobby rule moved such a message into the most recently active topic — so text
+  typed into the main stream ran in whatever project happened to be touched
+  last, and the answer appeared in a conversation the person was not looking at.
+  The owner hit this twice, once with a voice message.
+- **The topic is named from the first words of the message.** Six words or forty
+  characters, whichever comes first, cut with an ellipsis; media without a
+  caption gets a neutral name. A title is a handle in a sidebar, not a summary.
+- **The message itself becomes the first message of the topic.** It is copied
+  with `copyMessage` — media included, no "forwarded from" header — and pinned,
+  which also pins the topic to the top of the list. The copy is recorded as the
+  topic seed, so the duplicate guard does not answer the same text twice.
+- **Commands are not prompts.** `/status` typed in General still answers where it
+  was typed; a state-changing command is still refused with the name of the
+  topic it would have changed. Only text without a leading slash opens a topic.
+- If Telegram refuses to create the topic (no topic permission, a rate limit),
+  the old recovery runs instead, so the message is not lost.
+
 ## 1.20.3
 
 - **The Telegram menu is thirteen rows, and it is built from the registry.**

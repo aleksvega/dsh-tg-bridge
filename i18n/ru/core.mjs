@@ -73,6 +73,7 @@ export default {
   'status.speed': 'т/с',
   'status.cacheLine': '🧠 кэш: {pct}% ({k}k из кэша)',
   'msg.topicLog': '📌 Новая тема: {preview}\n→ работа идёт в теме, здесь — лог.',
+  'topic.untitled': 'Новая тема',
   'msg.transcribing': '🎤 Расшифровываю…',
   'status.steps': 'шагов',
   'status.thinking': 'жду модель',

@@ -137,6 +137,83 @@ export async function ensureTopicSeed(chatId, threadId, text) {
 }
 
 /**
+ * A topic title made from the first words of a prompt.
+ *
+ * Telegram caps topic names at 128 characters, but the useful limit is much
+ * shorter: the name is a handle in a sidebar, not a summary. Six words or forty
+ * characters, whichever comes first — a long first sentence would otherwise
+ * push every other topic out of view.
+ */
+export function topicTitleFrom(text, max = 40) {
+  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!flat) return '';
+  const words = flat.split(' ').slice(0, 6).join(' ');
+  if (words.length <= max) return words;
+  return `${words.slice(0, max - 1).trimEnd()}…`;
+}
+
+/**
+ * Open a new topic for a message written in General, and make it start with
+ * that message.
+ *
+ * General ("Все") is the stream a person types into when they do not want to
+ * pick a topic first. The old rule moved such a message into the most recently
+ * active topic, which silently dropped it into another project's conversation —
+ * the owner hit this twice. Starting a topic instead keeps every prompt in a
+ * place of its own, named after what was asked.
+ *
+ * `copyMessage` is used rather than `sendMessage` so the topic opens with the
+ * person's own message, media included, and without a "forwarded from" header.
+ * The copy is pinned, which is the behaviour the owner asked for.
+ *
+ * Returns the new thread id, or 0 when Telegram refused to create the topic
+ * (a group without topic permissions, or a rate limit) — the caller then falls
+ * back to the old recovery so the message is not lost.
+ */
+export async function startTopicFromMessage(chatId, msg, text) {
+  const name = topicTitleFrom(text) || t(config.lang || 'en', 'topic.untitled');
+  let threadId = 0;
+  try {
+    const created = await tg('createForumTopic', { chat_id: chatId, name });
+    threadId = Number(created?.message_thread_id || 0);
+  } catch (error) {
+    log(`General message could not start a topic: ${error.message}`);
+    return 0;
+  }
+  if (!(threadId > 0)) return 0;
+  log(`General message started topic ${threadId} "${name}"`);
+
+  let messageId = 0;
+  try {
+    const copied = await tg('copyMessage', {
+      chat_id: chatId,
+      from_chat_id: chatId,
+      message_id: msg.message_id,
+      message_thread_id: threadId,
+    });
+    messageId = Number(copied?.message_id || 0);
+  } catch (error) {
+    // Media Telegram will not copy (a poll, a protected file) still deserves a
+    // seed, otherwise the topic is a title over an empty page.
+    log(`topic ${threadId} copy failed: ${error.message}`);
+  }
+  if (!messageId) return threadId;
+
+  state.seededTopics = state.seededTopics ?? {};
+  state.seededTopics[String(threadId)] = messageId;
+  saveState();
+  noteSeed(text, threadId);
+  if (config.pinTopicSeed !== false) {
+    try {
+      await tg('pinChatMessage', { chat_id: chatId, message_id: messageId, disable_notification: false });
+    } catch (error) {
+      log(`topic ${threadId} pin failed: ${error.message}`);
+    }
+  }
+  return threadId;
+}
+
+/**
  * Write one line about a new topic into the General chat, so the main stream
  * reads as a log of what was started instead of a wall of prompts. The full
  * text lives in the topic itself; this is only the pointer.
