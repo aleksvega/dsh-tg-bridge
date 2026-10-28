@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   addTask, applyGoalJob, clearGoal, doneTask, drainGoalJobs, finishGoal,
-  goalOf, progressOf, removeTask, renderPromptBlock, setGoal,
+  goalOf, MAX_TASKS, progressOf, removeTask, renderPromptBlock, setGoal,
 } from '../goals.mjs';
 
 const KEY = '42:7';
@@ -74,4 +74,27 @@ test('drain applies jobs and moves every file out of the inbox', () => {
   assert.equal(drainGoalJobs(state, dir, join(root, 'done')), 3);
   assert.equal(readdirSync(dir).length, 0);
   assert.equal(progressOf(goalOf(state, KEY)).done, 1);
+});
+
+test('a full list of finished tasks still takes new work', () => {
+  // The cap is on open work. Counting finished tasks froze the list at 30 the
+  // moment a goal ran long: `add` was rejected in silence and the checklist
+  // stopped matching what was being done.
+  const state = {};
+  setGoal(state, KEY, 'long goal');
+  for (let i = 0; i < MAX_TASKS; i += 1) {
+    addTask(state, KEY, `task ${i + 1}`);
+    doneTask(state, KEY, i + 1);
+  }
+  assert.equal(goalOf(state, KEY).tasks.length, MAX_TASKS);
+  assert.equal(addTask(state, KEY, 'the next one'), MAX_TASKS + 1);
+  assert.equal(goalOf(state, KEY).tasks.at(-1).text, 'the next one');
+});
+
+test('the cap still refuses when every task is open', () => {
+  const state = {};
+  setGoal(state, KEY, 'goal');
+  for (let i = 0; i < MAX_TASKS; i += 1) addTask(state, KEY, `open ${i + 1}`);
+  assert.equal(addTask(state, KEY, 'one too many'), null);
+  assert.match(applyGoalJob(state, { key: KEY, op: 'add', text: 'one too many' }), /rejected/);
 });

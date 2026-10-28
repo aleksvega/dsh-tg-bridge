@@ -68,8 +68,24 @@ export function addTask(state, key, text) {
   if (!clean) return null;
   const goal = goalOf(state, key);
   if (!goal) return null;
-  if (goal.tasks.length >= MAX_TASKS) return null;
+  // The cap is on WORK, not on history: a ticked task is a record of what was
+  // done, and counting it against the limit froze the list the moment a goal ran
+  // long — every new task was rejected in silence, so the checklist stopped
+  // matching the work. Ticked entries stay (their numbers stay valid); only the
+  // open ones are capped.
+  if (goal.tasks.filter((task) => !task.done).length >= MAX_TASKS) return null;
   goal.tasks.push({ text: clean, done: false });
+  // Bound the history without touching the work: past 60 lines the oldest ticked
+  // entries go, so a goal that runs for months does not carry every closed task
+  // in every prompt. A trim renumbers the rest — the block is re-read each turn,
+  // so the numbers in front of the agent are always the current ones.
+  if (goal.tasks.length > MAX_TASKS * 2) {
+    let excess = goal.tasks.length - MAX_TASKS * 2;
+    goal.tasks = goal.tasks.filter((task) => {
+      if (excess > 0 && task.done) { excess -= 1; return false; }
+      return true;
+    });
+  }
   goal.updatedAt = new Date().toISOString();
   return goal.tasks.length;
 }
@@ -162,7 +178,7 @@ export function applyGoalJob(state, job) {
     }
     case 'add':
       if (!goalOf(state, job.key)) setGoal(state, job.key, 'Tasks');
-      return addTask(state, job.key, job.text) ? 'task added' : 'task rejected';
+      return addTask(state, job.key, job.text) ? 'task added' : `task rejected: ${MAX_TASKS} open`;
     case 'done':
       return doneTask(state, job.key, job.index) ? 'task done' : 'bad task number';
     case 'remove':
@@ -199,7 +215,7 @@ export function drainGoalJobs(state, dir, doneDir) {
       continue;
     }
     const status = applyGoalJob(state, job);
-    const ok = !status.startsWith('bad') && status !== 'no goal' && status !== 'empty goal' && status !== 'task rejected';
+    const ok = !status.startsWith('bad') && status !== 'no goal' && status !== 'empty goal' && !status.startsWith('task rejected');
     if (ok) applied += 1;
     try {
       renameSync(full, join(doneDir, `${ok ? '' : 'failed-'}${file}`));

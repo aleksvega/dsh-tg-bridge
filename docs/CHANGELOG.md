@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.21.1
+
+- **The task list no longer freezes at 30.** The cap counted finished tasks as
+  well as open ones, so once a goal ran long every new task was rejected in
+  silence and the checklist stopped matching the work — the agent kept working
+  while the list stood still. The cap is now on open work; ticked entries stay
+  as history, and a goal that runs for months trims its oldest closed lines
+  instead of refusing new ones. A rejected add says why in the log
+  (`task rejected: 30 open`) instead of looking like a lost file.
+
 ## 1.21.0
 
 - **Four commands became two, and the argument picks the variant.** Going back
