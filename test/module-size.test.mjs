@@ -65,7 +65,8 @@ test('the migration list never loses an entry it has not earned', () => {
 });
 
 test('the ceiling is the same number the refactoring spec promises', () => {
-  const spec = readFileSync(join(ROOT, 'openspec/changes/split-giant-files/specs/module-structure/spec.md'), 'utf8');
+  // The change is archived: the ceiling is now a spec of its own.
+  const spec = readFileSync(join(ROOT, 'openspec/specs/module-structure/spec.md'), 'utf8');
   assert.match(spec, /at most 500 lines/, 'the spec must state the ceiling this test enforces');
   assert.equal(LIMIT, 500, 'the test and the spec must agree on the number');
 });

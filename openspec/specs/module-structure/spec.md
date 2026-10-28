@@ -1,6 +1,14 @@
-# module-structure
+# module-structure Specification
 
-## ADDED Requirements
+## Purpose
+
+Keep every shipped module readable in one sitting: a 500-line ceiling enforced
+by `test/module-size.test.mjs`, an acyclic import graph, and a `files[]` list
+that always matches what the runtime imports. The rules exist because the two
+worst bugs of 1.19.x lived in files nobody could read whole, and they are
+asserted by tests rather than by review.
+
+## Requirements
 
 ### Requirement: Source module size
 
@@ -12,11 +20,12 @@ lines of the file.
 - **WHEN** a module listed in `package.json.files[]` exceeds 500 lines
 - **THEN** `test/module-size.test.mjs` fails and names the file and its line count
 
-#### Scenario: A file is still being migrated
+#### Scenario: No file is exempt
 
-- **WHEN** a file above 500 lines is listed in the test's `MIGRATION` set
-- **THEN** the test passes, and each refactoring step deletes exactly its own
-  entry from that set
+- **WHEN** any module listed in `package.json.files[]` exceeds 500 lines
+- **THEN** `test/module-size.test.mjs` fails and names the file and its line
+  count; the `MIGRATION` set that once carried the not-yet-split files is empty,
+  so the failure cannot be waived without editing the test in the same commit
 
 #### Scenario: A new module is added
 
