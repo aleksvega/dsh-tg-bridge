@@ -7,7 +7,7 @@ export default {
   'ctrl.help.about.send': "把项目中的文件发到聊天：/send report.pdf。",
   'ctrl.help.about.seed': "为空话题写入首段文本并置顶，适用于机器人加入前创建的话题。",
   'ctrl.help.about.goal': "用一行说明本话题的目标：/goal <文本>、/goal done。任务在其下。",
-  'ctrl.help.about.tasks': "\"带按钮的任务清单：点一下即完成或取消完成，卡片原地重绘。\"",
+  'ctrl.help.about.tasks': "带按钮的任务清单：点一下即完成或取消完成，卡片原地重绘。",
   'ctrl.help.about.resume': "继续较早的会话：/resume <id>。编号来自 /sessions。",
   'ctrl.help.about.rewind': "回退 n 轮并换种说法：/rewind 2。先显示将移除内容的卡片，只有按按钮才裁切。/rewind undo 可恢复。",
   'ctrl.help.about.fork': "像桌面版一样分叉本话题：/fork 把整个会话复制成新会话并把本话题切到副本，/fork 2 复制两轮前的样子。不会切断任何东西：原来的会话保持原样，用 /branches 切回去。",

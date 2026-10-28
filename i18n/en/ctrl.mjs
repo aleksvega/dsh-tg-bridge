@@ -7,7 +7,7 @@ export default {
   'ctrl.help.about.send': "Sends a file from the project into the chat: /send report.pdf.",
   'ctrl.help.about.seed': "Puts the first text into an empty topic and pins it, for topics created before the bot joined.",
   'ctrl.help.about.goal': "The goal of this topic in one line: /goal <text>, /goal done. Tasks live under it.",
-  'ctrl.help.about.tasks': "\"The checklist with a button per task: one tap marks it done or undone, and the card is redrawn in place.\"",
+  'ctrl.help.about.tasks': "The checklist with a button per task: one tap marks it done or undone, and the card is redrawn in place.",
   'ctrl.help.about.resume': "Continues an older session: /resume <id>. The id comes from /sessions.",
   'ctrl.help.about.rewind': "Goes back n turns and lets you rephrase: /rewind 2. Shows a card of what will go and cuts only on the button. /rewind undo puts it back.",
   'ctrl.help.about.fork': "Branches this topic the way the desktop app does: /fork copies the whole session as a new one and moves this topic onto the copy, /fork 2 copies it as it stood two turns back. Nothing is cut — the session you were in stays exactly as it was, and /branches switches back.",

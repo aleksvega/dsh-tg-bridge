@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.6
+
+- **All three locales checked, string by string.** 663 keys in each of `en`,
+  `ru`, `zh`: the same keys, the same placeholders, nothing empty, no mojibake.
+  Two real defects came out of it.
+- **`/help tasks` printed literal double quotes** around its sentence in every
+  language — the string was written as a JS literal that already contained
+  quotes, and nothing looked at the shape of a translated string, only at
+  whether the key existed.
+- **The Russian plugin list said "(disabled)" in English.** Now "(отключён)".
+- A new test guards the shape rather than the key set: no string may be wrapped
+  in ASCII quotes, none may leak `undefined`/`NaN` or an unsubstituted `${…}`,
+  and a Russian or Chinese string may not be the English one unless it is pure
+  formatting, a product name, or a model id.
+
 ## 1.20.5
 
 - **`/prices` has one source: OpenRouter.** The card used to mix models.dev with
