@@ -1,5 +1,29 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.0
+
+- **A turn shows its answer, not its reasoning.** When a turn ended without a
+  final answer, the CLI's `final` event reported the last assistant text it had
+  — the reasoning — and the bridge sent that as the reply. The chat then held a
+  page of thinking with no answer under it. The answer is now compared with the
+  reasoning block the panel already holds (whitespace-normalised, and only when
+  it is at least 120 characters, so "ok" cannot be swallowed); an echo becomes
+  one line saying the turn ended without an answer. `test/reasoning-echo.test.mjs`.
+- **Every shipped module fits in one screen.** `bridge.mjs` 3116 → 411 lines,
+  `control.mjs` 2734 → 97, each dictionary 2024 → an 8-line header over
+  `core.mjs` (214 keys) and `ctrl.mjs` (421). The ceiling is a test, not a
+  promise: `test/module-size.test.mjs` fails above 500 lines and its `MIGRATION`
+  set — which once carried the files still waiting — is empty, so there is no
+  file left to exempt. The moves themselves change no behaviour; the process is
+  in `docs/REFACTORING.md` and the archived change is
+  `openspec/changes/archive/2026-10-28-split-giant-files/`.
+- **The pre-push scanner stopped flagging merged pull requests.** GitHub writes
+  its own merge commits as `Committer: GitHub <noreply@github.com>`, and the
+  exemption in `scan-secrets.mjs` was written where it could never match, so the
+  first merged PR made every later push fail the check. The rule now reads the
+  address from its `@` and allows the whole `github.com` domain; a personal
+  domain is still a finding, and both cases are tested.
+
 ## 1.19.12
 
 - **The speed number added in 1.19.11 was wrong.** The harness reports

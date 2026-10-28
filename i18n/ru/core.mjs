@@ -171,6 +171,7 @@ export default {
   'bridge.progress.text': 'текст: {text}',
   'bridge.progress.empty': '(пусто)',
   'bridge.progress.emptyReply': '(пустой ответ)',
+  'bridge.progress.reasoningOnly': 'Ход закончился без ответа: размышление выше — не ответ. Повтори мысль одной строкой, и я отвечу.',
   'bridge.error.inline': 'ошибка: {msg}',
   'bridge.error.cliDied': 'CLI завершился с кодом {code} без вывода',
   'bridge.error.noApp': 'DeepSeek Harness не найден по пути {path} — ход запустить нечем. Установите приложение или укажите путь в `dshApp` в config.json.',

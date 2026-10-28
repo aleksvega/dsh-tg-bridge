@@ -171,6 +171,7 @@ export default {
   'bridge.progress.text': '文本：{text}',
   'bridge.progress.empty': '（空）',
   'bridge.progress.emptyReply': '（空回复）',
+  'bridge.progress.reasoningOnly': '这一轮没有生成回答，上面的笔记只是思考过程。请再把问题说一句，我来回答。',
   'bridge.error.inline': '错误：{msg}',
   'bridge.error.cliDied': 'CLI 以代码 {code} 退出且没有输出',
   'bridge.error.noApp': '未在 {path} 找到 DeepSeek Harness，无法启动回合。请安装应用，或在 config.json 中用 `dshApp` 指定路径。',

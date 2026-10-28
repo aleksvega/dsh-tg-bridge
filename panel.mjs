@@ -32,6 +32,24 @@ function tailOf(text, room) {
 }
 
 /**
+ * Is this "answer" the reasoning the panel already holds?
+ *
+ * The headless CLI's `final` event is supposed to carry the turn's answer, but a
+ * turn that ends without one reports the last assistant text it has — the
+ * reasoning. Forwarding that sends a page of thinking as the reply, and the
+ * person reads it as "the bot answers with its own notes". Matching is on
+ * whitespace-normalised text, and the answer must be long enough that a one-word
+ * reply cannot be swallowed by coincidence.
+ */
+export function looksLikeReasoning(answer, thinking) {
+  const norm = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const said = norm(answer);
+  const thought = norm(thinking);
+  if (!said || !thought || said.length < 120) return false;
+  return thought.includes(said) || (said.includes(thought) && thought.length > said.length * 0.6);
+}
+
+/**
  * One line for a tool call in the panel.
  *
  * The harness runs every call in a fresh shell, so most commands start with

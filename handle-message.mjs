@@ -14,7 +14,7 @@ import { sessionKey, threadOf } from './keys.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
 import { describeVerdicts, firstLiveModel, probeHint, probeModel } from './model-probe.mjs';
-import { stepLine } from './panel.mjs';
+import { looksLikeReasoning, stepLine } from './panel.mjs';
 import { DIR, GOAL_CMD, THOUGHT_DIR } from './paths.mjs';
 import { renderPrices } from './prices.mjs';
 import { settingsChipOf, turnProfileOf } from './profile-view.mjs';
@@ -471,5 +471,13 @@ ${t(lang, 'help.body')}`,
     return;
   }
   log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);
+  // A turn that ends without an answer hands back its last assistant text —
+  // the reasoning — and sending that looks exactly like the bot answering with
+  // its own notes. Say what happened instead of forwarding the page.
+  if (looksLikeReasoning(result.text, progress.reasoning())) {
+    log(`reasoning echo suppressed for ${where} (${String(result.text).length} chars)`);
+    await send(chatId, t(lang, 'bridge.progress.reasoningOnly'), threadId);
+    return;
+  }
   await send(chatId, result.text || t(lang, 'bridge.progress.emptyReply'), threadId);
 }

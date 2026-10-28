@@ -171,6 +171,7 @@ export default {
   'bridge.progress.text': 'text: {text}',
   'bridge.progress.empty': '(empty)',
   'bridge.progress.emptyReply': '(empty reply)',
+  'bridge.progress.reasoningOnly': 'The turn ended without an answer. What I was thinking stayed in the notes above, so say it again in one line and I will answer.',
   'bridge.error.inline': 'error: {msg}',
   'bridge.error.cliDied': 'the CLI exited with code {code} and printed nothing',
   'bridge.error.noApp': 'DeepSeek Harness is not at {path} — the bridge cannot start a turn. Install the app or point `dshApp` in config.json at it.',

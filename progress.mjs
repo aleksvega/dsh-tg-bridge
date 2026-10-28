@@ -192,6 +192,14 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   }
 
   return {
+    /** The reasoning this turn produced, as one string.
+     *
+     * The answer is checked against this before it is sent: a turn that ends
+     * without one reports the last assistant text it has, which is the
+     * reasoning, and that must not reach the chat as a reply. */
+    reasoning() {
+      return thinkingParts.join('\n\n');
+    },
     /** Keep the clock moving during long model thinking: the elapsed time is
      *  proof of life, and a frozen counter is what reads as a hang. */
     heartbeat() {
