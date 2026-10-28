@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.5
+
+- **`/prices` has one source: OpenRouter.** The card used to mix models.dev with
+  a scraped provider page, and could print `$0.0000` for the model the install
+  actually runs — a free mirror standing in for a real price. A price that is
+  wrong is worse than no price, because it gets believed.
+- **The number is labelled as a reference.** A private route (unorouter,
+  wikivibe, any reseller) does not publish its own tariff, so the card shows
+  OpenRouter's rate for the same model id and says in words that this is the
+  market rate, not the invoice: `deepseek/deepseek-v4.1-flash — reference:
+  OpenRouter price for the same model, not your route`. The id stays visible so
+  the number can be checked in one click.
+- `pricesUrl` is retired: a second catalog only reintroduced the bug it was
+  meant to fix — two numbers for one model, and a guess about which is yours.
+
 ## 1.20.4
 
 - **A prompt written in General ("Все") now starts its own topic.** The old

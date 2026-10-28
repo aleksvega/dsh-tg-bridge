@@ -1,83 +1,41 @@
 // prices.mjs — model prices without a provider-specific plugin.
 //
-// `/prices` reads the public models.dev catalog by default. An install that
-// wants live prices from its own provider can point `pricesUrl` at that
-// provider's public model page; the parser is generic, so no vendor is baked
-// into the code.
+// The one source is OpenRouter's public model list: it is JSON, it carries a
+// price for every model it serves, and it is the market rate a person can check
+// in one click. A private route (unorouter, wikivibe, any reseller) rarely
+// publishes its own numbers, so a card built from the route's own page is empty
+// or wrong. Every card therefore says whose price it shows: OpenRouter's rate
+// for the same model, as a reference — not the invoice.
 
-const MODELS_DEV = 'https://models.dev/api.json';
+const OPENROUTER = 'https://openrouter.ai/api/v1/models';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-/** "1.0M", "262K", "1,048,576" -> tokens. */
-export function parseCount(raw) {
-  const text = String(raw ?? '').replace(/[,\s]/g, '').trim().toLowerCase();
-  const match = /^([0-9]*\.?[0-9]+)([kmbt])?$/.exec(text);
-  if (!match) return null;
-  const scale = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 }[match[2]] ?? 1;
-  const value = Number(match[1]) * scale;
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
-
-/** "$0.30" -> 0.3 (USD per 1M tokens). */
-export function parsePrice(raw) {
-  const match = /\$\s*([0-9]+(?:\.[0-9]+)?)/.exec(String(raw ?? ''));
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isFinite(value) ? value : null;
-}
-
 /**
- * Parse the server-rendered models table.
+ * OpenRouter's model list -> the shape the card wants.
  *
- * The page is a table of cards; each row carries a model id and one or more
- * price cells. Rather than depend on the exact DOM, this scans for rows that
- * contain both a model-ish token and a `$` price, which survives markup churn.
+ * OpenRouter quotes dollars per token as strings ("0.00000015"); the card speaks
+ * per million, which is how every other price in the world is written. A model
+ * with no `pricing.prompt` is skipped: a missing price is not a free model.
  */
-export function parseModelsPage(html) {
+export function parseOpenRouter(json) {
+  const list = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+  const perMillion = (raw) => {
+    const value = Number(raw);
+    return Number.isFinite(value) && value >= 0 ? value * 1e6 : null;
+  };
   const models = [];
-  // Tokens that are markup artefacts, not model ids.
-  const junk = new Set(['data-slot', 'data-value', 'data-size', 'class', 'style', 'href', 'span', 'div', 'table', 'tbody', 'transition-colors', 'text-sm', 'text-xs', 'flex-col']);
-  const cssLike = /(color|colou?rs|text-(?:sm|xs|lg|xl)|flex-|grid-|bg-|border-|rounded-|font-|hover:|px-|py-|mt-|mb-)/i;
-  const rows = String(html ?? '').split(/<tr[\s>]/i).slice(1);
-  for (const row of rows) {
-    const text = row.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-    const prices = [...text.matchAll(/\$\s*([0-9]+(?:\.[0-9]+)?)/g)].map((m) => Number(m[1]));
-    if (prices.length === 0) continue;
-    // A model id: a long token with a dash or a slash, never an attribute name.
-    const candidates = [...text.matchAll(/\b([a-z][a-z0-9]*(?:[./\-][a-z0-9]+){1,4})\b/gi)]
-      .map((m) => m[1])
-      .filter((token) => token.length >= 6 && !junk.has(token.toLowerCase()) && !/^data-/i.test(token) && !cssLike.test(token) && /[a-z]/i.test(token) && /\d/.test(token) && /-|\./.test(token));
-    const id = candidates.sort((a, b) => b.length - a.length)[0];
-    if (!id) continue;
-    // Context must be labelled; a bare number is a price or an uptime figure.
-    const contextMatch = /(\d+(?:[.,]\d+)?)\s*([KMB])\b\s*(?:tokens|токен|context|контекст|ctx)?/i.exec(text);
-    const parsedContext = contextMatch ? parseCount(`${contextMatch[1]}${contextMatch[2]}`) : null;
-    // A context window above 4M is a mis-parse of some other number on the row.
-    const context = parsedContext && parsedContext <= 4000000 ? parsedContext : null;
+  for (const entry of list) {
+    const id = String(entry?.id ?? '').trim();
+    const inputPrice = perMillion(entry?.pricing?.prompt);
+    if (!id || inputPrice === null) continue;
+    const outputPrice = perMillion(entry?.pricing?.completion);
     models.push({
-      id: id.replace(/^www\./i, ''),
-      inputPrice: prices[0],
-      outputPrice: prices[1] ?? prices[0],
-      context,
+      id,
+      inputPrice,
+      outputPrice: outputPrice === null ? inputPrice : outputPrice,
+      cacheReadPrice: perMillion(entry?.pricing?.input_cache_read),
+      context: Number(entry?.context_length) > 0 ? Number(entry.context_length) : null,
     });
-  }
-  return models;
-}
-
-/** models.dev catalog -> the same shape. */
-export function parseModelsDev(catalog) {
-  const models = [];
-  for (const [provider, entry] of Object.entries(catalog ?? {})) {
-    for (const [id, model] of Object.entries(entry?.models ?? {})) {
-      const cost = model.cost ?? {};
-      if (typeof cost.input !== 'number') continue;
-      models.push({
-        id: `${provider}/${id}`,
-        inputPrice: cost.input,
-        outputPrice: typeof cost.output === 'number' ? cost.output : cost.input,
-        context: model.limit?.context ?? null,
-      });
-    }
   }
   return models;
 }
@@ -105,11 +63,13 @@ export const WORDS = {
     cheap: 'Cheapest with context >= 128k:',
     none: 'No models matched the filter.',
     fail: 'Could not fetch prices',
-    notPublic: 'no public price — this route does not publish one',
-    retail: 'Gateways that do publish it: {list}',
+    notPublic: 'OpenRouter has no price for this model',
+    retail: 'Models it does price: {list}',
     yourProvider: 'price published for your provider',
     exact: 'same model on another gateway',
     similar: 'a similar model, not the same id',
+    reference: 'reference: OpenRouter price for the same model, not your route',
+    perMillion: 'per 1M tokens',
   },
   ru: {
     prices: 'Цены',
@@ -117,11 +77,13 @@ export const WORDS = {
     cheap: 'Дешёвые модели с контекстом ≥128k:',
     none: 'Ничего не нашлось по фильтру.',
     fail: 'Не смог получить цены',
-    notPublic: 'публичной цены нет — этот маршрут её не публикует',
-    retail: 'Публикуют цену: {list}',
+    notPublic: 'у OpenRouter этой модели нет',
+    retail: 'Есть цена у: {list}',
     yourProvider: 'цена опубликована для вашего провайдера',
     exact: 'та же модель на другом шлюзе',
     similar: 'похожая модель, не тот же id',
+    reference: 'ориентир: цена OpenRouter для той же модели, не вашего маршрута',
+    perMillion: 'за 1М токенов',
   },
   zh: {
     prices: '价格',
@@ -129,11 +91,13 @@ export const WORDS = {
     cheap: '上下文 ≥128k 的最便宜模型：',
     none: '没有符合筛选条件的模型。',
     fail: '无法获取价格',
-    notPublic: '没有公开价格——这条线路不发布价格',
-    retail: '公开发布价格的网关：{list}',
+    notPublic: 'OpenRouter 没有这个模型的价格',
+    retail: '有价格：{list}',
     yourProvider: '你的服务商公布的价格',
     exact: '同一模型，另一家网关',
     similar: '相似的模型，不是同一个 id',
+    reference: '参考：同一模型在 OpenRouter 的价格，不是你的线路',
+    perMillion: '每百万 token',
   },
 };
 
@@ -198,6 +162,10 @@ function claims(modelId, provider) {
  * The two lines that say what the current model costs, and whose price it is.
  * Kept apart from the fetch so the wording can be tested offline: the failure
  * this replaces was a confident "$0.0000", and a wrong price is worse than none.
+ *
+ * Every number here is OpenRouter's, and the card says so. A private route
+ * publishes nothing, so its own number would be either missing or invented; the
+ * market rate for the same model is the honest reference, and it is checkable.
  */
 export function describeCurrent(models, { model, provider } = {}, words) {
   const name = provider ? `${provider}/${model}` : model;
@@ -215,60 +183,52 @@ export function describeCurrent(models, { model, provider } = {}, words) {
     ];
   }
   const price = current.inputPrice > 0
-    ? `${usd(current.inputPrice)} / ${usd(current.outputPrice)} per 1M`
+    ? `${usd(current.inputPrice)} / ${usd(current.outputPrice)} ${words.perMillion}`
     : words.notPublic;
+  // Whose price this is, on the same line as the id it came from: a reader must
+  // be able to check the number in one click, and must not think it is their
+  // own bill. A private route publishes nothing, so it never claims one.
   const where = claims(current.id, provider)
-    ? words.yourProvider
-    : `${current.id} (${current.exact ? words.exact : words.similar})`;
+    ? `${current.id} — ${words.yourProvider}`
+    : `${current.id} — ${words.reference}`;
   return [`${words.now}: ${name} — ${price}`, `  ${where}`];
 }
 
 /**
- * Render `/prices [filter]` from the public market catalog, plus an optional
- * provider page configured as `pricesUrl`. Neither source is required: if one
- * is down the other still answers, and with no `pricesUrl` only models.dev is
- * queried.
+ * Render `/prices [filter]`.
+ *
+ * OpenRouter is the only source: one JSON list, a published price for every
+ * model it serves, and a page a person can check. A second catalog would only
+ * reintroduce the bug this replaces — two numbers for one model, and a guess
+ * about which is the reader's.
+ *
  * @param {string} filter optional text to match model ids
- * @param {{ model?: string, provider?: string, pageUrl?: string, lang?: string }} options
+ * @param {{ model?: string, provider?: string, lang?: string }} options
  */
 export async function renderPrices(filter = '', options = {}) {
   const lang = WORDS[options.lang] ? options.lang : 'en';
   const words = WORDS[lang];
-  const pageUrl = String(options.pageUrl || '').trim();
-  const jobs = [fetchText(MODELS_DEV, 30000)];
-  if (pageUrl) jobs.unshift(fetchText(pageUrl));
-  const results = await Promise.allSettled(jobs);
-  const page = pageUrl ? results[0] : null;
-  const dev = pageUrl ? results[1] : results[0];
+  const [openrouter] = await Promise.allSettled([fetchText(OPENROUTER, 30000)]);
 
   let models = [];
   const sources = [];
-  if (page?.status === 'fulfilled') {
-    const parsed = parseModelsPage(page.value);
-    if (parsed.length > 0) {
-      models.push(...parsed);
-      try { sources.push(new URL(pageUrl).hostname.replace(/^www\./i, '')); } catch { sources.push('provider'); }
-    }
-  }
-  if (dev?.status === 'fulfilled') {
+  if (openrouter?.status === 'fulfilled') {
     try {
-      const parsed = parseModelsDev(JSON.parse(dev.value));
+      const parsed = parseOpenRouter(JSON.parse(openrouter.value));
       if (parsed.length > 0) {
         models.push(...parsed);
-        sources.push('models.dev');
+        sources.push('OpenRouter');
       }
     } catch {}
   }
   if (models.length === 0) {
-    const reason = dev?.status === 'rejected'
-      ? dev.reason?.message
-      : page?.status === 'rejected'
-        ? page.reason?.message
-        : 'catalogs parsed to 0 models';
+    const reason = openrouter?.status === 'rejected'
+      ? openrouter.reason?.message
+      : 'the OpenRouter list parsed to 0 models';
     return `${words.fail}: ${reason}`;
   }
 
-  // The live page wins on duplicate ids; models.dev fills the rest.
+  // One catalog, so duplicate ids cannot disagree about a price.
   const seen = new Set();
   models = models.filter((model) => {
     const id = model.id.toLowerCase();

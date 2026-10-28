@@ -109,7 +109,7 @@ Optional provider settings live in `config.json`:
 | Key | Meaning |
 |---|---|
 | `providerKeys` | extra env var names to pass to a turn, read from `~/.dsh/.credentials.yaml`; default `[]` |
-| `pricesUrl` | public model page for `/prices`; default `""` uses models.dev only |
+| `pricesUrl` | retired: `/prices` always reads OpenRouter's public list and labels the number as a reference for the model |
 | `vision.patch` | opt-in overlay profile for photo turns; default `""` — the turn's own model reads images |
 | `vision.enabled` | set `true` to run photo turns on `vision.patch` instead of the topic profile |
 | `fallbackModels` | free-model fallbacks; default `[]` |

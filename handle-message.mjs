@@ -242,12 +242,12 @@ ${t(lang, 'help.body')}`,
       profile: profileOf(key),
       prices: (filter) => {
         const route = modelOf(profileOf(key));
-        // A provider page is optional: without `pricesUrl` the answer comes from
-        // the public models.dev catalog, so no install is tied to one vendor.
+        // One source, always the same one: OpenRouter's public list. The card
+        // says in words that the number is a reference for the model, not the
+        // bill of the route this install runs on.
         return renderPrices(filter, {
           model: route.model,
           provider: route.provider,
-          pageUrl: config.pricesUrl || '',
           lang,
         });
       },
