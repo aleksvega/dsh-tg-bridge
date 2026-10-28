@@ -1,5 +1,23 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.22.0
+
+- **💭 notes actually reach the progress card.** Two files exist for one topic:
+  the turn's own (`DSH_TG_THOUGHT`) and the stable per-topic one that `say.mjs`
+  writes whenever the tool shell lost the bridge's environment. The card read
+  only the first, so the block stayed empty while the file on disk kept growing.
+  Both are read now, filtered by the turn's start time, deduplicated, and a
+  previous turn's line can no longer surface as this turn's decision.
+- **A turn that waits for a slot says so.** The parallel cap was a hard 3 and a
+  fourth topic waited in total silence — not even "queued", which reads exactly
+  like a dead bot. The cap is `config.maxParallel` (1–8, default 3) and a waiting
+  turn posts one line in its own topic, removed the moment it starts.
+- **The notes instruction is not optional any more.** The per-turn prompt used
+  to offer "skip it for one-step work", which turned into skipping it always.
+  Now: a 💭 line at each decision point, and a `--note` line for the four things
+  a person must not have to ask about — a release, a root cause, a blocker, and
+  a turn running longer than a couple of minutes.
+
 ## 1.21.1
 
 - **The task list no longer freezes at 30.** The cap counted finished tasks as
