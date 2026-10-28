@@ -34,7 +34,15 @@ export const RULES = [
   // A commit's identity comes from `git config` on whichever machine committed,
   // so it is the one place a personal address appears without ever being in a
   // file. `--all` reads the log through `git log --format`, not the tree.
-  { id: 'email-author', re: /^(?:Author|Committer):\s.*<[^>]*@(?!users\.noreply\.github\.com|noreply@)[^>]*\.[a-z]{2,}>/m, why: 'a commit authored with a personal email address' },
+  //
+  // GitHub writes its own merge commits as `Committer: GitHub <noreply@github.com>`
+  // and every account's web-flow address is `…@users.noreply.github.com`, so the
+  // whole `github.com` domain is a hosting identity, not a person. The check
+  // reads the address backwards from the `@` (the domain is what follows it), so
+  // the exemption has to be written there too — an earlier version looked for
+  // `noreply@` after the `@` and therefore never matched, which flagged every
+  // pull-request merge.
+  { id: 'email-author', re: /^(?:Author|Committer):\s.*<[^>]*@(?![^>]*github\.com>)[^>]*\.[a-z]{2,}>/m, why: 'a commit authored with a personal email address' },
 ];
 
 /**

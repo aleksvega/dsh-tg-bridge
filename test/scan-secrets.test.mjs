@@ -46,8 +46,21 @@ test('ordinary documentation and code stay clean', () => {
     'const chatId = msg.chat.id;',
     'model: deepseek-v4.1-flash-1017',
     'the self-hosted layout is /home/<name>/svc, not a project path',
+    // GitHub writes its own merge commits under these two identities; a repo
+    // that refuses them cannot contain a merged pull request at all.
+    'Committer: GitHub <noreply@github.com>',
+    'Author: someone <1234+someone@users.noreply.github.com>',
   ].join('\n');
   assert.deepEqual(scanText(clean), []);
+});
+
+test('a commit identity on a personal domain is still a finding', () => {
+  const line = 'Author: someone <' + ['someone', 'mail.ru'].join('@') + '>';
+  // Two rules catch this line — the author identity and the free-mail domain —
+  // and the author rule is the one this test is about.
+  const hits = scanText(line).filter((hit) => hit.id === 'email-author');
+  assert.equal(hits.length, 1, 'the author rule must fire on a personal domain');
+  assert.doesNotMatch(hits[0].why, /mail\.ru/, 'the report must not repeat the address');
 });
 
 test('the report names the file line and what leaked, never the value', () => {
