@@ -15,12 +15,12 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
  * a panel that hides half the bot sends people back to typing.
  */
 const SECTIONS = {
-  work: ['cd', 'seed', 'send', 'sessions', 'rewind', 'fork', 'branches'],
-  session: ['resume', 'profile', 'agents'],
+  work: ['cd', 'seed', 'send'],
+  session: ['sessions', 'rewind', 'profile', 'agents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
   talk: ['effort', 'reasoning', 'thoughts', 'prices', 'lang'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
-  house: ['settings', 'update', 'version', 'subscribe', 'doctor', 'logs', 'restart', 'app', 'help'],
+  house: ['settings', 'update', 'subscribe', 'doctor', 'logs', 'restart', 'app', 'help'],
 };
 
 /**
@@ -60,11 +60,8 @@ const LABELS = {
   seed: '/seed <text>',
   send: '/send <file>',
   stop: '/stop',
-  sessions: '/sessions [n]',
-  resume: '/resume <id>',
-  rewind: '/rewind [n]',
-  fork: '/fork [n]',
-  branches: '/branches',
+  sessions: '/sessions [<id>]',
+  rewind: '/rewind [n|fork|branches]',
   profile: '/profile <name>',
   agents: '/agents',
   goal: '/goal <text>',
@@ -87,7 +84,6 @@ const LABELS = {
   crew: '/crew use <id>',
   settings: '/settings',
   update: '/update [confirm]',
-  version: '/version',
   subscribe: '/subscribe on|off',
   doctor: '/doctor',
   logs: '/logs [N]',

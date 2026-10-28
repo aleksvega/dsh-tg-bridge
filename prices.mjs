@@ -2,10 +2,10 @@
 //
 // The one source is OpenRouter's public model list: it is JSON, it carries a
 // price for every model it serves, and it is the market rate a person can check
-// in one click. A private route (unorouter, wikivibe, any reseller) rarely
-// publishes its own numbers, so a card built from the route's own page is empty
-// or wrong. Every card therefore says whose price it shows: OpenRouter's rate
-// for the same model, as a reference — not the invoice.
+// in one click. A private route or reseller rarely publishes its own numbers, so
+// a card built from the route's own page is empty or wrong. Every card therefore
+// says whose price it shows: OpenRouter's rate for the same model, as a
+// reference — not the invoice.
 
 const OPENROUTER = 'https://openrouter.ai/api/v1/models';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';

@@ -27,6 +27,15 @@ export const COMMAND_ALIASES = {
   plugin: 'plugins',
   agentset: 'crew',
   task: 'tasks',
+  // One verb per job: going back is `/rewind` with a word (`fork`, `branches`),
+  // switching a session is `/sessions <id>`, and "am I current?" is `/update`.
+  // The old names still work — `control.mjs` rewrites them into the verb and its
+  // argument — and none of them is advertised, so `/help` stops teaching four
+  // commands where two do the work.
+  fork: 'rewind',
+  branches: 'rewind',
+  resume: 'sessions',
+  version: 'update',
 };
 
 /**

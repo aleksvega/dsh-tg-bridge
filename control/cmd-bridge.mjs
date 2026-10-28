@@ -33,6 +33,35 @@ import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agent
 import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 
+/**
+ * Which bridge is running, which one npm has, and whether this install can
+ * update itself. A report, so it answers even in the middle of a turn.
+ *
+ * It lives in a function because `/update` without an argument now opens with
+ * the same lines: "am I current?" used to be two commands and two messages.
+ */
+function versionCard(lang) {
+  const installed = bridgeVersion();
+  const latest = npmLatest('dsh-tg-bridge');
+  const where = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
+  const lines = [t(lang, 'ctrl.version.title')];
+  lines.push(t(lang, 'ctrl.version.installed', { v: installed || t(lang, 'ctrl.version.unknown') }));
+  lines.push(t(lang, 'ctrl.version.latest', { v: latest || t(lang, 'ctrl.version.offline') }));
+  if (installed && latest && installed !== latest) lines.push(t(lang, 'ctrl.version.update', { v: latest }));
+  lines.push(t(lang, 'ctrl.version.root', { path: where }));
+  lines.push(t(lang, 'ctrl.version.hint'));
+  // The number above comes from package.json on disk; the code actually
+  // answering this came from the files as they were at process start. When
+  // ./sync-runtime.mjs (or /update) has since replaced them, saying so beats a
+  // version that reads as live while it is not.
+  const started = Date.now() - process.uptime() * 1000;
+  const newest = newestModuleMtime(where);
+  if (newest && newest > started + 2000) {
+    lines.push(t(lang, 'ctrl.version.stale', { when: stamp(newest) }));
+  }
+  return lines.join('\n');
+}
+
 export async function handleBridgeCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
   // The topic's language, then the config default, then English. Never Russian:
@@ -244,27 +273,10 @@ export async function handleBridgeCommands(ctx) {
       return true;
     }
     case '/version': {
-      // Which bridge is running, which one npm has, and whether this install can
-      // update itself. A report, so it answers even in the middle of a turn.
-      const installed = bridgeVersion();
-      const latest = npmLatest('dsh-tg-bridge');
-      const where = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
-      const lines = [t(lang, 'ctrl.version.title')];
-      lines.push(t(lang, 'ctrl.version.installed', { v: installed || t(lang, 'ctrl.version.unknown') }));
-      lines.push(t(lang, 'ctrl.version.latest', { v: latest || t(lang, 'ctrl.version.offline') }));
-      if (installed && latest && installed !== latest) lines.push(t(lang, 'ctrl.version.update', { v: latest }));
-      lines.push(t(lang, 'ctrl.version.root', { path: where }));
-      lines.push(t(lang, 'ctrl.version.hint'));
-      // The number above comes from package.json on disk; the code actually
-      // answering this came from the files as they were at process start. When
-      // ./sync-runtime.mjs (or /update) has since replaced them, saying so
-      // beats a version that reads as live while it is not.
-      const started = Date.now() - process.uptime() * 1000;
-      const newest = newestModuleMtime(where);
-      if (newest && newest > started + 2000) {
-        lines.push(t(lang, 'ctrl.version.stale', { when: stamp(newest) }));
-      }
-      say(lines.join('\n'));
+      // Kept as the body `/update` uses: the old spelling is rewritten to
+      // `/update` before dispatch, so this only answers if something calls it
+      // directly. One card, one source of the numbers.
+      say(versionCard(lang));
       return true;
     }
     case '/update': {
@@ -311,8 +323,11 @@ export async function handleBridgeCommands(ctx) {
         say(t(lang, 'ctrl.update.done', { v: latest }) + `\n${t(lang, 'ctrl.update.backup', { path: join(bridgeRoot(), backup) })}`);
         return true;
       }
-      // No argument: where this install stands, in one sentence.
-      say(describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified })));
+      // No argument: which bridge is running and where this install stands.
+      // This used to be two commands (`/version` for the numbers, `/update` for
+      // the state), which meant "am I current?" took two messages. One card
+      // answers both, and `/version` still arrives here rewritten.
+      say(versionCard(lang) + '\n\n' + describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified })));
       return true;
     }
     default:

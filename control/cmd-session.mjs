@@ -53,7 +53,7 @@ export async function handleSessionCommands(ctx) {
         const id = bareId(row.id);
         const current = bareId(state.sessions[key] || '') === id ? '*' : ' ';
         const when = new Date(row.mtime).toISOString().slice(5, 16).replace('T', ' ');
-        return `${current} ${when}  ${row.title.slice(0, 48)}\n    /resume ${id}`;
+        return `${current} ${when}  ${row.title.slice(0, 48)}\n    /sessions ${id}`;
       });
       say([t(lang, 'ctrl.sessions.title'), ...lines].join('\n'));
       return true;

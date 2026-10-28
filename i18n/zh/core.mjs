@@ -14,7 +14,7 @@ export default {
   'settings.state.on': '开',
   'settings.state.off': '关',
   'settings.state.auto': '自动',
-  'help.body': "任务直接以文本发送。每个论坛话题是一个独立会话：\n\n工作: /cd \u003c项目\u003e · /new · /stop · /send \u003c文件\u003e · /seed \u003c文本\u003e\n目标: /goal · /tasks [\u003ctext\u003e|done N] · /tasks（点击勾选）\n会话: /status · /sessions [n] · /resume \u003cid\u003e · /rewind [n] · /fork [n] · /branches · /new · /profile \u003c名称\u003e\n智能体: /agents · /agents set model|depth|filter … @tool\n模型: /model · /model \u003cid\u003e · /prices · /thoughts\n调优: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs · /remind\n扩展: /skills · /plugins [add|remove] · /soul\n版本: /version · /update [confirm|on|off|auto] · /subscribe on|off\n其他: /settings · /lang · /reasoning · /doctor · /logs [errors|N] · /app · /restart · /help\n面板: /menu — 同样的命令做成按钮，分页浏览。/menu on 在输入框下方加四个键。",
+  'help.body': "任务直接以文本发送。每个论坛话题是一个独立会话：\n\n工作: /cd \u003c项目\u003e · /new · /stop · /send \u003c文件\u003e · /seed \u003c文本\u003e\n目标: /goal · /tasks [\u003ctext\u003e|done N] · /tasks（点击勾选）\n会话: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003c名称\u003e\n智能体: /agents · /agents set model|depth|filter … @tool\n模型: /model · /model \u003cid\u003e · /prices · /thoughts\n调优: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs · /remind\n扩展: /skills · /plugins [add|remove] · /soul\n版本: /update [confirm|on|off|auto] · /subscribe on|off\n其他: /settings · /lang · /reasoning · /doctor · /logs [errors|N] · /app · /restart · /help\n面板: /menu — 同样的命令做成按钮，分页浏览。/menu on 在输入框下方加四个键。",
   'settings.reply.title': '机器人怎么说',
   'settings.agent.title': '谁来回答、投入多少',
   'settings.updates.title': '新版本（针对本次安装，而非话题）',

@@ -56,11 +56,19 @@ export async function handleControl(ctx) {
   // without one it follows the install default.
   const activeProfile = profile || config.profile || 'headless';
 
-  // Old spellings of a command route to the one name that owns the job, before
-  // anything else looks at the argument.
+  // One verb per job, and the argument picks the variant. Stepping back has
+  // three shapes — cut the session, copy it, or list the copies — and they used
+  // to be three commands a person had to remember separately. They are now one
+  // command with a word: `/rewind`, `/rewind fork [n]`, `/rewind branches`.
+  // Switching a session is `/sessions <id>`, and "am I current?" is `/update`.
+  // The old spellings still arrive here and are rewritten, so a stale
+  // instruction in someone's notes keeps working.
   const bare = command.startsWith('/') ? command.slice(1) : command;
-  const canonical = COMMAND_ALIASES[bare];
-  let effective = canonical ? `/${canonical}` : command;
+  const canonical = COMMAND_ALIASES[bare] || bare;
+  // The word `/rewind` needs in front of the argument the old name carried.
+  const VERB = { fork: 'fork', branches: 'branches' };
+  let effective = `/${canonical}`;
+  let effectiveArgText = VERB[bare] ? [VERB[bare], arg].filter(Boolean).join(' ').trim() : arg;
 
   // One command for one job: `/plugins` is both the list and the way to change
   // things. Two near-identical names (`/plugin` / `/plugins`) invited the exact
@@ -75,10 +83,28 @@ export async function handleControl(ctx) {
     }
   }
 
+  if (canonical !== bare) log(`command rewrite: /${bare} ${arg} -> ${effective} ${effectiveArgText}`.trim());
+
+  // `/rewind` is the one name for "go back": cutting the session, copying it,
+  // and listing the copies are its verbs, not three commands to remember.
+  if (effective === '/rewind') {
+    const [word, ...rest] = String(effectiveArgText || '').trim().split(/\s+/);
+    const verb = (word || '').toLowerCase();
+    if (verb === 'fork' || verb === 'branch') { effective = '/fork'; effectiveArgText = rest.join(' '); }
+    else if (verb === 'branches' || verb === 'list') { effective = '/branches'; effectiveArgText = rest.join(' '); }
+  }
+  // `/sessions <id>` switches, `/sessions 5` still means "show five". A bare
+  // number is a count; anything id-shaped is a session, and the list itself
+  // prints the form to copy, so nobody has to know the difference in advance.
+  if (effective === '/sessions') {
+    const first = String(effectiveArgText || '').trim().split(/\s+/)[0] || '';
+    if (first && !/^\d+$/.test(first)) { effective = '/resume'; effectiveArgText = first; }
+  }
+
   // Each group owns one slice of the surface and answers `false` for anything
   // that is not its job. The order is alphabetical, not meaningful: no two
   // groups claim the same command, so a miss falls through to `default` below.
-  const child = { ...ctx, effective, command, arg, send, reply, log, profile, state, key, config, lang };
+  const child = { ...ctx, effective, command, arg: effectiveArgText, send, reply, log, profile, state, key, config, lang };
   for (const handler of [handleAgentCommands, handleBridgeCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleTaskCommands, handleViewCommands]) {
     if (await handler(child)) return true;
   }

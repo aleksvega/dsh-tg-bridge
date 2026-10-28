@@ -11,12 +11,11 @@ import { t } from './i18n.mjs';
 const SECTION = {
   cd: 'Work', new: 'Work', stop: 'Work', send: 'Work', seed: 'Work',
   goal: 'Goals', task: 'Goals', tasks: 'Goals',
-  status: 'Sessions', sessions: 'Sessions', resume: 'Sessions', rewind: 'Sessions', fork: 'Sessions',
-  branches: 'Sessions', profile: 'Sessions',
+  status: 'Sessions', sessions: 'Sessions', rewind: 'Sessions', profile: 'Sessions',
   agents: 'Agents', model: 'Models', prices: 'Models', thoughts: 'Models',
   effort: 'Tuning', permissions: 'Tuning', preset: 'Tuning', crew: 'Tuning', plan: 'Tuning', jobs: 'Tuning', remind: 'Tuning',
   skills: 'Extensions', plugins: 'Extensions', soul: 'Extensions',
-  version: 'Versions', update: 'Versions', subscribe: 'Versions',
+  update: 'Versions', subscribe: 'Versions',
   settings: 'Other', lang: 'Other', reasoning: 'Other', doctor: 'Other', logs: 'Other',
   app: 'Other', restart: 'Other', help: 'Other', menu: 'Panels',
 };

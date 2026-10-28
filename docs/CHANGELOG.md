@@ -1,5 +1,25 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.21.0
+
+- **Four commands became two, and the argument picks the variant.** Going back
+  was `/rewind` + `/fork` + `/branches` — three names for one job, and the
+  desktop app calls all of it branching. It is now `/rewind 2` (cut),
+  `/rewind fork [n]` (copy), `/rewind branches` (list). Switching a session is
+  `/sessions <id>` instead of a separate `/resume`, and "am I current?" is
+  `/update`, which now opens with the version card instead of needing
+  `/version` first.
+- **The old spellings still work and are never advertised.** `control.mjs`
+  rewrites them into the verb and its argument, and logs the rewrite, so an
+  instruction written down months ago does not turn into an AI turn. `/help`
+  and the panel list the two names; `menu-card.mjs` lost three buttons and no
+  section fell below a usable size.
+- **`/help <command>` answers for the merged name too**: asking about `/fork`
+  explains `/rewind`, because the sentence belongs to the job, not the spelling.
+- **One card for versions.** `/update` prints the bridge version, what npm has,
+  the install directory and the update mode in a single message; the second
+  half of that answer used to require a second command.
+
 ## 1.20.6
 
 - **All three locales checked, string by string.** 663 keys in each of `en`,

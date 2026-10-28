@@ -180,8 +180,7 @@ Send the bot:
 | Command | Expected |
 |---|---|
 | `/doctor` | report: pid, Telegram, disk, directory, session |
-| `/version` | bridge version, the latest on npm, bridge directory |
-| `/update` | says whether a newer release exists (`/update confirm` installs it) |
+| `/update` | which bridge runs, what npm has, and whether a newer release exists (`/update confirm` installs it) |
 | `/thoughts [file\|all\|off]` | the last turn's reasoning as a message; `file`/`all` send the full log as a Markdown document, `off` hides the block |
 | `/help` | commands grouped by category |
 | `/cd my-app` | topic bound to the project |
@@ -192,14 +191,14 @@ Send the bot:
 ```
 Work:         /cd · /new · /stop · /send · /seed
 Goals:        /goal (plan + checklist) · /goal reopen · /tasks (checklist only) · /tasks done|rm|edit <n>
-Sessions:     /status · /sessions · /resume
+Sessions:     /status · /sessions · /sessions <id> · /rewind [n|undo|fork [n]|branches]
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <id> · /prices
 Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
 Extensions:   /skills · /plugins · /plugins search <word> · /plugins disable|enable <id> · /soul
-Updates:      /version · /update · /update confirm · /update on|off|check|auto · /subscribe on|off
+Updates:      /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text]
 Service:      /app · /restart · /help
 Settings:     /settings — the same switches as buttons, grouped in four tabs
