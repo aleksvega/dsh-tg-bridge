@@ -5,11 +5,18 @@
 // commands that this bridge does not implement. A menu that lies is worse than
 // no menu, so the bridge owns its own list and re-asserts it on start.
 //
+// What it publishes comes from `MENU_COMMANDS` in `commands-registry.mjs`, not
+// from a second list kept here. That second list is how `/task` stayed in the
+// menu for a release after `/task` had become an alias: the registry said one
+// thing, the menu said another, and both were "the source of truth".
+//
 // Usage: node bot-menu.mjs [--delete]
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { MENU_COMMANDS } from './commands-registry.mjs';
+import { LANGS, t } from './i18n.mjs';
 
 const args = new Set(process.argv.slice(2));
 
@@ -27,125 +34,15 @@ const token = (() => {
   }
 })();
 
-/** The real, implemented surface of dsh-tg-bridge — nothing aspirational. */
-const COMMANDS = [
-  { command: 'new', description: 'Новая сессия в этой теме' },
-  { command: 'cd', description: 'Привязать тему к проекту: /cd my-app' },
-  { command: 'status', description: 'Сессии, модель, активные ходы' },
-  { command: 'stop', description: 'Остановить текущий ход' },
-  { command: 'prices', description: 'Цены моделей и что стоит текущая' },
-  { command: 'send', description: 'Прислать файл из проекта в чат' },
-  { command: 'seed', description: 'Засеять пустую тему текстом и закрепить' },
-  { command: 'goal', description: 'Цель темы: /goal <текст>, /goal done' },
-  { command: 'task', description: 'Задачи: /task <текст>, /task done <n>' },
-  { command: 'sessions', description: 'Сессии темы — обычный текст продолжает последнюю' },
-  { command: 'resume', description: 'Продолжить сессию: /resume <id>' },
-  { command: 'model', description: 'Показать или сменить: /model, /model <id>' },
-  { command: 'skills', description: 'Скиллы: список или текст одного' },
-  { command: 'soul', description: 'Персона: показать или задать' },
-  { command: 'plugins', description: 'Список, add, remove, disable, enable — всё здесь' },
-  { command: 'app', description: 'Приложение DSH, не мост: /app restart confirm' },
-  { command: 'restart', description: 'Перезапуск моста: /restart confirm' },
-  { command: 'doctor', description: 'Диагностика: мост, сеть, диск, плагины, сессия' },
-  { command: 'logs', description: 'Лог: /logs, /logs 100, /logs errors, /logs file' },
-  { command: 'help', description: 'Все команды и подсказки' },
-  { command: 'settings', description: 'Настройки кнопками, по разделам' },
-  { command: 'menu', description: 'Панель: всё кнопками, исчезает после нажатия' },
-  { command: 'rewind', description: 'Откатить ход и сформулировать иначе: /rewind 2' },
-  { command: 'lang', description: 'Язык интерфейса: en, ru, zh' },
-  { command: 'reasoning', description: 'Заметки по ходу: /reasoning on|off' },
-  { command: 'profile', description: 'Профиль темы: /profile <имя>, /profile new' },
-  { command: 'agents', description: 'Агенты и субагенты: кто, на какой модели, кого запускали' },
-  { command: 'effort', description: 'Усилие рассуждения модели: /effort high' },
-  { command: 'permissions', description: 'Права профиля: пресет песочницы и подтверждений' },
-  { command: 'preset', description: 'Пресет агента (персона и инструменты): /preset <id>' },
-  { command: 'plan', description: 'Режим плана: состояние и как получить план без правок' },
-  { command: 'jobs', description: 'Что мост выполняет сейчас: ходы и очередь' },
-  { command: 'remind', description: 'Напоминание: /remind +15m текст или 09:30 текст' },
-  { command: 'thoughts', description: 'Рассуждения хода: текстом, файлом или выкл' },
-  { command: 'version', description: 'Версия моста и последняя на npm' },
-  { command: 'update', description: 'Обновить мост из npm: /update confirm' },
-];
-
-/** English menu (language_code: en). Same commands, translated descriptions. */
-const COMMANDS_EN = [
-  { command: 'new', description: 'New session in this topic' },
-  { command: 'cd', description: 'Bind this topic to a project: /cd my-app' },
-  { command: 'status', description: 'Sessions, model, active turns' },
-  { command: 'stop', description: 'Stop the current turn' },
-  { command: 'prices', description: 'Model prices and the cost of the current one' },
-  { command: 'send', description: 'Send a file from the project into the chat' },
-  { command: 'seed', description: 'Seed an empty topic with text and pin it' },
-  { command: 'goal', description: 'Topic goal: /goal <text>, /goal done' },
-  { command: 'task', description: 'Checklist: /task <text>, /task done <n>' },
-  { command: 'sessions', description: 'Sessions of this topic — plain text continues the last one' },
-  { command: 'resume', description: 'Continue a session: /resume <id>' },
-  { command: 'model', description: 'Show or switch: /model, /model <id>' },
-  { command: 'skills', description: 'Installed skills' },
-  { command: 'soul', description: 'Agent persona' },
-  { command: 'plugins', description: 'List, add, remove, disable, enable — all here' },
-  { command: 'app', description: 'DSH desktop app (not the bridge)' },
-  { command: 'restart', description: 'Restart the bridge: /restart confirm' },
-  { command: 'doctor', description: 'Diagnostics: bridge, network, disk, plugins, session' },
-  { command: 'logs', description: 'Log: /logs, /logs 100, /logs errors, /logs file' },
-  { command: 'help', description: 'All commands and hints' },
-  { command: 'settings', description: 'Settings as buttons, grouped by topic' },
-  { command: 'menu', description: 'Panel: everything as buttons, gone after a press' },
-  { command: 'rewind', description: 'Go back a turn and rephrase: /rewind 2' },
-  { command: 'lang', description: 'Interface language: en, ru, zh' },
-  { command: 'reasoning', description: 'Working notes: /reasoning on|off' },
-  { command: 'profile', description: 'Topic profile: /profile <name>, /profile new' },
-  { command: 'agents', description: 'Agents and subagents: who runs, on which model, who was spawned' },
-  { command: 'effort', description: 'Reasoning effort: /effort high' },
-  { command: 'permissions', description: 'Profile permissions: sandbox and approval preset' },
-  { command: 'preset', description: 'Agent preset (persona and tools): /preset <id>' },
-  { command: 'plan', description: 'Plan mode: state and how to ask for a plan without edits' },
-  { command: 'jobs', description: 'What the bridge runs now: turns and queue' },
-  { command: 'remind', description: 'Reminder: /remind +15m text or 09:30 text' },
-  { command: 'thoughts', description: 'Reasoning of the last turn (text, file or off)' },
-  { command: 'version', description: 'Bridge version and how updates are handled' },
-  { command: 'update', description: 'Update and its mode: /update, /update on|off|confirm' },
-];
-
-/** Chinese menu (language_code: zh-hans). */
-const COMMANDS_ZH = [
-  { command: 'new', description: '在本话题开始新会话' },
-  { command: 'cd', description: '将本话题绑定到项目：/cd my-app' },
-  { command: 'status', description: '会话、模型、进行中的任务' },
-  { command: 'stop', description: '停止当前任务' },
-  { command: 'prices', description: '模型价格与当前模型花费' },
-  { command: 'send', description: '把项目中的文件发送到聊天' },
-  { command: 'seed', description: '用文本初始化空话题并置顶' },
-  { command: 'goal', description: '本话题目标：/goal <文本>、/goal done' },
-  { command: 'task', description: '任务清单：/task <文本>、/task done <n>' },
-  { command: 'sessions', description: '本主题的会话 —— 直接发文字会延续最近一个' },
-  { command: 'resume', description: '继续会话：/resume <id>' },
-  { command: 'model', description: '查看或切换：/model, /model <id>' },
-  { command: 'skills', description: '已安装的技能' },
-  { command: 'soul', description: '代理人格设定' },
-  { command: 'plugins', description: '列表、add、remove、disable、enable 都在这里' },
-  { command: 'app', description: 'DSH 桌面应用（不是桥接）' },
-  { command: 'restart', description: '重启桥接：/restart confirm' },
-  { command: 'doctor', description: '诊断：桥接、网络、磁盘、插件、会话' },
-  { command: 'logs', description: '日志：/logs、/logs 100、/logs errors、/logs file' },
-  { command: 'help', description: '全部命令与提示' },
-  { command: 'settings', description: '用按钮调设置，按主题分组' },
-  { command: 'menu', description: '面板：全部做成按钮，按一下就消失' },
-  { command: 'rewind', description: '回退一轮并换种说法：/rewind 2' },
-  { command: 'lang', description: '界面语言：en、ru、zh' },
-  { command: 'reasoning', description: '工作记录：/reasoning on|off' },
-  { command: 'profile', description: '话题配置档：/profile <名称>，/profile new' },
-  { command: 'agents', description: '智能体与子智能体：谁在运行、用什么模型、启动过谁' },
-  { command: 'effort', description: '推理力度：/effort high' },
-  { command: 'permissions', description: '配置档权限：沙箱与确认预设' },
-  { command: 'preset', description: '智能体预设（人格与工具）：/preset <id>' },
-  { command: 'plan', description: '计划模式：状态与如何只要计划不改动' },
-  { command: 'jobs', description: '桥接器当前在跑：轮次与队列' },
-  { command: 'remind', description: '提醒：/remind +15m 文本 或 09:30 文本' },
-  { command: 'thoughts', description: '本轮推理：文本、文件或关闭' },
-  { command: 'version', description: '桥接版本与 npm 上的最新版本' },
-  { command: 'update', description: '从 npm 更新桥接：/update confirm' },
-];
+/** The menu rows for one language, straight from the registry. */
+function rows(lang) {
+  return MENU_COMMANDS.map((name) => ({
+    // Telegram caps a description at 256 characters and a name at 32; an
+    // over-long row makes the whole call fail, so the cut happens here once.
+    command: name,
+    description: String(t(lang, `menu.cmd.${name}`)).slice(0, 256),
+  }));
+}
 
 async function api(method, body) {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -169,16 +66,16 @@ async function main() {
     console.log('menu deleted');
     return;
   }
-  // Telegram keeps one menu per language_code, so a Chinese or English user
-  // sees the list in their own language instead of Russian.
-  await api('setMyCommands', { commands: COMMANDS });
+  // The default list is the language the owner reads; the others are installed
+  // per language_code so an English or Chinese phone sees its own words.
+  await api('setMyCommands', { commands: rows('ru') });
   // Telegram validates language_code against its own ISO list: 'zh-hans' is
   // rejected with "invalid language code", 'zh' is accepted. Each language is
   // installed independently — one refusal must not leave the others unset.
-  for (const [code, list] of [['en', COMMANDS_EN], ['zh', COMMANDS_ZH]]) {
+  for (const code of LANGS.filter((lang) => lang !== 'ru')) {
     try {
-      await api('setMyCommands', { commands: list, language_code: code });
-      console.log(`menu installed for ${code}: ${list.length} commands`);
+      await api('setMyCommands', { commands: rows(code), language_code: code });
+      console.log(`menu installed for ${code}: ${MENU_COMMANDS.length} commands`);
     } catch (error) {
       console.error(`menu for ${code} failed: ${error.message}`);
     }

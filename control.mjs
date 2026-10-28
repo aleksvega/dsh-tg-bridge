@@ -89,7 +89,7 @@ export async function handleControl(ctx) {
 
 // The outside world imports these from `control.mjs`, so the move into `control/`
 // keeps its promises: same names, same module, different file.
-export { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
+export { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, MENU_COMMANDS } from './commands-registry.mjs';
 export { copyRelease } from './control/release.mjs';
 export { filterLogLines, reasoningOf } from './control/tasks.mjs';
 export { DSH_HOME } from './paths.mjs';

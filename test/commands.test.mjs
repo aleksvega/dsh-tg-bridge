@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../control.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, MENU_COMMANDS } from '../control.mjs';
 import { LANGS, t } from '../i18n.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -26,10 +26,9 @@ test('every command /help advertises is a command the dispatcher knows', () => {
 });
 
 test('every command in the menu is a command the dispatcher knows', () => {
-  const source = readFileSync(join(ROOT, 'bot-menu.mjs'), 'utf8');
-  const declared = [...source.matchAll(/command:\s*'([a-z-]+)'/g)].map((m) => m[1]);
-  assert.ok(declared.length > 20, 'menu commands not found — did bot-menu.mjs change shape?');
-  const missing = [...new Set(declared)].filter((name) => !known.has(name));
+  // The menu rows live in the registry now, so this reads the same list the bot
+  // publishes instead of parsing a second one out of bot-menu.mjs.
+  const missing = MENU_COMMANDS.filter((name) => !known.has(name));
   assert.deepEqual(missing, [], `the menu offers commands the bot would reject: ${missing.join(', ')}`);
 });
 

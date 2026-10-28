@@ -1,5 +1,22 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.20.3
+
+- **The Telegram menu is thirteen rows, and it is built from the registry.**
+  It had thirty-six, written by hand inside `bot-menu.mjs` — a second list next
+  to the one `commands-registry.mjs` already kept. That is how `/task` survived
+  in the menu for a release after it had become an alias: two lists, one truth,
+  and neither knew about the other. `MENU_COMMANDS` now lives beside the
+  registry, `bot-menu.mjs` renders it with the `menu.cmd.*` strings, and a test
+  fails if a row is an alias, a duplicate, one letter away from another row
+  (`task`/`tasks`, `sessions`/`resume`), or written by hand again.
+- **Nothing was removed, only unadvertised.** Every command still works and
+  `/help <name>` still explains it; the menu is what a person presses, not what
+  exists. `/menu` draws the whole surface as sections.
+- The menu had also been replaced at some point by the 31-command list of
+  `@xmanrui/dsh-im`; the bridge re-asserts its own list on start, and this is the
+  list it now asserts.
+
 ## 1.20.2
 
 - **`/task` and `/tasks` are one command again, and the menu shows it once.**

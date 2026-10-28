@@ -34,3 +34,23 @@ export const COMMAND_ALIASES = {
  * deliberately absent: they work, and they are never advertised.
  */
 export const DOCUMENTED_COMMANDS = CONTROL_COMMANDS.filter((name) => !COMMAND_ALIASES[name]);
+
+/**
+ * What the Telegram menu shows — and it is deliberately shorter than what
+ * exists.
+ *
+ * Thirty-six rows is not a menu, it is a wall a phone keyboard scrolls through,
+ * and a wall cannot answer "which of these do I press". These are the thirteen
+ * things a person does from a chat; `/help` still explains every command, and
+ * `/menu` still draws every section as buttons. Hiding a name here costs
+ * nothing: nothing was removed, only unadvertised.
+ *
+ * Two rules for adding a row: it must be a documented name (an alias here would
+ * teach the duplication back through the menu), and it must not be one letter
+ * away from another row — `sessions` and `resume`, `task` and `tasks` is exactly
+ * the pair of names this list exists to avoid.
+ */
+export const MENU_COMMANDS = [
+  'new', 'status', 'sessions', 'goal', 'tasks', 'model', 'plugins',
+  'settings', 'menu', 'rewind', 'stop', 'help', 'update',
+];
