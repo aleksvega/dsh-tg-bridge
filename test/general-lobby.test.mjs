@@ -10,9 +10,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, '..', 'bridge.mjs'), 'utf8');
-// The list moved to `commands.mjs` in the split; the guard that consults it is
-// still in the poller. Both halves are asserted, each where it now lives.
+// The guard moved with `handleMessage` into `handle-message.mjs`; the list it
+// consults lives in `commands.mjs`. Each half is asserted where it now lives.
+const source = readFileSync(join(here, '..', 'handle-message.mjs'), 'utf8');
 const commands = readFileSync(join(here, '..', 'commands.mjs'), 'utf8');
 
 test('a state-changing command typed in General is refused, not redirected', () => {
