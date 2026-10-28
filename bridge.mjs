@@ -31,6 +31,7 @@ import { createAlbumBuffer } from './albums.mjs';
 import { turnArgs } from './cli-args.mjs';
 import { chunk, markdownParts, toPlainText, toTelegramHtml } from './format.mjs';
 import { mediaPrompt, readVoiceIntoText } from './media.mjs';
+import { busyNotices, clearBusyNotice, steerAvailable, steerMediaMessage, steerRunningTurn } from './steer.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { firstLiveModel, describeVerdicts, probeHint, probeModel } from './model-probe.mjs';
 import { explainFailure } from './failures.mjs';
@@ -68,6 +69,9 @@ import { activeTurns, killTurn, liveSessions, profileOf, runTurn, runTurnLive, t
 import { approvalKeyboard, continueKeyboard, errorKeyboard } from './keyboards.mjs';
 import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, noteSeed, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { downloadFile, send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
+
+/** A steer that outlived its turn becomes a turn of its own. */
+const deliverTurn = (key, message) => enqueue(key, () => handleMessage(message));
 
 /**
  * Run a command the same way a typed one runs, for a button that stands for it.
@@ -833,154 +837,6 @@ function maybeExitForRestart() {
   setTimeout(() => process.exit(75), 300).unref?.();
 }
 
-/**
- * Queue notices, one per topic. A notice exists only while the person is
- * waiting: the moment the queued turn starts it is deleted, so a long session
- * does not leave a column of "идёт уже 7 мин" messages behind (it did).
- */
-const busyNotices = new Map();
-
-async function clearBusyNotice(key) {
-  const notice = busyNotices.get(key);
-  if (!notice) return;
-  busyNotices.delete(key);
-  try {
-    await tg('deleteMessage', { chat_id: notice.chatId, message_id: notice.messageId });
-  } catch (error) {
-    log(`busy notice delete failed: ${error.message}`);
-  }
-}
-
-/**
- * Whether this profile can receive mid-turn steers. The bridge only writes a
- * job when the `steer-inbox` plugin is actually wired into the profile; without
- * it the file would sit unread until it expired, and the message would be lost.
- * In that case the message queues the old way.
- */
-let steerReady;
-function steerAvailable(profile = config.profile || 'headless') {
-  if (steerReady !== undefined && steerReady.profile === profile) return steerReady.ready;
-  try {
-    const patch = readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
-    steerReady = { profile, ready: /steer-inbox/.test(patch) };
-  } catch {
-    steerReady = { profile, ready: false };
-  }
-  return steerReady.ready;
-}
-
-/**
- * Hand a message to the turn that is already running.
- *
- * The turn is a separate process, so the bridge writes a job the `steer-inbox`
- * plugin picks up and feeds to `agent.steer()` — next-step input. The agent is
- * told (in the job, by the plugin) to send one short line into the chat via
- * say.mjs; the fallback below covers a model that stays silent.
- */
-function steerRunningTurn(msg, text, sessionId, thread) {
-  const key = sessionKey(msg.chat.id, thread);
-  const lang = resolveLang(state, key, msg, config);
-  const job = writeSteerJob(STEER_DIR, {
-    sessionId,
-    text,
-    chatId: msg.chat.id,
-    threadId: thread,
-    lang,
-    say: SAY,
-  });
-  log(`steer ${job.id} -> ${sessionId} (${text.length} chars)`);
-  // Confirm the moment the job is written, not 90 seconds later. The plugin
-  // hands it to the running agent at its next step, and a step can be a
-  // six-minute test run: without this line the addition looked lost, which is
-  // exactly what "steer стала хуже" describes. The wait notice below then only
-  // speaks when the job really has not been picked up.
-  send(msg.chat.id, t(lang, 'steer.queued'), thread).catch(() => {});
-  watchSteer(job, msg, text, thread, lang);
-  return job;
-}
-
-/**
- * Follow one steer job until it is either acknowledged by the model or taken by
- * the plugin.
- *
- * Two failure modes need cover: a model that stays silent (one neutral line
- * after 90 s), and a job that never reached the agent because the turn ended
- * first — that addition must become its own turn instead of expiring unseen in
- * the directory.
- */
-function watchSteer(job, msg, text, thread, lang) {
-  const key = sessionKey(msg.chat.id, thread);
-  const acked = () => existsSync(join(STEER_DIR, 'acks', `${job.id}.json`));
-  const consumed = () => existsSync(join(STEER_DIR, 'done', `${job.id}.json`));
-  const check = async (attempt) => {
-    try {
-      if (acked() || consumed()) return;
-      if (activeTurns.has(key)) {
-        if (attempt === 0) {
-          log(`steer ${job.id} unacknowledged after 90s; sending fallback`);
-          await send(msg.chat.id, t(lang, 'steer.ackFallback'), thread);
-        }
-        setTimeout(() => check(attempt + 1), 60_000).unref?.();
-        return;
-      }
-      // The turn is over and the plugin never picked the job up: deliver it as
-      // a turn of its own, otherwise the person's addition is silently lost.
-      const pending = join(STEER_DIR, `${job.id}.json`);
-      if (!existsSync(pending)) return;
-      try { unlinkSync(pending); } catch {}
-      log(`steer ${job.id} not consumed by the turn; re-queued as a new turn`);
-      enqueue(key, () => handleMessage({
-        chat: msg.chat,
-        from: msg.from,
-        message_id: 0,
-        message_thread_id: thread || undefined,
-        is_topic_message: thread > 0,
-        text,
-      }));
-    } catch (error) {
-      log(`steer watch failed for ${job.id}: ${error.message}`);
-    }
-  };
-  setTimeout(() => check(0), 90_000).unref?.();
-}
-
-/**
- * Attachment sent while a turn is running: transcribe/download it first, then
- * steer the resulting text into the same turn. Echoing the transcript is the
- * only confirmation the person gets that the audio was understood, so the
- * helper does that before the steer is written.
- */
-async function steerMediaMessage(msgs, sessionId, key, thread, lang) {
-  const list = Array.isArray(msgs) ? msgs : [msgs];
-  const first = list[0];
-  const wasRunning = activeTurns.has(key);
-  const built = await mediaPrompt(list, first.chat.id, thread, lang, {
-    steer: true,
-    stillRunning: () => activeTurns.has(key),
-  });
-  if (!built.text) {
-    log('steer media produced no text; nothing injected');
-    return;
-  }
-  if (activeTurns.has(key)) {
-    steerRunningTurn(first, built.text, sessionId, thread);
-    return;
-  }
-  // Transcribing and downloading take seconds; the turn this addition was meant
-  // for may already be gone. Writing the job anyway left the addition in the
-  // directory until `watchSteer` noticed — a minute of silence for a voice note
-  // that arrived half a second too late. The prepared text (transcript, file
-  // path, caption) is already the whole request, so run it as its own turn.
-  log(`steer media: turn ended during prep (was ${wasRunning ? 'running' : 'gone'}), delivering as a turn (${key})`);
-  enqueue(key, () => handleMessage({
-    chat: first.chat,
-    from: first.from,
-    message_id: 0,
-    message_thread_id: thread || undefined,
-    is_topic_message: thread > 0,
-    text: built.text,
-  }));
-}
 
 // ------------------------------------------------------------------ albums
 //
@@ -1020,7 +876,7 @@ async function deliverAlbum(msgs) {
   // and quotes the built prompt into a turn when the steered turn is gone.
   if (config.steerDuringTurn !== false && steerAvailable(profileOf(key)) && sessionId) {
     try {
-      await steerMediaMessage(msgs, sessionId, key, thread, lang);
+      await steerMediaMessage(msgs, sessionId, key, thread, lang, deliverTurn);
       return;
     } catch (error) {
       log(`album steer failed, queueing a normal turn: ${error.message}`);
@@ -1605,7 +1461,7 @@ async function main() {
       if (activeTurns.has(queueKey) && sessionId) {
         if (steerText && !steerMedia) {
           try {
-            const job = steerRunningTurn(msg, steerText, sessionId, thread);
+            const job = steerRunningTurn(msg, steerText, sessionId, thread, deliverTurn);
             log(`steer handled outside the queue: ${job.id}`);
             ack(update.update_id);
           } catch (error) {
@@ -1619,7 +1475,7 @@ async function main() {
         // the voicemail in a directory nobody reads again.
         ack(update.update_id);
         const lang = resolveLang(state, queueKey, msg, config);
-        void steerMediaMessage(msg, sessionId, queueKey, thread, lang).catch((error) => {
+        void steerMediaMessage(msg, sessionId, queueKey, thread, lang, deliverTurn).catch((error) => {
           // The attachment could not be prepared (download, transcription). It
           // still deserves an answer, so let the normal path take it: it retries
           // the same work and reports the failure itself.

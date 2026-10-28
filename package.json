@@ -134,7 +134,8 @@
     "i18n/en/",
     "i18n/ru/",
     "i18n/zh/",
-    "media.mjs"
+    "media.mjs",
+    "steer.mjs"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
