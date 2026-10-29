@@ -271,7 +271,7 @@ Updates:      /update · /update confirm · /update on|off|check|auto · /subscr
 Diagnostics:  /doctor · /logs [errors|N|text] · /report
 Service:      /app · /restart · /help
 Settings:     /settings — the same switches as buttons, grouped in four tabs
-Display:      /lang · /reasoning on|off · /thoughts
+Display:      /lang · /reasoning off|card|chat · /thoughts
 ```
 
 ### Settings as a card
@@ -280,7 +280,7 @@ Display:      /lang · /reasoning on|off · /thoughts
 four tabs: what the bot says, who answers and how hard it works, new releases,
 and the health checks. Each row shows what the setting is now and what a tap
 would change it to. A tap runs the command a person would have typed
-(`/reasoning off`, `/update on`), so the card cannot disagree with the command:
+(`/reasoning chat`, `/update on`), so the card cannot disagree with the command:
 it is a view of them. After the change the card collapses into one plain line —
 delete it and the chat is back to what it was.
 
@@ -425,7 +425,7 @@ node ~/.dsh/tg-bridge/say.mjs --thought "checking why the watchdog fired twice"
 The note is appended to `~/.dsh/tg-bridge/thoughts/<chat>_<thread>.jsonl`; the progress
 message shows the last two as `💭` lines. The command needs no ids: it falls back to the
 newest turn's thought file, because tool shells do not inherit the bridge environment.
-`--thought` never sends a Telegram message on its own.
+`--thought` sends a Telegram message of its own only in `/reasoning chat` mode.
 
 A decision the person must know before the turn ends — a release shipped, a cause found,
 a blocker — goes to the chat as one plain line instead:
@@ -435,16 +435,27 @@ node ~/.dsh/tg-bridge/say.mjs --note "1.10.1 is on npm; restart to load it"
 ```
 
 `--note` sends a real message and takes the same no-ids fallback as `--thought`. The split
-is deliberate: `--thought` is the working trail inside the progress message, `--note` is the
-short line that changes what the reader expects to happen next. The progress message itself
-opens with the request echoed back (`⏳ Принял: «…» · 3 с`), so the first thing the person
-sees after sending names their task rather than a generic spinner.
+is deliberate: `--thought` is the working trail (inside the progress message, and in `chat`
+mode also as its own messages), `--note` is the short line that changes what the reader
+expects to happen next — useful in `card` and `off` mode, redundant in `chat`. The progress
+message itself opens with the request echoed back (`⏳ Принял: «…» · 3 с`), so the first
+thing the person sees after sending names their task rather than a generic spinner.
 
-`/reasoning` is the switch for the 💭 mechanism. It is on by default: every turn carries a
-short instruction to leave one line at each decision point (task clear, cause found, risky
-change, result checked). `/reasoning off` drops the instruction and the `💭` lines for that
-topic — useful when the step list is all you want. The setting lives in `state.json` per topic,
-so a chatty research topic and a terse deploy topic can differ.
+`/reasoning` is the switch for the 💭 mechanism, and it has three ends:
+
+- `/reasoning card` (the default) — every turn carries a short instruction to leave one line
+  at each decision point (task clear, cause found, risky change, result checked), and the
+  progress message shows the last two;
+- `/reasoning chat` — the same lines, each also posted as its own message, so a turn that
+  runs for twenty minutes is read as it happens instead of scrolled back to afterwards.
+  The prompt says so explicitly, so a line is written to stand alone;
+- `/reasoning off` — drops the instruction and the `💭` lines for that topic, for when the
+  step list is all you want.
+
+A topic switched to `chat` mid-turn does not dump the steps already in the card: forwarding
+starts with the next line written. The setting lives in `state.json` per topic, so a chatty
+research topic and a terse deploy topic can differ; a `true`/`false` written by an older
+release still reads as `card`/`off`. The settings card offers the same three ends as buttons.
 
 The reasoning block itself is model output; `/thoughts` is what reads it back:
 

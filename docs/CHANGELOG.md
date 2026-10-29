@@ -1,5 +1,31 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.25.3
+
+- **The decision trail can reach the chat itself.** `/reasoning` had two ends,
+  on and off, and "on" meant the last two 💭 lines inside the progress message —
+  which a person only sees if they are looking at that one message. It now has
+  three: `card` (the default, unchanged), `chat` (every line also arrives as its
+  own message, so a twenty-minute turn is read while it runs instead of scrolled
+  back to afterwards) and `off`. One switch, one name: a separate `/notify` would
+  have been the second name for one job that this surface spent a release
+  removing.
+- **The prompt knows which end is on.** In `chat` mode every turn says so, so a
+  line is written to stand alone — and says what must never be in one: a token, a
+  key, a private path. The line reaches a chat, not a grey card.
+- **A switch mid-turn does not replay the card.** Turning `chat` on while a turn
+  runs forwards from the next line written, not the ten already on screen; a turn
+  that starts in `chat` forwards from its first line. The forwarder keeps a set of
+  what went out, so an edit of the card never repeats a step, and a failed send
+  leaves the note in the card where it always lived.
+- **The old value still reads.** `state.json` written by an earlier release holds
+  `true`/`false` for this switch; they now mean `card`/`off`, and `/reasoning on`
+  is still accepted as the old spelling of the card. A settings file must not need
+  editing by hand after an update.
+- The settings card offers the three ends as buttons and marks the current one,
+  `/status` names the mode in words, and `test/notes.test.mjs` pins the mode
+  migration and the "every line of the turn, not just the two the card shows".
+
 ## 1.25.2
 
 - **A throttled route is no longer called a refused key.** The first live

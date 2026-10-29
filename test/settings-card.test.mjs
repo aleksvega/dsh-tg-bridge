@@ -54,7 +54,8 @@ test('every switch points at the command that owns it', () => {
   const current = settingsCurrent({ config: {}, state: {}, key: '1' });
   const tt = (k, vars) => t('en', k, vars);
   const expected = {
-    'm:reasoning:on': '/reasoning on',
+    'm:reasoning:card': '/reasoning card',
+    'm:reasoning:chat': '/reasoning chat',
     'm:reasoning:off': '/reasoning off',
     'm:lang:en': '/lang en',
     'm:lang:ru': '/lang ru',
@@ -77,11 +78,14 @@ test('every switch points at the command that owns it', () => {
 
 test('the current value decides which button is marked', () => {
   const tt = (k, vars) => t('en', k, vars);
-  const on = settingsButtons({ t: tt, current: { reasoning: true, lang: 'ru' }, updateMode: 'off' });
+  const on = settingsButtons({ t: tt, current: { reasoning: 'card', lang: 'ru' }, updateMode: 'off' });
   const marked = (id) => on.filter((b) => b.id === id && b.active).map((b) => b.value);
-  assert.deepEqual(marked('reasoning'), ['on']);
+  assert.deepEqual(marked('reasoning'), ['card']);
   assert.deepEqual(marked('lang'), ['ru']);
   // off means "no notices", so the off button is the one in force.
   assert.deepEqual(marked('u-late'), ['off']);
   assert.deepEqual(marked('u-auto'), []);
+  // The third end of the same switch: the chat, not a second command.
+  const chat = settingsButtons({ t: tt, current: { reasoning: 'chat', lang: 'auto' }, updateMode: 'off' });
+  assert.deepEqual(chat.filter((b) => b.id === 'reasoning' && b.active).map((b) => b.value), ['chat']);
 });

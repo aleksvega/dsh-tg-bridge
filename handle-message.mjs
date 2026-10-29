@@ -6,7 +6,8 @@
 // it calls lives in a module of its own.
 
 import { GENERAL_SAFE, commandOf } from './commands.mjs';
-import { CONTROL_COMMANDS, handleControl, modelOf, reasoningOf } from './control.mjs';
+import { CONTROL_COMMANDS, handleControl, modelOf } from './control.mjs';
+import { reasoningMode } from './notes.mjs';
 import { explainFailure } from './failures.mjs';
 import { runFallbackChain } from './fallback.mjs';
 import { goalOf, renderPromptBlock } from './goals.mjs';
@@ -336,8 +337,14 @@ ${t(lang, 'help.body')}`,
   // The alias is the plain topic name too; it is written as the turn's file so
   // a reader that never heard of DSH_TG_THOUGHT still finds this turn's notes.
   const thoughtEnv = { DSH_TG_THOUGHT: thoughtFile };
-  if (reasoningOf(state, config, key)) {
-    text = `${t(lang, 'prompt.reasoning', { say: join(DIR, 'say.mjs') })}\n\n---\n\n${text}`;
+  // In `chat` mode every 💭 line is also posted as its own message, so the
+  // prompt has to say that out loud: a line written for a small grey card reads
+  // differently when it lands in the chat as a message of its own.
+  const notesMode = reasoningMode(state, config, key);
+  if (notesMode !== 'off') {
+    const prompt = t(lang, 'prompt.reasoning', { say: join(DIR, 'say.mjs') });
+    const note = notesMode === 'chat' ? `\n\n${t(lang, 'prompt.reasoningChat')}` : '';
+    text = `${prompt}${note}\n\n---\n\n${text}`;
   }
 
   // Live progress: one status message per turn, rewritten as the agent works.

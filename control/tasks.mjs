@@ -5,6 +5,7 @@
 import { t } from '../i18n.mjs';
 import { progressOf } from '../goals.mjs';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
+import { reasoningMode } from '../notes.mjs';
 
 import { read } from './models.mjs';
 /**
@@ -60,14 +61,17 @@ export function taskView(goal, lang) {
 export { CONTROL_COMMANDS, COMMAND_ALIASES, DOCUMENTED_COMMANDS };
 
 /**
- * Working notes ("💭" lines in the progress message) are on unless the topic or
- * the config says otherwise. Per-topic wins over the install default, so one
- * topic can keep the trail while another stays terse.
+ * Working notes ("💭" lines) are on unless the topic or the config says
+ * otherwise. Per-topic wins over the install default, so one topic can keep the
+ * trail while another stays terse.
+ *
+ * Three ends, one job: `off`, `card` (the last two lines inside the progress
+ * message) and `chat` (every line as its own message). `reasoningOf` stays the
+ * boolean question the prompt asks — "does this turn write notes at all" — and
+ * `reasoningMode` answers the one the panel asks.
  */
 export function reasoningOf(state, config, key) {
-  const perTopic = state?.reasoning?.[key];
-  if (typeof perTopic === 'boolean') return perTopic;
-  return config?.reasoning !== false;
+  return reasoningMode(state, config, key) !== 'off';
 }
 
 /**

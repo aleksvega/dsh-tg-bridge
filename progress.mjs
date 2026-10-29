@@ -14,7 +14,7 @@ import { tg } from './telegram.mjs';
 import { topicName } from './topics.mjs';
 import { t } from './i18n.mjs';
 import { addStep, progressPanel, stepLine } from './panel.mjs';
-import { recentThoughts } from './notes.mjs';
+import { reasoningMode, thoughtRows } from './notes.mjs';
 import { continueKeyboard, errorKeyboard } from './keyboards.mjs';
 
 /**
@@ -71,6 +71,17 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   const notes = thoughtFile || join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
   const topicNotes = join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
   let thoughts = [];
+  // In `chat` mode every note also leaves the card as its own message: a turn
+  // that runs for twenty minutes is read as it happens, not scrolled back to.
+  // The set holds what already went out, so a rewrite of the card never repeats
+  // a step, and a note that arrives while the person is reading is not lost.
+  const forwarded = new Set();
+  // Switching to chat mid-turn must not dump the steps already shown in the card
+  // into the chat as a burst: the mode takes effect from the next step written
+  // after the switch. A turn that starts in chat mode forwards from its first
+  // line, so `chatFrom` is the turn's own start in that case.
+  let chatFrom = reasoningMode(state, config, panelKey) === 'chat' ? started : Infinity;
+  let wasChat = Number.isFinite(chatFrom);
   try {
     mkdirSync(THOUGHT_DIR, { recursive: true });
     // Start this turn's file empty — but never truncate the stable per-topic
@@ -79,7 +90,34 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     if (thoughtFile) writeFileSync(notes, '');
   } catch {}
   const thoughtTimer = setInterval(() => {
-    const merged = recentThoughts([notes, topicNotes], started);
+    const mode = reasoningMode(state, config, panelKey);
+    if (mode === 'chat' && !wasChat) chatFrom = Date.now();
+    wasChat = mode === 'chat';
+    if (mode === 'off') {
+      if (thoughts.length) {
+        thoughts = [];
+        schedule();
+      }
+      return;
+    }
+    const rows = thoughtRows([notes, topicNotes], started);
+    if (mode === 'chat') {
+      for (const row of rows) {
+        if (row.at < chatFrom) continue;
+        const id = `${row.at}:${row.text}`;
+        if (forwarded.has(id)) continue;
+        forwarded.add(id);
+        // One message per decision, and a failed send must not kill the turn:
+        // the note is still in the card, which is where it always lived.
+        tg('sendMessage', {
+          chat_id: chatId,
+          text: `💭 ${row.text}`,
+          disable_web_page_preview: true,
+          ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+        }).catch((error) => log(`note forward failed: ${String(error.message).slice(0, 100)}`));
+      }
+    }
+    const merged = rows.slice(-2).map((row) => row.text);
     if (merged.join('\n') !== thoughts.join('\n')) {
       thoughts = merged;
       schedule();

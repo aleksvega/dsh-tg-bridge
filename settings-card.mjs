@@ -14,6 +14,7 @@
  * translate or store a value differently from the command, and a new command
  * turns into a button by adding a row here — nothing else.
  */
+import { reasoningMode } from './notes.mjs';
 
 /**
  * A row is one setting. `values` are the ends a card offers (only where a pair is
@@ -26,7 +27,16 @@
 const PAGES = {
   // What the bot says, and in which language.
   reply: [
-    { id: 'reasoning', field: 'reasoning', values: ['on', 'off'], on: true, command: '/reasoning {v}', labels: { on: 'settings.state.on', off: 'settings.state.off' } },
+    // Three ends, one row: the trail is off, in the card, or in the chat. The
+    // card marks whichever end is the current mode, so a tap on ● does nothing
+    // surprising and a tap on a ○ is the only thing that changes anything.
+    {
+      id: 'reasoning',
+      field: 'reasoning',
+      values: ['card', 'chat', 'off'],
+      command: '/reasoning {v}',
+      labels: { card: 'settings.reasoning.card', chat: 'settings.reasoning.chat', off: 'settings.state.off' },
+    },
     { id: 'lang', field: 'lang', values: ['en', 'ru', 'zh'], on: 'auto', command: '/lang {v}', labels: {} },
     { id: 'thoughts', command: '/thoughts' },
   ],
@@ -89,7 +99,7 @@ export function settingsButtons({ t, current = {}, updateMode = 'check' }) {
         const data = value ? `${SET_PREFIX}${row.id}:${value}` : `${SET_PREFIX}${row.id}`;
         if (data.length > MAX_PAYLOAD) throw new Error(`payload too long: ${data}`);
         let active = false;
-        if (row.field === 'reasoning') active = value === 'on' && current.reasoning === true;
+        if (row.field === 'reasoning') active = current.reasoning === value;
         else if (row.field === 'lang') active = current.lang === value;
         else if (row.id === 'u-late') active = value === 'on' ? updateMode !== 'off' : updateMode === 'off';
         else if (row.id === 'u-auto') active = updateMode === value;
@@ -114,9 +124,9 @@ export function settingsButtons({ t, current = {}, updateMode = 'check' }) {
  * What the card reads as the current values. Every field comes from the same
  * place the matching command reads it, so a `●` cannot lie.
  */
-export function settingsCurrent({ config = {}, state = {}, key = '', reasoningOf = null }) {
+export function settingsCurrent({ config = {}, state = {}, key = '' }) {
   return {
-    reasoning: reasoningOf ? Boolean(reasoningOf(state, config, key)) : false,
+    reasoning: reasoningMode(state, config, key),
     lang: state.lang?.[key] || 'auto',
   };
 }

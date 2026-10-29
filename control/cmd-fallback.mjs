@@ -193,9 +193,11 @@ export async function handleFallbackCommands(ctx) {
     // A probe proves the key works, not that this conversation is acceptable: the
     // hint says so, because "route is fine" beside a 400 would be a lie.
     //
-    // The probes run together, not one after another: seven routes at a 15-second
-    // timeout each is nearly two minutes of a command that looks frozen, and the
-    // poller waits behind it. One round answers in the time of the slowest route.
+    // Providers are asked in parallel, routes of ONE provider one after another:
+    // seven routes at a 15-second timeout each is nearly two minutes of a command
+    // that looks frozen, but five of those routes may sit on one key, and a burst
+    // of seven requests is itself a rate limit. The probe would then report the
+    // chain as busy and be right about the probe, wrong about the chain.
     case 'test':
     case 'x': {
       const targets = entry ? [entry] : chain;
@@ -203,9 +205,18 @@ export async function handleFallbackCommands(ctx) {
         say(t(lang, 'ctrl.fallback.empty'));
         return true;
       }
-      const verdicts = await Promise.all(targets.map((item) => probeModel(item.model, { provider: item.provider })));
-      const rows = targets.map((item, index) => {
-        const verdict = verdicts[index];
+      const byProvider = new Map();
+      for (const item of targets) {
+        const id = item.provider || '';
+        if (!byProvider.has(id)) byProvider.set(id, []);
+        byProvider.get(id).push(item);
+      }
+      const verdicts = new Map();
+      await Promise.all([...byProvider.values()].map(async (group) => {
+        for (const item of group) verdicts.set(item, await probeModel(item.model, { provider: item.provider }));
+      }));
+      const rows = targets.map((item) => {
+        const verdict = verdicts.get(item) || { kind: 'other' };
         log(`fallback probe ${labelOf(item)}: ${verdict.kind}${verdict.detail ? ` (${String(verdict.detail).slice(0, 80)})` : ''}`);
         return { n: chain.indexOf(item) + 1, route: labelOf(item), kind: VERDICT[verdict.kind] || 'other' };
       });

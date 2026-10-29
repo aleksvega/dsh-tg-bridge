@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readNotes, recentThoughts } from '../notes.mjs';
+import { readNotes, recentThoughts, reasoningMode, thoughtRows } from '../notes.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'dsh-notes-'));
 
@@ -63,4 +63,30 @@ test('the same note in both files is shown once', () => {
 test('a note without a timestamp is dropped instead of shown at the wrong time', () => {
   const file = notesFile('noat.jsonl', [{ text: 'undated' }, { at: 42, text: 'dated' }]);
   assert.deepEqual(recentThoughts([file], 0), ['dated']);
+});
+
+// The trail has three ends, and the difference between them is not cosmetic:
+// `chat` is what makes a step reach a person who is not staring at the progress
+// message, which is the whole request behind the mode.
+test('the trail is off, in the card, or in the chat — and old values still read', () => {
+  assert.equal(reasoningMode({}, {}, '1:0'), 'card', 'the default is the quiet card');
+  assert.equal(reasoningMode({ reasoning: { '1:0': 'chat' } }, {}, '1:0'), 'chat');
+  assert.equal(reasoningMode({ reasoning: { '1:0': 'off' } }, {}, '1:0'), 'off');
+  // `true`/`false` is what the previous release wrote; a settings file must not
+  // need editing by hand after an update.
+  assert.equal(reasoningMode({ reasoning: { '1:0': true } }, {}, '1:0'), 'card');
+  assert.equal(reasoningMode({ reasoning: { '1:0': false } }, {}, '1:0'), 'off');
+  // A per-topic choice wins over the install default, in both directions.
+  assert.equal(reasoningMode({ reasoning: { '1:0': 'off' } }, { reasoning: 'chat' }, '1:0'), 'off');
+  assert.equal(reasoningMode({}, { reasoning: 'chat' }, '1:0'), 'chat');
+  assert.equal(reasoningMode({}, { reasoning: false }, '1:0'), 'off');
+  assert.equal(reasoningMode({}, { reasoning: true }, '1:0'), 'card');
+});
+
+test('the forwarder sees every note of the turn, not just the two the card shows', () => {
+  const file = notesFile('many.jsonl', [
+    { at: 1, text: 'one' }, { at: 2, text: 'two' }, { at: 3, text: 'three' },
+  ]);
+  assert.deepEqual(thoughtRows([file], 0).map((row) => row.text), ['one', 'two', 'three']);
+  assert.deepEqual(recentThoughts([file], 0), ['two', 'three']);
 });

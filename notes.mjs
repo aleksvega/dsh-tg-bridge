@@ -34,13 +34,13 @@ export function readNotes(file) {
 }
 
 /**
- * The last `limit` note texts across `files`, written at or after `since`.
+ * Every note of this turn across `files`, oldest first, de-duplicated.
  *
- * `since` is the turn's start time: it is what separates "this turn said X" from
- * "a previous turn in this topic said X". Notes without a timestamp are dropped
- * rather than shown at the wrong moment.
+ * The chat forwarder needs the whole list, not the last two the card shows: a
+ * step that only ever reached a card the person was not looking at is a step
+ * they never learned about.
  */
-export function recentThoughts(files, since = 0, limit = 2) {
+export function thoughtRows(files, since = 0) {
   const seen = new Set();
   return files
     .filter(Boolean)
@@ -49,7 +49,39 @@ export function recentThoughts(files, since = 0, limit = 2) {
     // The same note can sit in both files when `say.mjs` wrote to each; a
     // duplicated 💭 line reads as two decisions instead of one.
     .filter((row) => (seen.has(`${row.at}:${row.text}`) ? false : seen.add(`${row.at}:${row.text}`)))
-    .sort((a, b) => a.at - b.at)
-    .slice(-limit)
-    .map((row) => row.text);
+    .sort((a, b) => a.at - b.at);
+}
+
+/**
+ * How much of the decision trail this topic wants: `off`, `card` or `chat`.
+ *
+ * Three ends, one switch — the trail is one job, and a second command for "send
+ * them to the chat" would be the lookalike name this surface spent a release
+ * removing. `card` is the default: the last two lines inside the progress
+ * message. `chat` also sends each line as its own message, for a turn a person
+ * wants to read while it runs instead of afterwards.
+ *
+ * An old `true`/`false` in `state.json` is still a mode: `card`/`off`. It is
+ * what the previous release stored, and a settings file must not need editing
+ * by hand after an update.
+ */
+export function reasoningMode(state, config, key = '') {
+  const raw = state?.reasoning?.[key];
+  const fromTopic = raw === 'chat' || raw === 'card' || raw === 'off' ? raw : raw === true ? 'card' : raw === false ? 'off' : '';
+  if (fromTopic) return fromTopic;
+  const fallback = config?.reasoning;
+  if (fallback === 'chat' || fallback === 'card' || fallback === 'off') return fallback;
+  if (fallback === false) return 'off';
+  return 'card';
+}
+
+/**
+ * The last `limit` note texts across `files`, written at or after `since`.
+ *
+ * `since` is the turn's start time: it is what separates "this turn said X" from
+ * "a previous turn in this topic said X". Notes without a timestamp are dropped
+ * rather than shown at the wrong moment.
+ */
+export function recentThoughts(files, since = 0, limit = 2) {
+  return thoughtRows(files, since).slice(-limit).map((row) => row.text);
 }

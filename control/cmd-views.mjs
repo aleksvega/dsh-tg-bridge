@@ -31,6 +31,7 @@ import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
+import { reasoningMode } from '../notes.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 import { presetOf } from '../profile-view.mjs';
 
@@ -81,7 +82,7 @@ export async function handleViewCommands(ctx) {
         state: active > 0 ? t(lang, 'ctrl.status.running') : t(lang, 'ctrl.status.idle'),
       }));
       lines.push(t(lang, 'ctrl.status.notes', {
-        state: reasoningOf(state, config, key) ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
+        state: t(lang, `msg.reasoningMode.${reasoningMode(state, config, key)}`),
       }));
       lines.push(t(lang, 'ctrl.status.skills', { n: skillsOf().length }));
       // The desktop profile only matters when this install actually has one.
@@ -269,19 +270,22 @@ export async function handleViewCommands(ctx) {
       return true;
     }
     case '/reasoning': {
-      // One switch for "show me the decision trail". Anything but on/off prints
-      // the current state, so a bare /reasoning never guesses.
+      // One switch for "how much of the decision trail reaches me": off, the
+      // progress card, or the chat itself. Anything else prints the current
+      // state, so a bare /reasoning never guesses.
       const wanted = String(arg || '').trim().toLowerCase();
-      const on = reasoningOf(state, config, key);
-      if (!['on', 'off'].includes(wanted)) {
-        const word = t(lang, on ? 'msg.stateOn' : 'msg.stateOff');
-        say(t(lang, 'msg.reasoningState', { state: word }));
+      const mode = reasoningMode(state, config, key);
+      const next = { on: 'card', card: 'card', chat: 'chat', off: 'off' }[wanted];
+      if (!next) {
+        say(t(lang, 'msg.reasoningState', { state: t(lang, `msg.reasoningMode.${mode}`) }));
         return true;
       }
       state.reasoning = state.reasoning || {};
-      state.reasoning[key] = wanted === 'on';
+      // `on` is the old spelling of the card and stays accepted: it is the word
+      // the previous release printed, and a chat is full of those instructions.
+      state.reasoning[key] = next;
       ctx.saveState();
-      say(t(lang, wanted === 'on' ? 'msg.reasoningOn' : 'msg.reasoningOff'));
+      say(t(lang, next === 'off' ? 'msg.reasoningOff' : next === 'chat' ? 'msg.reasoningChat' : 'msg.reasoningOn'));
       return true;
     }
     case '/thoughts': {
