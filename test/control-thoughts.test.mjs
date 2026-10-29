@@ -105,3 +105,53 @@ test('every control command has a handler and an answer in each language', () =>
     assert.ok(t(lang, 'ctrl.update.available'));
   }
 });
+
+test('/reasoning switches the trail to chat, back to the card, and off', async () => {
+  // The three ends are one command; the stored value is the mode itself, so a
+  // reader (the panel, the prompt, the settings card) never has to guess.
+  const store = { reasoning: {} };
+  const { ctx, out } = context({
+    command: '/reasoning',
+    arg: 'chat',
+    state: { ...store, sessions: {}, profiles: {}, lang: {} },
+  });
+  assert.equal(await handleControl(ctx), true);
+  assert.equal(ctx.state.reasoning['1:2'], 'chat');
+  assert.equal(out.length, 1);
+
+  const back = context({
+    command: '/reasoning',
+    arg: 'card',
+    state: { reasoning: { '1:2': 'chat' }, sessions: {}, profiles: {}, lang: {} },
+  });
+  assert.equal(await handleControl(back.ctx), true);
+  assert.equal(back.ctx.state.reasoning['1:2'], 'card');
+
+  const off = context({
+    command: '/reasoning',
+    arg: 'off',
+    state: { reasoning: { '1:2': 'card' }, sessions: {}, profiles: {}, lang: {} },
+  });
+  assert.equal(await handleControl(off.ctx), true);
+  assert.equal(off.ctx.state.reasoning['1:2'], 'off');
+});
+
+test('/reasoning with no argument reports the mode and changes nothing', async () => {
+  const state = { reasoning: { '1:2': 'chat' }, sessions: {}, profiles: {}, lang: {} };
+  const { ctx, out } = context({ command: '/reasoning', arg: '', state });
+  assert.equal(await handleControl(ctx), true);
+  assert.equal(out.length, 1);
+  // The word for the mode, not a bare "on": the answer must say where the lines go.
+  assert.match(out[0], /чат|chat|聊天/);
+  assert.equal(state.reasoning['1:2'], 'chat');
+});
+
+test('/reasoning on is still the old spelling of the card', async () => {
+  const { ctx } = context({
+    command: '/reasoning',
+    arg: 'on',
+    state: { reasoning: {}, sessions: {}, profiles: {}, lang: {} },
+  });
+  assert.equal(await handleControl(ctx), true);
+  assert.equal(ctx.state.reasoning['1:2'], 'card');
+});
