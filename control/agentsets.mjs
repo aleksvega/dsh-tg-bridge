@@ -8,6 +8,7 @@ import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from
 import { AgentsetStore } from '../agentsets.mjs';
 import { profileValues, resolveSettings } from '../settings.mjs';
 import { DSH_HOME } from '../paths.mjs';
+import { cardKeyboard } from '../aset-schema.mjs';
 
 import { read, patchPath, modelsOf, modelOf } from './models.mjs';
 export const fmt = (rows) => rows.map((row) => `  ${row}`).join('\n');
