@@ -1,5 +1,24 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.25.2
+
+- **A throttled route is no longer called a refused key.** The first live
+  `/fallback test` on a free route came back `key refused` while the provider's
+  own sentence said "This model is at its provider's per minute limit right
+  now" — the probe read the HTTP status before the words, and one router answers
+  a rate limit with a 403. That verdict sends a person to re-enter a key that
+  works. The words about a limit now win over the status; a bare 401/403 is
+  still a refused key, an empty balance still outranks both, and a 5xx with no
+  words of its own is `busy` instead of `unknown`.
+- **`/fallback test` asks the routes at once.** Seven routes at a 15-second
+  timeout each is nearly two minutes of a command that looks frozen, with the
+  poller waiting behind it. One round of requests answers in the time of the
+  slowest route — and a rate limit on the router is itself a verdict, so a burst
+  of probes was the wrong way to learn about throttling.
+- `test/probe-verdict.test.mjs` pins the four answers that used to be confused:
+  a limit behind a 403, a bare 403, an empty balance behind a 429, a 5xx with
+  no body.
+
 ## 1.25.1
 
 - **The failover chain fires on a refusal.** A turn that ended with

@@ -22,7 +22,7 @@ function providerIds(profile) {
   return providerRows(read(patchPath(profile))).map((row) => row.id).filter(Boolean);
 }
 
-/** `unorouter/kimi-k3:free` → `{provider, model}`; a bare id keeps the given provider. */
+/** `router-a/kimi-k3:free` → `{provider, model}`; a bare id keeps the given provider. */
 export function splitRoute(wanted, fallbackProvider = '') {
   const text = String(wanted || '').trim();
   const at = text.indexOf('/');
@@ -192,6 +192,10 @@ export async function handleFallbackCommands(ctx) {
 
     // A probe proves the key works, not that this conversation is acceptable: the
     // hint says so, because "route is fine" beside a 400 would be a lie.
+    //
+    // The probes run together, not one after another: seven routes at a 15-second
+    // timeout each is nearly two minutes of a command that looks frozen, and the
+    // poller waits behind it. One round answers in the time of the slowest route.
     case 'test':
     case 'x': {
       const targets = entry ? [entry] : chain;
@@ -199,12 +203,12 @@ export async function handleFallbackCommands(ctx) {
         say(t(lang, 'ctrl.fallback.empty'));
         return true;
       }
-      const rows = [];
-      for (const item of targets) {
-        const verdict = await probeModel(item.model, { provider: item.provider });
-        rows.push({ n: chain.indexOf(item) + 1, route: labelOf(item), kind: VERDICT[verdict.kind] || 'other' });
+      const verdicts = await Promise.all(targets.map((item) => probeModel(item.model, { provider: item.provider })));
+      const rows = targets.map((item, index) => {
+        const verdict = verdicts[index];
         log(`fallback probe ${labelOf(item)}: ${verdict.kind}${verdict.detail ? ` (${String(verdict.detail).slice(0, 80)})` : ''}`);
-      }
+        return { n: chain.indexOf(item) + 1, route: labelOf(item), kind: VERDICT[verdict.kind] || 'other' };
+      });
       // One way back to the card: the probe answer is long, and the person who
       // just learned route 4 is dead wants the list, not a typed command.
       say(renderProbe({ t: tr, rows }), { keyboard: [[{ text: t(lang, 'ctrl.fallback.back'), data: 'fb:s' }]] });

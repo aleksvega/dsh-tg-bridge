@@ -120,14 +120,26 @@ export function firstProvider() {
   return providerFor('');
 }
 
-/** Classify a provider answer into something the chat can act on. */
-function classify(status, body) {
+/**
+ * Classify a provider answer into something the chat can act on.
+ *
+ * The order is the whole point, and it was wrong in a way a live probe caught:
+ * one router answers a per-minute limit with **403** and the sentence "This
+ * model is at its provider's per minute limit right now". The status was read
+ * first, so the card called it "key refused" — the one verdict that sends a
+ * person to re-enter a key that works, while the route was merely throttled.
+ * Words about a limit therefore win over the status, and a bare 403 stays auth.
+ */
+export function classify(status, body) {
   const text = String(body || '');
   if (status === 200) return 'ok';
   if (/insufficient_user_quota|balance|billing|payment/i.test(text)) return 'balance';
-  if (/get_channel_failed|all providers|rate limit|busy/i.test(text)) return 'busy';
+  // "per minute limit", "rate limit", "too many requests", "busy" — one family,
+  // whatever status the router chose to attach to it.
+  if (/\b429\b|rate.?limit|per.?minute limit|requests? per minute|too many requests|get_channel_failed|all providers|busy|overloaded/i.test(text)) return 'busy';
   if (status === 401 || status === 403) return 'auth';
   if (status === 404) return 'missing';
+  if (status >= 500) return 'busy';
   return 'other';
 }
 
