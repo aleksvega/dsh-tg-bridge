@@ -11,6 +11,11 @@ import { join } from "node:path";
 
 const home = mkdtempSync(join(tmpdir(), "dsh-provider-"));
 process.env.DSH_HOME = home;
+// The profile name is ambient when the suite runs inside the bridge: a turn on a
+// model-specific profile exports DSH_PROFILE, and the provider lookup would then
+// read a directory this temporary home never made. The fixture writes one
+// profile, so the test asks for that one by name.
+delete process.env.DSH_PROFILE;
 const patch = [
   "plugins:",
   "  - id: some-plugin",

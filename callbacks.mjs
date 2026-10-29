@@ -2,7 +2,7 @@
 // task card. One place, because a press may mean a control command, a card
 // update or an approval, and only one handler may claim it.
 import { AgentsetStore } from './agentsets.mjs';
-import { CONTROL_COMMANDS, handleControl, reasoningOf } from './control.mjs';
+import { CONTROL_COMMANDS, handleControl } from './control.mjs';
 import { isFallbackPress, pressTarget } from './fallback-card.mjs';
 import { progressOf, toggleTask } from './goals.mjs';
 import { handleMessage } from './handle-message.mjs';
@@ -326,22 +326,31 @@ export async function handleCallback(query) {
 export async function handleCardPress(query, ctx) {
   const { chatId, messageId, threadId, key, lang } = ctx;
   const data = String(query.data || '');
-  const current = settingsCurrent({ config, state, key, reasoningOf });
+  const tt = (k, vars) => t(lang, k, vars);
   const updateMode = state.update?.mode || 'check';
-  const wanted = commandFor({ t: (k, vars) => t(lang, k, vars), current, updateMode }, data);
+  const current = settingsCurrent({ config, state, key });
+  const wanted = commandFor({ t: tt, current, updateMode }, data);
 
   if (!wanted) {
     await tg('answerCallbackQuery', { callback_query_id: query.id, text: t(lang, 'settings.card.stale') }).catch(() => {});
     return;
   }
 
-  if (wanted.page) {
+  if (wanted.done) {
+    await tg('deleteMessage', { chat_id: chatId, message_id: messageId }).catch((error) => log(`settings card delete failed: ${error.message}`));
+    await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
+    return;
+  }
+
+  /** Redraw the card in place: the same message, the new values, the buttons kept. */
+  const redraw = async (page, note = '') => {
     const card = renderSettingsCard({
-      page: wanted.page,
-      t: (k, vars) => t(lang, k, vars),
-      current,
+      page,
+      t: tt,
+      current: settingsCurrent({ config, state, key }),
       updateMode,
       bound: boundSetOf(key),
+      note,
     });
     await tg('editMessageText', {
       chat_id: chatId,
@@ -351,6 +360,10 @@ export async function handleCardPress(query, ctx) {
       ...(threadId > 0 ? { message_thread_id: threadId } : {}),
     }).catch((error) => log(`settings card redraw failed: ${error.message}`));
     await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
+  };
+
+  if (wanted.page) {
+    await redraw(wanted.page);
     return;
   }
 
@@ -358,6 +371,10 @@ export async function handleCardPress(query, ctx) {
   // in the chat: the one line below is the chat's share of this press. Only a
   // command that failed says more than that.
   const replies = [];
+  // A press that fails has to say so: the card is redrawn either way, and a
+  // redraw alone looks exactly like success. The old path hid failures behind a
+  // line the person read as a confirmation.
+  let failed = '';
   const [head, ...rest] = wanted.command.split(/\s+/);
   const handled = await handleControl({
     command: head,
@@ -390,29 +407,30 @@ export async function handleCardPress(query, ctx) {
     prices: () => Promise.resolve(''),
   }).catch((error) => {
     log(`settings press ${data} failed: ${error.message}`);
+    failed = error.message;
     replies.push(error.message);
     return true;
   });
 
   const changed = Boolean(wanted.value);
-  const answerText = changed
-    ? t(lang, 'settings.card.changed', { label: wanted.label, value: wanted.value })
-    : t(lang, 'settings.card.door', { command: wanted.command });
 
-  // The card becomes the line: the buttons go away with the text they described.
-  await tg('editMessageText', {
-    chat_id: chatId,
-    message_id: messageId,
-    text: answerText,
-    ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-  }).catch(() => {});
-  await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
+  // The card stays where it is, redrawn with the new value. A press that turned
+  // it into one line took the menu away from the person who wanted the next tap,
+  // and the line said less than the card did; keeping it costs no message,
+  // because this is an edit of the one already in the chat. The way out is the
+  // card's own button, so removing it is a decision, not a side effect.
+  await redraw(
+    wanted.page,
+    failed ? `⚠️ ${failed}` : changed ? t(lang, 'settings.card.changed', { label: wanted.label, value: wanted.value }) : '',
+  );
 
   // A door that opened to nothing (an unknown set id, a command that is not
-  // allowed here) still has something to say; it goes under the line, once.
+  // allowed here) still has something to say; it goes under the card, once. A
+  // switch says nothing here: the card above it already named the new value, and
+  // a failure is on the card too, so it is not repeated below it.
   if (!handled) log(`settings press ${data}: no handler answered`);
-  const notLine = replies.filter(Boolean).filter((r) => r !== answerText);
-  if (notLine.length > 0 && !changed) {
+  const notLine = replies.filter(Boolean).filter((r) => r !== wanted.command);
+  if (notLine.length > 0 && !changed && !failed) {
     await send(chatId, notLine[0], threadId).catch(() => {});
   }
 }

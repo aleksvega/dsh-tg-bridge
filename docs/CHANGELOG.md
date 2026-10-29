@@ -1,5 +1,38 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.26.0
+
+- **The settings card stays.** A tap used to turn the whole card into one line
+  naming the change, which answered "what did I just do" and took away "what can
+  I do next": the menu vanished the moment it was used, and the answer to a door
+  like `/jobs` landed as a separate message while the line above it claimed the
+  press had only been recorded. A press now edits the card in place — same
+  message, same buttons — with the new value marked and one `✓ row: value` line
+  above the rows. A door's answer arrives under the card, which is where it
+  belonged all along.
+- **A way out is a button, not a chore.** The card gained a full-width `✓ Done`
+  row that deletes the message. Before, "close it" meant deleting a chat message
+  by hand, and a card that cannot be put away is a card people learn to fear.
+- **Only the value in force is marked.** Both the text row and the button now
+  carry `●` on the end that is on, and nothing at all on the ends that are not.
+  The old `○`/`●` pair marked every option, which said nothing about which one a
+  tap had left in place.
+- **`/pin on|off` — the progress card in the pinned slot.** Telegram gives a chat
+  one pinned message, so the running card takes it and each turn's card replaces
+  the last: the clock, the speed and the steps are one tap away instead of a
+  scroll back. Off by default — pinning someone's chat uninvited is not a favour,
+  and a group needs the right to pin at all. The pin is silent, a refusal is
+  logged rather than shown, and `state.pin` reads `true`/`false` from an older
+  file the way the notes switch does.
+- **A failed press says so on the card.** The redraw alone looks exactly like
+  success, so an error from the command behind the button is shown as `⚠️` in the
+  card's note line and is not repeated underneath it.
+- **Two more doors on the agent tab**: `/cd` (which folder the topic works in) and
+  `/fallback` (who answers when a provider refuses), because both were reachable
+  only by remembering their names.
+- Dead code out: the `reasoningOf` reader had no callers since the notes switch
+  moved to `notes.mjs`; the paths it was threaded through are gone.
+
 ## 1.25.3
 
 - **The decision trail can reach the chat itself.** `/reasoning` had two ends,

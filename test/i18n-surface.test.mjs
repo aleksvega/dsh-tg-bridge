@@ -1,4 +1,4 @@
-﻿// The language is not a decoration: an English or Chinese chat must contain no
+// The language is not a decoration: an English or Chinese chat must contain no
 // Russian sentence, in the panel, the cards, the help or the answers. This walks
 // the surface a person actually sees, in each of the three languages.
 import test from "node:test";
@@ -52,8 +52,7 @@ test("the settings card speaks the language of the topic", () => {
   }
 });
 
-test("the answers a person asks for come back in their language", async () => {
-  const commands = ["/status", "/help", "/menu", "/settings", "/prices", "/doctor"];
+test("the answers a person asks for come back in their language", async () => {  const commands = ["/status", "/help", "/menu", "/settings", "/prices", "/doctor"];
   for (const lang of LANGS) {
     for (const command of commands) {
       const said = [];
@@ -70,6 +69,31 @@ test("the answers a person asks for come back in their language", async () => {
       assert.ok(text.length > 10, `${command} in ${lang} said nothing`);
       assert.ok(!/\bctrl\.[a-z]/i.test(text), `${command} in ${lang} shows a raw key`);
       if (lang !== "ru") assert.doesNotMatch(text, cyrillic, `${command} in ${lang} answered in Russian`);
+    }
+  }
+});
+
+test("the notes switch answers in the language of the topic, at every end", async () => {
+  // `/reasoning` was the one command this walk never asked, and the mode names
+  // are exactly where a sentence gets left in English: the switch answered from
+  // the dictionary but its three ends were written later than the walk.
+  for (const lang of LANGS) {
+    for (const arg of ["", "chat", "card", "off"]) {
+      const said = [];
+      const ctx = {
+        command: "/reasoning", arg, text: `/reasoning ${arg}`.trim(), lang, chatId: 1, threadId: 0, key: "1:0",
+        state: { sessions: {}, lang: {} }, config: { profile: "headless", lang },
+        activeTurns: new Map(), saveState: () => {}, log: () => {}, send: (s) => said.push(String(s)),
+        reply: (s) => said.push(String(s)), api: async () => ({}), sendFile: async () => {},
+        stopTurn: () => false,
+      };
+      await handleControl(ctx);
+      const where = `/reasoning ${arg || "(bare)"} in ${lang}`;
+      const text = said.join("\n");
+      assert.ok(text.length > 10, `${where} said nothing`);
+      assert.ok(!/\b(msg|ctrl|settings)\.[a-z]/i.test(text), `${where} shows a raw key`);
+      if (lang !== "ru") assert.doesNotMatch(text, cyrillic, `${where} answered in Russian`);
+      assert.equal(ctx.state.reasoning?.["1:0"], arg === "" ? undefined : arg, `${where} stored the wrong mode`);
     }
   }
 });

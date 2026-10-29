@@ -15,6 +15,7 @@ import { topicName } from './topics.mjs';
 import { t } from './i18n.mjs';
 import { addStep, progressPanel, stepLine } from './panel.mjs';
 import { reasoningMode, thoughtRows } from './notes.mjs';
+import { cardPin } from './settings-card.mjs';
 import { continueKeyboard, errorKeyboard } from './keyboards.mjs';
 
 /**
@@ -186,6 +187,20 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     messageId = res.message_id;
   } catch (error) {
     log(`progress message failed: ${error.message}`);
+  }
+
+  // Pinned on request. Telegram keeps one pinned message per chat and topic, so
+  // pinning this card is also what replaces the previous turn's — the slot always
+  // holds the turn that is running now, or the numbers of the one that just
+  // finished. A pin that lands with a notification reads as an interruption, so
+  // it goes silently; a chat where the bot may not pin is not an error either —
+  // the card works the same unpinned, and the reason belongs in the log.
+  if (messageId && cardPin(state, config, panelKey) === 'on') {
+    tg('pinChatMessage', {
+      chat_id: chatId,
+      message_id: messageId,
+      disable_notification: true,
+    }).catch((error) => log(`pin failed: ${String(error.message).slice(0, 120)}`));
   }
 
   let lastView = '';

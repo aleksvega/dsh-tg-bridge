@@ -41,7 +41,7 @@ import { startJobLoops } from './job-loops.mjs';
 import { ensureProfile } from './profiles.mjs';
 import { firstLiveModel, describeVerdicts, probeHint, probeModel } from './model-probe.mjs';
 import { explainFailure } from './failures.mjs';
-import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf, reasoningOf } from './control.mjs';
+import { handleControl, CONTROL_COMMANDS, modelOf, modelsOf } from './control.mjs';
 import { bridgeVersion, installRelease, npmLatestAsync } from './control.mjs';
 import { dueForCheck, updateState } from './update-policy.mjs';
 import { drainGoalJobs, goalOf, progressOf, renderPromptBlock, toggleTask } from './goals.mjs';

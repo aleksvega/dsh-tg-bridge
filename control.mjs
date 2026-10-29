@@ -41,7 +41,7 @@ import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './control/sessions.mjs';
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './control/agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './control/agentsets.mjs';
-import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './control/tasks.mjs';
+import { taskKeyboard, goalView, taskView, filterLogLines } from './control/tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './control/release.mjs';
 
 export async function handleControl(ctx) {
@@ -118,6 +118,6 @@ export async function handleControl(ctx) {
 // keeps its promises: same names, same module, different file.
 export { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, MENU_COMMANDS } from './commands-registry.mjs';
 export { copyRelease } from './control/release.mjs';
-export { filterLogLines, reasoningOf } from './control/tasks.mjs';
+export { filterLogLines } from './control/tasks.mjs';
 export { DSH_HOME } from './paths.mjs';
 export { modelOf, modelsOf, pluginsOf, recentSessions, skillsOf, soulOf, bridgeVersion, npmLatest, npmLatestAsync, installRelease };

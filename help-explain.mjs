@@ -16,7 +16,7 @@ const SECTION = {
   effort: 'Tuning', permissions: 'Tuning', preset: 'Tuning', crew: 'Tuning', plan: 'Tuning', jobs: 'Tuning', remind: 'Tuning',
   skills: 'Extensions', plugins: 'Extensions', soul: 'Extensions',
   update: 'Versions', subscribe: 'Versions',
-  settings: 'Other', lang: 'Other', reasoning: 'Other', doctor: 'Other', logs: 'Other', report: 'Other',
+  settings: 'Other', lang: 'Other', reasoning: 'Other', pin: 'Other', doctor: 'Other', logs: 'Other', report: 'Other',
   app: 'Other', restart: 'Other', help: 'Other', menu: 'Panels',
 };
 

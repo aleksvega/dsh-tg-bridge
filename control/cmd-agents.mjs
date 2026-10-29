@@ -31,7 +31,7 @@ import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
-import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
+import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 
 export async function handleAgentCommands(ctx) {

@@ -109,7 +109,7 @@ function parameterNames(list) {
   parts.push(part);
 
   for (const raw of parts) {
-    // Cut the default value at depth 0: `reasoningOf = null` binds reasoningOf.
+    // Cut the default value at depth 0: `permission = null` binds permission.
     let d = 0;
     let cut = raw.length;
     for (let i = 0; i < raw.length; i += 1) {

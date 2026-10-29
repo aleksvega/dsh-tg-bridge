@@ -271,7 +271,7 @@ Updates:      /update · /update confirm · /update on|off|check|auto · /subscr
 Diagnostics:  /doctor · /logs [errors|N|text] · /report
 Service:      /app · /restart · /help
 Settings:     /settings — the same switches as buttons, grouped in four tabs
-Display:      /lang · /reasoning off|card|chat · /thoughts
+Display:      /lang · /reasoning off|card|chat · /pin on|off · /thoughts
 ```
 
 ### Settings as a card
@@ -281,8 +281,18 @@ four tabs: what the bot says, who answers and how hard it works, new releases,
 and the health checks. Each row shows what the setting is now and what a tap
 would change it to. A tap runs the command a person would have typed
 (`/reasoning chat`, `/update on`), so the card cannot disagree with the command:
-it is a view of them. After the change the card collapses into one plain line —
-delete it and the chat is back to what it was.
+it is a view of them.
+
+The card stays after a tap. It is edited in place — same message, same buttons,
+the value in force marked with `●` and one `✓ row: value` line saying what just
+changed — so a second setting is one more tap instead of a second `/settings`.
+`✓ Done` removes the card when you are finished with it; nothing else deletes it.
+
+`📌 Pin the progress card` (`/pin on`) keeps the running card pinned, so the
+clock, the speed and the step list are one tap away instead of a scroll. Telegram
+gives a chat one pinned message, so each turn's card replaces the last one. Off by
+default: a bot that pins without being asked takes that slot in someone else's
+chat, and a group needs the right to pin at all.
 
 Nothing on the card is only available on the card. `/settings` is for people who
 would rather press a labelled button than remember which of `/effort`,

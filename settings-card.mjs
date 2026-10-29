@@ -8,6 +8,14 @@
  * draws — one line per setting, a tap to flip it — and it is deletable, so the
  * history is not a wall of menus.
  *
+ * The card stays after a press. An earlier version turned it into one line naming
+ * the change, which answered "what did I just do" and took away "what can I do
+ * next": the menu vanished the moment it was used, and the way out had to be the
+ * person deleting a message by hand. So a press now edits the card in place — same
+ * message, same buttons, the new value marked — and the one line saying what
+ * changed sits above the rows. Removing it is a button of its own (`✓ Done`),
+ * which is the difference between a thing that stays and a thing that traps.
+ *
  * Design rule, and the reason this file has no settings logic of its own: a
  * button runs the command a person would have typed. `m:reasoning:on` becomes
  * `/reasoning on` and goes through `handleControl`, so the card cannot validate,
@@ -38,6 +46,15 @@ const PAGES = {
       labels: { card: 'settings.reasoning.card', chat: 'settings.reasoning.chat', off: 'settings.state.off' },
     },
     { id: 'lang', field: 'lang', values: ['en', 'ru', 'zh'], on: 'auto', command: '/lang {v}', labels: {} },
+    // The card that shows the numbers can hold the one pinned slot the chat has,
+    // so getting back to it is a tap rather than a scroll back through a turn.
+    {
+      id: 'pin',
+      field: 'pin',
+      values: ['on', 'off'],
+      command: '/pin {v}',
+      labels: { on: 'settings.state.on', off: 'settings.state.off' },
+    },
     { id: 'thoughts', command: '/thoughts' },
   ],
   // Who answers and how hard it works. These open the command that owns the
@@ -50,6 +67,11 @@ const PAGES = {
     { id: 'preset', command: '/preset' },
     { id: 'set', command: '/agentset' },
     { id: 'agents', command: '/agents' },
+    // The two doors a person reaches for from the chat more often than the rest:
+    // which project this topic works in, and what answers when the provider
+    // refuses. Both already have a card of their own; the row is just the way in.
+    { id: 'cd', command: '/cd' },
+    { id: 'fallback', command: '/fallback' },
   ],
   // New releases: install-wide, so the row is about the install, not the topic.
   updates: [
@@ -101,6 +123,7 @@ export function settingsButtons({ t, current = {}, updateMode = 'check' }) {
         let active = false;
         if (row.field === 'reasoning') active = current.reasoning === value;
         else if (row.field === 'lang') active = current.lang === value;
+        else if (row.field === 'pin') active = current.pin === value;
         else if (row.id === 'u-late') active = value === 'on' ? updateMode !== 'off' : updateMode === 'off';
         else if (row.id === 'u-auto') active = updateMode === value;
         buttons.push({
@@ -128,14 +151,35 @@ export function settingsCurrent({ config = {}, state = {}, key = '' }) {
   return {
     reasoning: reasoningMode(state, config, key),
     lang: state.lang?.[key] || 'auto',
+    pin: cardPin(state, config, key),
   };
+}
+
+/**
+ * Is the progress card pinned while its turn runs?
+ *
+ * Per-topic wins over the install default, and the default is off: pinning
+ * somebody's chat uninvited takes the one slot Telegram gives a conversation, and
+ * a group needs the right to pin at all. `true`/`false` read as on/off, the way
+ * the notes switch migrated.
+ */
+export function cardPin(state, config, key = '') {
+  const raw = state?.pin?.[key];
+  if (raw === 'on' || raw === 'off') return raw;
+  if (raw === true) return 'on';
+  if (raw === false) return 'off';
+  if (config?.pin === 'on' || config?.pin === true) return 'on';
+  return 'off';
 }
 
 /** The line above the buttons: what a tap on this row changes it to. */
 function rowLine(button, group, t) {
   if (!button.value) return t('settings.row.action', { label: button.label, hint: button.hint });
   const active = group.find((b) => b.active);
-  const now = active ? wordFor(active.row, active.value, t) : t('settings.notSet');
+  // The filled dot is layout, not language, so it is added here: the same mark
+  // sits on the button and on the value the card names in words. A person who
+  // scans only the text still sees which end is in force.
+  const now = active ? `● ${wordFor(active.row, active.value, t)}` : t('settings.notSet');
   const next = group.filter((b) => !b.active && b.value).map((b) => wordFor(b.row, b.value, t)).join(' / ');
   return t('settings.row.toggle', { label: button.label, now, next, hint: button.hint });
 }
@@ -146,9 +190,12 @@ function rowLine(button, group, t) {
  * explanation the commands never had to give, because the person typed them
  * knowing what they do.
  */
-export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode = 'check', bound = null }) {
+export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode = 'check', bound = null, note = '' }) {
   const buttons = settingsButtons({ t, current, updateMode }).filter((b) => b.page === page);
   const lines = [t(`settings.${page}.title`), ''];
+  // What the last tap did, in one line above the rows: the card stays, so the
+  // change needs somewhere to be said, and the top is where the eye lands.
+  if (note) lines.push(note, '');
 
   // One line per row, in the order the rows declare.
   const byId = new Map();
@@ -168,15 +215,18 @@ export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode
   lines.push('', t('settings.card.foot'));
 
   // Doors get their own full-width row so they read as actions; switches sit
-  // together; tabs last, because they switch the page, not the setting.
+  // together; the way out, then tabs last, because they switch the page, not the
+  // setting. Only the value in force carries the dot — a card where every option
+  // is marked says nothing about which one is on.
   const keyboard = [];
   for (const group of byId.values()) {
     if (!group[0].value) {
       keyboard.push(group.map((b) => ({ text: b.label, data: b.data })));
       continue;
     }
-    keyboard.push(group.map((b) => ({ text: `${b.active ? '●' : '○'} ${wordFor(b.row, b.value, t)}`, data: b.data })));
+    keyboard.push(group.map((b) => ({ text: b.active ? `● ${wordFor(b.row, b.value, t)}` : wordFor(b.row, b.value, t), data: b.data })));
   }
+  keyboard.push([{ text: t('settings.done'), data: `${SET_PREFIX}done` }]);
   keyboard.push(SETTINGS_PAGES.map((p) => ({
     text: p === page ? `— ${t(`settings.tab.${p}`)} —` : t(`settings.tab.${p}`),
     data: `${SET_PREFIX}${p}`,
@@ -187,8 +237,9 @@ export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode
 
 /**
  * Turn a button payload into what it stands for: `{ page }` for a tab,
- * `{ command, label }` for a setting (what to run, and what to call it in the one
- * line that replaces the card).
+ * `{ done: true }` for the way out, `{ command, label, page }` for a setting
+ * (what to run, what to call it in the line above the rows, and which page to
+ * redraw once it has run).
  *
  * Unknown rows and unknown values answer `null`: a button from a message written
  * before this release is the normal case, not an error, and the caller says so in
@@ -198,6 +249,9 @@ export function commandFor({ t, current = {}, updateMode = 'check' }, data) {
   const text = String(data || '');
   if (!text.startsWith(SET_PREFIX)) return null;
   const [, row, value = ''] = text.split(':');
+  // The way out is not a setting: it removes the card, which is the one action
+  // the buttons could not do while a press turned the card into a line.
+  if (row === 'done' && !value) return { done: true };
   if (SETTINGS_PAGES.includes(row) && !value) return { page: row };
   const button = settingsButtons({ t, current, updateMode }).find((b) => b.id === row && (b.value || '') === value);
   if (!button || !button.command) return null;
@@ -205,5 +259,8 @@ export function commandFor({ t, current = {}, updateMode = 'check' }, data) {
     command: button.command,
     label: button.label,
     value: button.value ? wordFor(button.row, button.value, t) : '',
+    // The card is redrawn after the press, and a redraw needs to know which page
+    // it is looking at: the payload does not carry it, the row does.
+    page: button.page,
   };
 }

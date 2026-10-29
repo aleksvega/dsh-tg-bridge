@@ -76,6 +76,58 @@ test('every switch points at the command that owns it', () => {
   assert.equal(commandFor({ t: tt, current }, 'm:reasoning:sideways'), null);
 });
 
+test('the card stays: every page carries its own way out', () => {
+  // A press edits the card instead of replacing it, so the card has to be able
+  // to close itself: leaving was the one thing the buttons could not do, and the
+  // old answer was "delete the message by hand".
+  const current = settingsCurrent({ config: {}, state: {}, key: '1' });
+  const tt = (k, vars) => t('en', k, vars);
+  for (const page of SETTINGS_PAGES) {
+    const view = renderSettingsCard({ page, t: tt, current, updateMode: 'off' });
+    const done = view.keyboard.flat().filter((b) => b.data === 'm:done');
+    assert.equal(done.length, 1, `${page} has no way out`);
+    assert.equal(done[0].text, t('en', 'settings.done'));
+    assert.deepEqual(commandFor({ t: tt, current }, 'm:done'), { done: true });
+  }
+});
+
+test('a press knows which page to redraw', () => {
+  // The payload names the row, not the page. Without the page the caller cannot
+  // re-render the card it just changed, and the old code settled for one line.
+  const current = settingsCurrent({ config: {}, state: {}, key: '1' });
+  const tt = (k, vars) => t('en', k, vars);
+  assert.equal(commandFor({ t: tt, current }, 'm:reasoning:chat')?.page, 'reply');
+  assert.equal(commandFor({ t: tt, current }, 'm:pin:on')?.page, 'reply');
+  assert.equal(commandFor({ t: tt, current }, 'm:u-late:on')?.page, 'updates');
+  assert.equal(commandFor({ t: tt, current }, 'm:model')?.page, 'agent');
+});
+
+test('only the value in force is marked, in the text and on the button', () => {
+  const current = settingsCurrent({ config: {}, state: {}, key: '1' });
+  const tt = (k, vars) => t('en', k, vars);
+  const view = renderSettingsCard({ page: 'reply', t: tt, current, updateMode: 'off' });
+  // Two ends, one dot per switch: a card where every option is marked says
+  // nothing, and a card that marks the wrong end says worse.
+  const dots = view.text.match(/●/g) || [];
+  const marked = view.keyboard.flat().filter((b) => b.text.startsWith('●'));
+  assert.deepEqual(marked.map((b) => b.data), ['m:reasoning:card', 'm:pin:off']);
+  assert.equal(dots.length, marked.length, 'the text and the buttons disagree about what is on');
+  assert.equal(view.text.includes('○'), false);
+});
+
+test('the pin switch reads the same place /pin writes', () => {
+  assert.equal(settingsCurrent({ config: {}, state: {}, key: '1' }).pin, 'off');
+  assert.equal(settingsCurrent({ config: {}, state: { pin: { '1': 'on' } }, key: '1' }).pin, 'on');
+  // A value written for another topic is not this topic's.
+  assert.equal(settingsCurrent({ config: {}, state: { pin: { '2': 'on' } }, key: '1' }).pin, 'off');
+  // The install default only applies where the topic has said nothing.
+  assert.equal(settingsCurrent({ config: { pin: 'on' }, state: {}, key: '1' }).pin, 'on');
+  assert.equal(settingsCurrent({ config: { pin: 'on' }, state: { pin: { '1': 'off' } }, key: '1' }).pin, 'off');
+  // The shapes the older switches migrated through.
+  assert.equal(settingsCurrent({ config: {}, state: { pin: { '1': true } }, key: '1' }).pin, 'on');
+  assert.equal(settingsCurrent({ config: {}, state: { pin: { '1': false } }, key: '1' }).pin, 'off');
+});
+
 test('the current value decides which button is marked', () => {
   const tt = (k, vars) => t('en', k, vars);
   const on = settingsButtons({ t: tt, current: { reasoning: 'card', lang: 'ru' }, updateMode: 'off' });

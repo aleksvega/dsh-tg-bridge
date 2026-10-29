@@ -14,7 +14,7 @@ import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseRe
 import { setRowConfig, unsetRowConfig } from '../profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from '../reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from '../agentsets.mjs';
-import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../settings-card.mjs';
+import { SETTINGS_PAGES, cardPin, renderSettingsCard, settingsCurrent } from '../settings-card.mjs';
 import { applyFork, planFork, planRewind } from '../rewind.mjs';
 import { cutSession, isRewindPress } from '../rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from '../rewind-card.mjs';
@@ -30,7 +30,7 @@ import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
-import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
+import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { reasoningMode } from '../notes.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 import { presetOf } from '../profile-view.mjs';
@@ -240,7 +240,7 @@ export async function handleViewCommands(ctx) {
         permission = null;
       }
       const current = {
-        ...settingsCurrent({ config, state, key, reasoningOf }),
+        ...settingsCurrent({ config, state, key }),
         permissions: permission ? { profile: permission.profile, preset: permission.preset?.id || '' } : null,
       };
       const bound = agentsetOf(state, key);
@@ -286,6 +286,23 @@ export async function handleViewCommands(ctx) {
       state.reasoning[key] = next;
       ctx.saveState();
       say(t(lang, next === 'off' ? 'msg.reasoningOff' : next === 'chat' ? 'msg.reasoningChat' : 'msg.reasoningOn'));
+      return true;
+    }
+    case '/pin': {
+      // The progress card is pinned while its turn runs, so getting back to the
+      // numbers is one tap instead of a scroll. Off by default: pinning someone's
+      // chat uninvited is not a favour, and a group needs the right to pin.
+      const wanted = String(arg || '').trim().toLowerCase();
+      const mode = cardPin(state, config, key);
+      const next = { on: 'on', off: 'off' }[wanted];
+      if (!next) {
+        say(t(lang, 'msg.pinState', { state: t(lang, `msg.pinMode.${mode}`) }));
+        return true;
+      }
+      state.pin = state.pin || {};
+      state.pin[key] = next;
+      ctx.saveState();
+      say(t(lang, next === 'on' ? 'msg.pinOn' : 'msg.pinOff'));
       return true;
     }
     case '/thoughts': {
