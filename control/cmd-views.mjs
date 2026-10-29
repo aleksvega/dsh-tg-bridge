@@ -34,6 +34,8 @@ import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { reasoningMode } from '../notes.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 import { presetOf } from '../profile-view.mjs';
+import { costReport } from '../cost.mjs';
+import { loadPrices } from '../price-cache.mjs';
 
 export async function handleViewCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
@@ -403,6 +405,16 @@ export async function handleViewCommands(ctx) {
         const head = parts.length > 1 ? `${title} (${index + 1}/${parts.length})` : title;
         brief(`${head}\n\n${part}${last ? `\n\n${t(lang, 'ctrl.thoughts.hint')}` : ''}`);
       });
+      return true;
+    }
+    case '/cost': {
+      // The session's own bill, not the catalog's prices. The catalog is read
+      // from disk and never fetched here: `/prices` is the command that pays
+      // for a fetch, and this one answers instantly with what it finds.
+      const sessionId = state.sessions[key] || '';
+      const stats = sessionId ? sessionStats(sessionFile(join(DSH_HOME, 'sessions'), sessionId)) : null;
+      const { at, models } = loadPrices();
+      say(costReport({ stats, route: modelOf(activeProfile), lang, models, cacheAt: at, t }));
       return true;
     }
     case '/prices': {

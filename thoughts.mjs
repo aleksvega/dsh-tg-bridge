@@ -200,7 +200,14 @@ export function lastTurnText(file, { maxChars = 1500 } = {}) {  const text = las
  * is the sum over every call.
  */
 export function sessionStats(file) {
-  const empty = { createdAt: 0, lastActivity: 0, model: '', contextTokens: 0, lifetimeTokens: 0, turns: 0 };
+  // Four counters instead of one total: a bill is input + output + cache read,
+  // and the three have three different prices. Summing them into
+  // `lifetimeTokens` was enough to say "how big", never enough to say "how
+  // much", which is the number a person actually asks for.
+  const empty = {
+    createdAt: 0, lastActivity: 0, model: '', contextTokens: 0, lifetimeTokens: 0, turns: 0,
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputPerTurn: 0,
+  };
   if (!file || !existsSync(file)) return empty;
   let buf;
   try {
@@ -232,12 +239,23 @@ export function sessionStats(file) {
       const usage = record.data?.usage;
       if (usage) {
         if (Number.isFinite(usage.totalTokens)) stats.contextTokens = usage.totalTokens;
-        const billed = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) + (usage.cacheReadTokens ?? 0);
-        stats.lifetimeTokens += billed;
+        const input = Number(usage.inputTokens ?? 0) || 0;
+        const output = Number(usage.outputTokens ?? 0) || 0;
+        const cacheRead = Number(usage.cacheReadTokens ?? 0) || 0;
+        const cacheWrite = Number(usage.cacheWriteTokens ?? 0) || 0;
+        stats.inputTokens += input;
+        stats.outputTokens += output;
+        stats.cacheReadTokens += cacheRead;
+        stats.cacheWriteTokens += cacheWrite;
+        stats.lifetimeTokens += input + output + cacheRead;
       }
       if (!stats.model && record.data?.message?.model) stats.model = record.data.message.model;
     }
   }
+  // The average answer size. `turns` counts turn starts, and a session that has
+  // begun more turns than it finished divides by a number that is too big — the
+  // average then reads low, which is the safe direction for an estimate.
+  stats.outputPerTurn = stats.turns > 0 ? Math.round(stats.outputTokens / stats.turns) : 0;
   return stats;
 }
 

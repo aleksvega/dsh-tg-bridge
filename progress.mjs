@@ -17,6 +17,10 @@ import { addStep, progressPanel, stepLine } from './panel.mjs';
 import { reasoningMode, thoughtRows } from './notes.mjs';
 import { cardPin } from './settings-card.mjs';
 import { continueKeyboard, errorKeyboard } from './keyboards.mjs';
+import { contextFill, contextRow, contextUsed } from './context-meter.mjs';
+import { modelOf, windowOf } from './control/models.mjs';
+import { usageCost, usd, priceOf } from './cost.mjs';
+import { loadPrices } from './price-cache.mjs';
 
 /**
  * Average generation speed of a turn, in tokens per second, or 0 when unknown.
@@ -52,7 +56,36 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   const steps = [];
   const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
-  const usage = { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, outputTotal: 0 };
+  // `totalTokens` is the provider's own sum of the prompt it just sent, which is
+  // exactly the context size; the two parts are kept for the cache line.
+  const usage = { inputTokens: 0, cacheReadTokens: 0, totalTokens: 0, outputTokens: 0, outputTotal: 0 };
+  // The window this topic's model actually runs with, read once: it cannot
+  // change mid-turn, and a file read on every edit would be silly. Zero means
+  // the profile declares no window, and then the meter says nothing at all.
+  // Read here rather than through `profileOf` from `turn.mjs`: this module
+  // renders, and the turn module is what spawns processes — a renderer that
+  // imports the runner is the cycle this codebase already paid for once.
+  // Who answers this topic, and how much room it has. Both are read once: a
+  // profile cannot change mid-turn, and the same lookup drives the context meter
+  // and the money line.
+  const route = modelOf((state.profiles && state.profiles[panelKey]) || config.profile || 'headless');
+  const contextLimit = (() => {
+    try {
+      return windowOf((state.profiles && state.profiles[panelKey]) || config.profile || 'headless', route.model) || 0;
+    } catch {
+      return 0;
+    }
+  })();
+  // The price of this turn's tokens, or '' when the cache cannot say. The read is
+  // lazy in the sense that matters: no cache means no line, never a guess.
+  const turnCost = (turnUsage, turnLang) => {
+    const { models } = loadPrices();
+    const price = priceOf(models, route.model, route.provider);
+    if (!price) return '';
+    const cost = usageCost(turnUsage, price);
+    if (!cost || !(cost.total > 0)) return '';
+    return t(turnLang, 'status.costLine', { sum: usd(cost.total) });
+  };
   let messageId = 0;
   let lastEdit = 0;
   let dirty = false;
@@ -128,6 +161,18 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
 
   const panel = (final = false) => {
     // The cache line belongs to the outcome, not to every intermediate edit.
+    // How full the context is. A live card shows it only once it matters —
+    // a percentage that is always there is read once and ignored forever — and
+    // the final card always shows it, which is where the number is learned
+    // without a command. Empty when the window or the usage is unknown.
+    const fill = contextFill({ used: contextUsed(usage), limit: contextLimit });
+    const context = fill && (final || fill.level !== 'ok')
+      ? contextRow({ used: fill.used, limit: fill.limit }, lang)
+      : '';
+    // What this turn cost, when the price cache already knows the model. It is
+    // read from disk and never fetched: an answer must not wait on a catalog.
+    // No cache means no line, which is honest — the tokens are in `/cost`.
+    const money = final ? turnCost(usage, lang) : '';
     const cache = final && usage.cacheReadTokens
       ? t(lang, 'status.cacheLine', {
         pct: Math.round((usage.cacheReadTokens / Math.max(1, usage.cacheReadTokens + (usage.inputTokens ?? 0))) * 100),
@@ -163,6 +208,8 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       reasoning: state.thinkBlock?.[panelKey] === 'counter' ? 'counter' : 'block',
       task,
       chip,
+      context,
+      money,
       cache,
     });
   };
@@ -297,6 +344,7 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       if (event.type === 'status' && event.usage) {
         if (Number.isFinite(event.usage.inputTokens)) usage.inputTokens = event.usage.inputTokens;
         if (Number.isFinite(event.usage.cacheReadTokens)) usage.cacheReadTokens = event.usage.cacheReadTokens;
+        if (Number.isFinite(event.usage.totalTokens)) usage.totalTokens = event.usage.totalTokens;
         // `outputTokens` is per step, not cumulative: a turn of twenty steps
         // reports twenty small numbers, and dividing the last one by the whole
         // turn would claim 0.6 tok/s for a turn that ran at eighty. Sum the

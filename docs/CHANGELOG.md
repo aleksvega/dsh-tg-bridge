@@ -1,5 +1,30 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.29.0
+
+- **The progress card says how full the context is.** A turn that runs into its
+  model's context window dies expensively: the prompt is re-sent, billed, and
+  rejected. The card now carries `📊 контекст 812k / 1M (81%)`, built from the
+  provider's own `usage` and the window the profile declares. A live card shows
+  it only from 75 % — a percentage that is always there is read once and then
+  ignored — and the final card always shows it. When either side of the fraction
+  is unknown the row is absent, not guessed: a percentage of an unknown
+  denominator reads as a measurement and is not one.
+- **`/cost`: what this session has spent.** Input, output and cache-read tokens
+  are billed at three different rates, and the old single total could say "how
+  big" but never "how much". `/cost` shows the three counts, the total, the
+  per-turn average and the rates it used, and names its source: OpenRouter's
+  published price for the same model, a market reference rather than the
+  provider's invoice. Prices are cached for a week and filled by `/prices`; a
+  turn never waits on the network for a number. The final card adds
+  `💰 этот ход: $0.0042` when the cache knows the model, and says nothing when
+  it does not — an invented invoice is worse than none.
+- **Every "unknown" on the bill is named.** No usage in the log, no catalog on
+  disk, no published price for this model, and a rate missing for one of the
+  three kinds are four different sentences, and a partial total announces itself
+  as a lower bound. The failure this replaces is a confident `$0.00` on a paid
+  session.
+
 ## 1.28.1
 
 - **`/profile` no longer throws on a fresh install.** It listed

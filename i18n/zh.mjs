@@ -2,8 +2,9 @@
 // reviewable: `core` holds the words a screen shows (status, settings, panels,
 // prompts), `ctrl` what each command answers, `fallback` the failover card. A
 // translation change touches one table and shows up as one diff.
+import cost from './zh/cost.mjs';
 import ctrl from './zh/ctrl.mjs';
 import core from './zh/core.mjs';
 import fallback from './zh/fallback.mjs';
 
-export default { ...core, ...ctrl, ...fallback };
+export default { ...core, ...ctrl, ...cost, ...fallback };

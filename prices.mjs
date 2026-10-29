@@ -7,6 +7,8 @@
 // says whose price it shows: OpenRouter's rate for the same model, as a
 // reference — not the invoice.
 
+import { savePrices } from './price-cache.mjs';
+
 const OPENROUTER = 'https://openrouter.ai/api/v1/models';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
@@ -37,6 +39,23 @@ export function parseOpenRouter(json) {
       context: Number(entry?.context_length) > 0 ? Number(entry.context_length) : null,
     });
   }
+  return models;
+}
+
+/**
+ * The whole catalog, or an empty list with the reason it is empty.
+ *
+ * Exported because `/cost` needs the same list for the same reason: one source,
+ * one set of numbers. Two fetches of two catalogs is how a model ends up with
+ * two prices in one bot.
+ */
+export async function fetchCatalog(timeoutMs = 30000) {
+  const res = await fetchText(OPENROUTER, timeoutMs);
+  const models = parseOpenRouter(JSON.parse(res));
+  // Kept for the callers that must not wait: `/cost` and the final card of a
+  // turn read this file instead of fetching. Saving here rather than in each
+  // caller means a new caller cannot forget to.
+  savePrices(models);
   return models;
 }
 
@@ -208,18 +227,13 @@ export function describeCurrent(models, { model, provider } = {}, words) {
 export async function renderPrices(filter = '', options = {}) {
   const lang = WORDS[options.lang] ? options.lang : 'en';
   const words = WORDS[lang];
-  const [openrouter] = await Promise.allSettled([fetchText(OPENROUTER, 30000)]);
+  const [openrouter] = await Promise.allSettled([fetchCatalog()]);
 
   let models = [];
   const sources = [];
-  if (openrouter?.status === 'fulfilled') {
-    try {
-      const parsed = parseOpenRouter(JSON.parse(openrouter.value));
-      if (parsed.length > 0) {
-        models.push(...parsed);
-        sources.push('OpenRouter');
-      }
-    } catch {}
+  if (openrouter?.status === 'fulfilled' && openrouter.value.length > 0) {
+    models.push(...openrouter.value);
+    sources.push('OpenRouter');
   }
   if (models.length === 0) {
     const reason = openrouter?.status === 'rejected'

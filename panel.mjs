@@ -123,6 +123,15 @@ export function progressPanel({
   // It rides in the head next to the clock: the clock alone cannot tell a slow
   // provider from a turn that spends its minutes in tools.
   speed = 0,
+  // How full the context is, already rendered by `context-meter.mjs`. A string
+  // and not the numbers: the decision to show it at all is the meter's policy
+  // (live cards only carry it once it matters), and a renderer that re-decides
+  // would drift from the command that reports the same figure.
+  context = '',
+  // What this turn cost in money, already rendered; '' when the price cache has
+  // no rate for this model. Only ever on the final card: a running turn has no
+  // final bill, and a figure that climbs is read as a meter, not as a receipt.
+  money = '',
 } = {}) {
   const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
   const mark = String(chip).trim() ? ` · ${String(chip).trim()}` : '';
@@ -135,7 +144,9 @@ export function progressPanel({
       ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`
       : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`;
   const mind = thoughts.map((line) => `💭 ${line}`);
-  const base = [head, ...mind, cache].filter(Boolean).join('\n').length;
+  const ctx = String(context || '').trim();
+  const paid = String(money || '').trim();
+  const base = [head, ...mind, ctx, paid, cache].filter(Boolean).join('\n').length;
 
   // While the turn runs this message is rewritten every few seconds, and
   // Telegram drops an expanded block on every edit — which is what yanks the
@@ -176,6 +187,8 @@ export function progressPanel({
     body.text ? `<blockquote expandable>${escapeHtml(thinkLabel)}\n${escapeHtml(body.text)}</blockquote>` : '',
     ...inline.map((line) => escapeHtml(line)),
     escapeHtml(more),
+    escapeHtml(ctx),
+    escapeHtml(paid),
     all.text ? `<blockquote expandable>${escapeHtml(stepsLabel)}\n${escapeHtml(all.text)}</blockquote>` : '',
     escapeHtml(cache),
   ].filter(Boolean).join('\n');
@@ -186,6 +199,8 @@ export function progressPanel({
     body.text ? `${thinkLabel}\n${body.text}` : '',
     ...inline,
     more,
+    ctx,
+    paid,
     all.text ? `${stepsLabel}\n${all.text}` : '',
     cache,
   ].filter(Boolean).join('\n');

@@ -12,7 +12,7 @@ const SECTION = {
   cd: 'Work', new: 'Work', stop: 'Work', send: 'Work', seed: 'Work',
   goal: 'Goals', task: 'Goals', tasks: 'Goals',
   status: 'Sessions', sessions: 'Sessions', rewind: 'Sessions', profile: 'Sessions',
-  agents: 'Agents', model: 'Models', prices: 'Models', thoughts: 'Models', fallback: 'Models',
+  agents: 'Agents', model: 'Models', prices: 'Models', cost: 'Models', thoughts: 'Models', fallback: 'Models',
   effort: 'Tuning', permissions: 'Tuning', preset: 'Tuning', crew: 'Tuning', plan: 'Tuning', jobs: 'Tuning', remind: 'Tuning',
   skills: 'Extensions', plugins: 'Extensions', soul: 'Extensions',
   update: 'Versions', subscribe: 'Versions',

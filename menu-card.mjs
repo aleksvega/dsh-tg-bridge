@@ -18,7 +18,7 @@ const SECTIONS = {
   work: ['cd', 'seed', 'send'],
   session: ['sessions', 'rewind', 'profile', 'agents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
-  talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'lang', 'fallback'],
+  talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'lang', 'fallback'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['load', 'settings', 'update', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'help'],
 };
