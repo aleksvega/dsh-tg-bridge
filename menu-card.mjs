@@ -18,7 +18,7 @@ const SECTIONS = {
   work: ['cd', 'seed', 'send'],
   session: ['sessions', 'rewind', 'profile', 'agents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
-  talk: ['effort', 'reasoning', 'thoughts', 'prices', 'lang'],
+  talk: ['effort', 'reasoning', 'thoughts', 'prices', 'lang', 'fallback'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['settings', 'update', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'help'],
 };
@@ -75,6 +75,7 @@ const LABELS = {
   reasoning: '/reasoning',
   thoughts: '/thoughts',
   prices: '/prices',
+  fallback: '/fallback',
   lang: '/lang en|ru|zh',
   plugins: '/plugins add|rm',
   skills: '/skills',

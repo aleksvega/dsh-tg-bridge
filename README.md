@@ -118,6 +118,7 @@ Optional provider settings live in `config.json`:
 | `vision.patch` | opt-in overlay profile for photo turns; default `""` — the turn's own model reads images |
 | `vision.enabled` | set `true` to run photo turns on `vision.patch` instead of the topic profile |
 | `fallbackModels` | ordered failover chain; default `[]` — see below |
+| `fallbackEnabled` | `false` switches the whole chain off without editing the list; `/fallback off` sets it |
 | `maxParallel` | how many topics run at once, 1–8, default `3`; also `/jobs 5` in the chat |
 | `replayWindowMs` | how old a journaled update may be and still be replayed after a restart; default `600000` (10 min) |
 
@@ -129,7 +130,8 @@ model refuses:
   "provider": "router-a",
   "model": "some-model",
   "patch": "~/.dsh/tg-bridge/model-a.yml",
-  "free": false
+  "free": false,
+  "off": false
 }
 ```
 
@@ -138,13 +140,47 @@ model refuses:
 keeps every other setting and only the model changes. `provider` is the id the
 provider is written under in the profile — it decides whose key and host the
 pre-flight probe asks, so the same model id on two routers stays two attempts.
-`free` only adds `(free)` to the switch notice.
+`free` only adds `(free)` to the switch notice. `off` keeps an entry in the list
+but out of the walk; an entry whose `patch` file is missing is skipped the same
+way, and the chat says so instead of counting it.
 
 The chain may mix companies: a 503 from one provider says nothing about another,
 so a busy channel skips its own models and the next company is still tried. Put
 models from different companies next to each other — two arms of one router are
 one outage, not two chances — and keep the `:free` models at the end, as the
 last resort.
+
+**What starts a switch.** Anything the provider itself says no to: a 400/413/422
+refusal (its own validator rejecting the request), 401/403 (key refused), 402 or
+a quota/balance message (empty account), 404 (that model id is not carried),
+429 (rate limit), 5xx and `get_channel_failed` / "all providers busy" (the pool
+is down), a dropped connection or DNS/TLS failure, and an empty answer. A refusal
+gets one other route, not the whole chain: it is replayed in full, and if the
+second vendor refuses identically the request — not the route — is what is wrong,
+so the reply says to start a fresh session with `/new`.
+
+**What does not start a switch.** The turn time cap, `/stop`, a session or
+directory error, a missing `dsh` binary: no other vendor changes those, and a
+replay would cost a full turn to learn the same thing. They are listed in the
+card so the distinction is visible instead of guessed.
+
+### `/fallback` — the chain from the chat
+
+```
+/fallback                 the card: chain state, numbered routes, what starts a switch
+/fallback on | off        the whole chain (per route: /fallback off 3)
+/fallback use 3 | skip 3  one route back in or out
+/fallback up 3 | down 3   move a route in the order
+/fallback test [3]        ask each route (or one) with a 1-token request
+/fallback add <provider>/<model>   write an overlay and append the route
+/fallback remove 3        drop a route from the list (its overlay file stays)
+```
+
+Every line has a button on the card: `● n` switches a route, `↑ n` / `↓ n` move
+it, and the card redraws in place after each press. `test` proves the key and the
+channel are alive — not that the provider accepts this conversation, so a route
+can answer `ping` and still refuse a long prompt with a 400. The card says that
+in as many words.
 
 Get your id from [@userinfobot](https://t.me/userinfobot), the token from
 [@BotFather](https://t.me/BotFather).

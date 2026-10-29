@@ -1,6 +1,6 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.25.0",
+  "version": "1.25.1",
   "description": "Telegram bridge for DeepSeek Harness: text, voice, photos and project-per-topic sessions without opening the desktop app",
   "type": "module",
   "main": "plugin-bridge.mjs",
@@ -103,6 +103,7 @@
     "profiles.mjs",
     "model-probe.mjs",
     "fallback.mjs",
+    "fallback-card.mjs",
     "aset-profile.mjs",
     "aset-schema.mjs",
     "aset-job.mjs",
@@ -130,6 +131,7 @@
     "docs/REFACTORING.md",
     "control/cmd-agents.mjs",
     "control/cmd-bridge.mjs",
+    "control/cmd-fallback.mjs",
     "control/cmd-plugin.mjs",
     "control/cmd-session.mjs",
     "control/cmd-skills.mjs",

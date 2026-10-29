@@ -1,8 +1,9 @@
-// EN strings. One table per locale, kept in two files so a language stays
+// EN strings. One table per locale, kept in three files so a language stays
 // reviewable: `core` holds the words a screen shows (status, settings, panels,
-// prompts), `ctrl` holds what each command answers. A translation change touches
-// one table and shows up as one diff.
+// prompts), `ctrl` what each command answers, `fallback` the failover card. A
+// translation change touches one table and shows up as one diff.
 import ctrl from './en/ctrl.mjs';
 import core from './en/core.mjs';
+import fallback from './en/fallback.mjs';
 
-export default { ...core, ...ctrl };
+export default { ...core, ...ctrl, ...fallback };

@@ -28,6 +28,14 @@ export function explainFailure(text, lang = 'ru') {
       'SANDBOX_DENY', 'bridge.fail.sandbox'],
     [/UNKNOWN_MODEL|model not found|no such model/i,
       'UNKNOWN_MODEL', 'bridge.fail.unknownModel'],
+    // A provider refusing the request shape is not the same as a dead balance:
+    // the fallback chain already tried the other companies, so the honest advice
+    // is "this request, not this route". Only the 400 class is a verdict on the
+    // request; a 429 or a 5xx is load, and each has its own sentence below.
+    [/INVALID_REQUEST|invalid_request_error|API error \((?:400|413|422)\)|HTTP (?:400|413|422)|Bad Request/i,
+      'PROVIDER_REJECT', 'bridge.fail.reject'],
+    [/RATE_LIMIT|\b429\b|rate.?limit|too many requests/i,
+      'RATE_LIMITED', 'bridge.fail.rate'],
     [/empty response|EMPTY_RESPONSE|no output|пустой ответ/i,
       'EMPTY_RESPONSE', 'bridge.fail.empty'],
   ];

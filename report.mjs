@@ -28,7 +28,7 @@ export const MAX_CHARS = 60_000;
 export function redact(input, home = homedir(), ids = []) {
   let text = String(input ?? '');
   // The ids this bridge actually serves, replaced exactly. A pattern cannot know
-  // that `in 311217285` is a chat and `tokens=311217285` is not; the caller does,
+  // that `in 123456789` is a chat and `tokens=123456789` is not; the caller does,
   // so those numbers are given, not guessed.
   for (const id of ids) {
     const digits = String(id ?? '').replace(/\D/g, '');

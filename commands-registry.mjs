@@ -12,7 +12,7 @@ export const CONTROL_COMMANDS = [
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'help', 'doctor', 'logs', 'report', 'lang', 'reasoning', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
-  'rewind', 'fork', 'branches', 'menu',
+  'rewind', 'fork', 'branches', 'menu', 'fallback',
 ];
 
 /**

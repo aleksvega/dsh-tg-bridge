@@ -1,8 +1,9 @@
-// RU strings. One table per locale, kept in two files so a language stays
+// RU strings. One table per locale, kept in three files so a language stays
 // reviewable: `core` holds the words a screen shows (status, settings, panels,
-// prompts), `ctrl` holds what each command answers. A translation change touches
-// one table and shows up as one diff.
+// prompts), `ctrl` what each command answers, `fallback` the failover card. A
+// translation change touches one table and shows up as one diff.
 import ctrl from './ru/ctrl.mjs';
 import core from './ru/core.mjs';
+import fallback from './ru/fallback.mjs';
 
-export default { ...core, ...ctrl };
+export default { ...core, ...ctrl, ...fallback };

@@ -3,6 +3,7 @@
 // update or an approval, and only one handler may claim it.
 import { AgentsetStore } from './agentsets.mjs';
 import { CONTROL_COMMANDS, handleControl, reasoningOf } from './control.mjs';
+import { isFallbackPress, pressTarget } from './fallback-card.mjs';
 import { progressOf, toggleTask } from './goals.mjs';
 import { handleMessage } from './handle-message.mjs';
 import { resolveLang, t } from './i18n.mjs';
@@ -14,7 +15,7 @@ import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.m
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { runCommandFromButton } from './run-command.mjs';
 import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
-import { config, done, log, saveState, state } from './state.mjs';
+import { config, done, log, saveConfig, saveState, state } from './state.mjs';
 import { inlineKeyboard, send, sendFile, tg } from './telegram.mjs';
 import { sessionFile } from './thoughts.mjs';
 import { activeTurns, killTurn, profileOf } from './turn.mjs';
@@ -149,6 +150,27 @@ export async function handleCallback(query) {
   if (data.startsWith('jb:')) {
     await clearKeyboard();
     await runCommandFromButton(`/jobs ${data.slice(3)}`, { chatId, threadId, key });
+    return;
+  }
+
+  // A button on the failover card. Every press becomes the verb of `/fallback`,
+  // so a tap and a typed line land in the same code — and the command redraws the
+  // card, which is why the old keyboard is trimmed only when the press leaves it.
+  if (isFallbackPress(data)) {
+    const target = pressTarget(data);
+    const words = { t: 'toggle', u: 'up', d: 'down', x: 'test', e: 'chain', s: 'show' };
+    // `r` is two verbs on one letter: with a number it removes that route, alone
+    // it opens the remove list. Anything else is a stale card and does nothing.
+    const verb = target && (target.verb === 'r' ? (target.n ? 'remove' : 'menu') : words[target.verb]);
+    if (!verb) {
+      await answer(t(lang, 'bridge.cb.unknown'));
+      return;
+    }
+    const typed = target.n && verb !== 'menu' ? `/fallback ${verb} ${target.n}` : `/fallback ${verb}`;
+    await clearKeyboard();
+    await answer(typed);
+    log(`fallback press ${typed} for ${key}`);
+    await runCommandFromButton(typed, { chatId, threadId, key, lang });
     return;
   }
 
@@ -349,6 +371,9 @@ export async function handleCardPress(query, ctx) {
     config,
     activeTurns,
     saveState,
+    // `/fallback` writes config.json; without this the press would look applied
+    // and vanish on restart, which is the worst of both answers.
+    saveConfig,
     log,
     send: (text) => {
       replies.push(String(text ?? ''));

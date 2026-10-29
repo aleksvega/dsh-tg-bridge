@@ -1,5 +1,49 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.25.1
+
+- **The failover chain fires on a refusal.** A turn that ended with
+  `dsh: INVALID_REQUEST: wikivibe API error (400)` stopped the walk on its first
+  iteration while six configured routes sat unused, and the log said nothing —
+  the trigger list knew 5xx, quota words, `AUTH` and an empty answer, and a 400
+  from a vendor's own validator matched none of them. Failures are now grouped
+  into named families (`refused`, `quota`, `auth`, `busy`, `rate`, `transport`,
+  `model`, `empty`), every family starts the chain, and every decision writes one
+  `fallback …` line, so "no route was left" can no longer look like "no route was
+  ever tried". The negative list stays explicit: the turn time cap, `/stop`, a
+  session or directory error and a missing `dsh` are not a route's fault and are
+  not replayed on six vendors.
+- **A refusal costs one route, not the whole chain.** A 400 is replayed in full —
+  the same long conversation, the same tools — so one other vendor answers the
+  only useful question, "is it this route or this prompt". If the second refuses
+  identically the request is what is wrong, and the reply now says so and points
+  at `/new` instead of suggesting a top-up. Busy, quota, rate and transport
+  failures keep walking the whole chain: those are per-route facts.
+- **`/fallback`: the chain as a card.** The list was invisible from the chat, so
+  the honest answer to "why did it not switch" was often "nothing was configured
+  to switch to". The card shows the route this topic answers on, the numbered
+  chain, how many routes a turn would really try (a switched-off route and one
+  whose overlay file is missing are counted separately, not silently), what
+  starts a switch and what does not. Every line has a button: `● n` switches a
+  route off or on, `↑ n` / `↓ n` move it, `test` asks each route with a 1-token
+  request, `add <provider>/<model>` writes the overlay and appends the route,
+  `remove` asks for a second named press. A press and a typed line run the same
+  verb, so the two cannot disagree.
+- **`/fallback test` is honest about what it proves.** A probe shows the key and
+  the channel are alive; it does not show the provider accepts this conversation,
+  and the card says exactly that — a route that answers `ping` can still refuse a
+  long prompt with a 400.
+- **`fallbackEnabled`** switches the whole chain off without editing the list,
+  and `runFallbackChain` reads it before sending anything, so a person who turned
+  the chain off never sees a "running on another model" line. `off: true` does the
+  same for one entry; both keep the route in `config.json` with its overlay.
+- **`/report` prints the chain the card shows**, from the same renderer: a report
+  that counted routes a turn would skip is the report that hides the bug it was
+  opened for.
+- `ctrl.fallback.*` moved into its own locale table (`i18n/<lang>/fallback.mjs`)
+  when `ctrl.mjs` reached the 500-line ceiling; `/help` documents the command and
+  the panel carries it under "Talk".
+
 ## 1.25.0
 
 - **A bound topic no longer writes the whole home directory.** `/cd my-app` used

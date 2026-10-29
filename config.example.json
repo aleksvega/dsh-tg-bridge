@@ -16,6 +16,7 @@
   "plainText": false,
   "servers": {},
   "fallbackModels": [],
+  "fallbackEnabled": true,
   "voice": {
     "enabled": false,
     "python": "",

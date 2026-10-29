@@ -19,6 +19,7 @@ import { applyFork, planFork, planRewind } from '../rewind.mjs';
 import { cutSession, isRewindPress } from '../rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from '../rewind-card.mjs';
 import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from '../menu-card.mjs';
+import { chainSummary } from '../fallback-card.mjs';
 import { explainCommand } from '../help-explain.mjs';
 import { profileValues, resolveSettings } from '../settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../update-policy.mjs';
@@ -341,7 +342,10 @@ export async function handleBridgeCommands(ctx) {
       const toOwner = Boolean(owner) && Number(chatId) === owner && !Number(threadId);
       const patchText = read(patchPath(activeProfile));
       const preset = effectivePreset(patchText)?.id || '';
-      const chain = (config.fallbackModels || []).map((entry) => (entry.provider ? `${entry.provider}/${entry.model}` : entry.model)).join(' → ');
+      // The same renderer the card uses: a report that counted routes a turn
+      // would skip is the report that hides the bug it was opened for.
+      const entries = Array.isArray(config.fallbackModels) ? config.fallbackModels : [];
+      const chain = chainSummary(entries, { t: (k, v) => t(lang, k, v) });
       const failure = state.lastFailure?.[key]?.error || '';
       const text = buildReport({
         version: bridgeVersion(),
