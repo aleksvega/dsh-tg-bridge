@@ -4,7 +4,8 @@
 // translation change touches one table and shows up as one diff.
 import cost from './zh/cost.mjs';
 import ctrl from './zh/ctrl.mjs';
+import sandbox from './zh/sandbox.mjs';
 import core from './zh/core.mjs';
 import fallback from './zh/fallback.mjs';
 
-export default { ...core, ...ctrl, ...cost, ...fallback };
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback };

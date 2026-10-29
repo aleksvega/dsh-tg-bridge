@@ -273,6 +273,7 @@ export default {
   'ctrl.update.running': '正在把 {v} 安装到桥接目录…',
   'ctrl.update.done': '已安装 {v}。加载它：/restart confirm',
   'ctrl.update.backup': '回退方法：把该目录覆盖回来，或在修复后再执行 /update confirm。',
+  'ctrl.update.broken': '版本 {v} 未安装：它无法加载，因此已把磁盘上的文件还原。什么都没变，桥仍在运行。该版本的问题：\n{problems}',
   'ctrl.update.failed': '安装失败（退出码 {code}）。没有做任何更改，桥接仍运行旧代码。',
   'ctrl.app.usage': '用法：/app restart confirm —— 重启 DSH 应用。',
   'ctrl.app.confirm': '重启应用会中断这个聊天。请重发：/app restart confirm',

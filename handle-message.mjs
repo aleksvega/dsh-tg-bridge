@@ -17,11 +17,13 @@ import { holdIfLoaded } from './load-guard.mjs';
 import { guardOf } from './machine.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
-import { looksLikeReasoning, stepLine } from './panel.mjs';
+import { looksLikeReasoning } from './panel.mjs';
 import { DIR, GOAL_CMD, THOUGHT_DIR } from './paths.mjs';
 import { renderPrices } from './prices.mjs';
 import { settingsChipOf, turnPlan } from './profile-view.mjs';
 import { startProgress } from './progress.mjs';
+import { reportRefusals } from './sandbox-note.mjs';
+import { makeTurnEvents, newTelemetry } from './turn-events.mjs';
 import { lastPrompt, maxParallel, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
 import { config, done, log, saveConfig, saveState, state } from './state.mjs';
@@ -362,35 +364,24 @@ ${t(lang, 'help.body')}`,
   // Live progress: one status message per turn, rewritten as the agent works.
   // Without it a long turn and a hung turn looked exactly alike in the chat.
   const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key, turnProfile), thoughtFile);
-  // Turn telemetry for the log: what the agent did, how much it cost, on which
-  // model. Without it /logs shows only "in" and "sent" — useless when asking
-  // "why did this take 9 minutes".
-  const telemetry = { steps: 0, tools: 0, toolNames: [], inputTokens: 0, cacheReadTokens: 0, model: modelOf(profileOf(key)).model };
-  const onEvent = (event) => {
-    try {
-      // The id of the session this process actually works in. A new topic has
-      // no id until the CLI emits one, and steering needs it before that.
-      if (event.type === 'session' && event.sessionId) liveSessions.set(key, event.sessionId);
-      progress.handle(event);
-      if (event.type === 'tool_call') {
-        telemetry.tools += 1;
-        telemetry.steps += 1;
-        if (event.tool && telemetry.toolNames.length < 40) telemetry.toolNames.push(String(event.tool));
-        log(`  tool[${telemetry.steps}] ${(stepLine(event) || event.tool || 'tool').slice(0, 140)}`);
-      } else if (event.type === 'tool_result') {
-        const failed = event.status && event.status !== 'completed';
-        log(`  tool[${telemetry.steps}] ${failed ? 'ERROR' : 'ok'} ${String(event.tool || '').slice(0, 40)}`);
-      } else if (event.type === 'status' && event.usage) {
-        if (Number.isFinite(event.usage.inputTokens)) telemetry.inputTokens = event.usage.inputTokens;
-        if (Number.isFinite(event.usage.cacheReadTokens)) telemetry.cacheReadTokens = event.usage.cacheReadTokens;
-      }
-    } catch {}
-  };
-  let result = await runTurnLive(text, sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+  // Turn telemetry for the log, and the per-event handler that fills it. Both
+  // live in `turn-events.mjs`: this file is at its ceiling and the event
+  // vocabulary is not its subject.
+  const telemetry = newTelemetry(modelOf(profileOf(key)).model);
+  /** Failed tool results, kept only until the turn ends: see `sandbox-note.mjs`. */
+  const refusals = [];
+  const onEvent = makeTurnEvents({
+    progress,
+    telemetry,
+    refusals,
+    log,
+    onSession: (id) => liveSessions.set(key, id),
+  });
+  let result = await attempt(sessionAtStart);
   if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
     delete state.sessions[key];
     log(`session dropped for ${where}: recorded in another directory, starting fresh`);
-    result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+    result = await attempt('');
   }
   // Provider failover: the headless profile has no failover plugin, so one busy
   // route ("all providers are busy", 503, or a turn that emits nothing at all)
@@ -424,11 +415,11 @@ ${t(lang, 'help.body')}`,
   // of failing the user's message.
   if (result.error && /already owned by an active write handle/i.test(result.error)) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    result = await runTurnLive(text, state.sessions[key] ?? sessionAtStart, key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+    result = await attempt(state.sessions[key] ?? sessionAtStart);
     if (result.error && /already owned by an active write handle/i.test(result.error)) {
       delete state.sessions[key];
       saveState();
-      result = await runTurnLive(text, '', key, { onEvent, onAbort: () => killTurn(key), onHeartbeat: () => progress.heartbeat(), env: thoughtEnv, extraArgs, cwd, lang, profile: turnProfile });
+      result = await attempt('');
       if (!result.error) result.text = `${t(lang, 'bridge.fallback.sessionBusy')}\n\n${result.text}`;
     }
   }
@@ -496,4 +487,12 @@ ${t(lang, 'help.body')}`,
     return;
   }
   await send(chatId, result.text || t(lang, 'bridge.progress.emptyReply'), threadId);
+  // A refusal explains the turn that just ended, so it goes after the answer.
+  await reportRefusals({
+    refusals,
+    lang,
+    log,
+    where,
+    send: (body, keyboard) => sendWithMarkup(chatId, threadId, body, { reply_markup: keyboard }),
+  });
 }

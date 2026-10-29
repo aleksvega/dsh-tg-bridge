@@ -398,10 +398,17 @@ async function main() {
       if (result.auto) {
         // The files change, the running process does not: the person still says
         // when the new code loads, so a bad release never arrives mid-chat.
-        const backup = installRelease(latest);
+        const result = installRelease(latest);
+        // An automatic update that would not load is rolled back and announced:
+        // staying silent would leave the person on an old version with no idea
+        // why, and the notice is the only place they could learn about it.
+        if (result.rolledBack) {
+          await send(target.chatId, t(lang, 'ctrl.update.broken', { v: latest }) + '\n\n' + result.problems.slice(0, 6).join('\n'), target.threadId);
+          return;
+        }
         state.update = { ...(state.update || {}), notified: latest };
         saveState();
-        await send(target.chatId, t(lang, 'ctrl.update.done', { v: latest }) + '\n' + t(lang, 'ctrl.update.backup', { path: join(DIR, backup) }), target.threadId);
+        await send(target.chatId, t(lang, 'ctrl.update.done', { v: latest }) + '\n' + t(lang, 'ctrl.update.backup', { path: join(DIR, result.backup) }), target.threadId);
         return;
       }
       if (!result.notify) return;

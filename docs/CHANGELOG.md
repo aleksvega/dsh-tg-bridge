@@ -1,5 +1,48 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.30.0
+
+- **A sandbox refusal no longer reads as a breakdown.** The CLI marks three
+  different things with a `[sandbox: …]` line in a failed tool result: the policy
+  denied a write, an escalation is available, or the sandbox runner itself broke.
+  All three arrived in the chat as an ordinary failed turn, and the turn then
+  ended with "сбой хода" — a word that sends someone to the logs for a decision
+  they made themselves. The refusal is now its own line, after the answer, saying
+  which mode refused, that nothing broke, and — for a broken runner — that this is
+  a sandbox problem rather than a task one. One button leads to `/permissions`,
+  because someone who has just been refused should not have to remember a command
+  name. Repeated refusals in one turn are counted once per wall, not per attempt.
+- **A release that cannot load no longer replaces one that works.** `/update`
+  copied the fetched files over the running install and then asked for
+  `/restart`; if the new code could not load, the restart killed a working bridge
+  and started nothing, leaving the person in a terminal on a machine they
+  installed a bot to avoid touching. The candidate for 1.29.0 did exactly that: a
+  new module imported a name that did not exist, and 557 green tests said nothing
+  because none of them loaded the file. The install is now checked before it is
+  trusted — every relative import must resolve to a file that exports the name,
+  and the entry points must parse — and a failed check puts the previous files
+  back and says what is wrong with the release.
+- **An update refuses to write into a filesystem root or the home directory.**
+  The target comes from `DSH_BRIDGE_ROOT`, and a directory that merely contains a
+  `bridge.mjs` — a checkout, a copy, a nested install — used to pass the only
+  check there was. "Does it look like a bridge" is now backed by "is it a place
+  where writing the whole package would be a catastrophe".
+- **`/soul` stops deleting the rest of `AGENTS.md`.** The persona lives in the
+  person's own global instructions file, and the old code replaced everything
+  from the persona heading to the end of the file: a section below it, or a
+  second persona heading, was silently lost by a `/soul` call, with no backup.
+  Only the persona section is replaced now, the file is copied aside first, and
+  whatever followed the section stays where it was.
+- **A recursive profile sweep proves where it is sweeping.** `pruneDerived`
+  deleted every `aset-*` directory under `DSH_HOME/profiles`, trusting the name
+  pattern and the environment variable. It now refuses a target that resolves
+  outside the directory it was given, so a `DSH_HOME` pointing somewhere real
+  cannot turn a cleanup into a deletion.
+- **Two tests that would have caught the release fault.** One walks every shipped
+  module and asserts each named import exists in the module it comes from; the
+  other asserts every relative import points at a file on disk. Both are static,
+  because importing the bridge starts a poller.
+
 ## 1.29.0
 
 - **The progress card says how full the context is.** A turn that runs into its

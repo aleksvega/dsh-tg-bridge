@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { DSH_HOME } from '../paths.mjs';
 
 import { UPDATE_DEFAULTS } from '../update-policy.mjs';
+import { checkInstall, isBridgeRoot, restoreBackup, safeUpdateRoot } from '../install-check.mjs';
 import { read } from './models.mjs';
 import { stamp } from './sessions.mjs';
 /**
@@ -42,6 +43,11 @@ export function bridgeRoot() {
  * never creates, and copied entries as if they were all files.
  */
 export function copyRelease(fromDir, root, backup) {
+  // Refuse to write into a directory that is not a bridge install. The target
+  // comes from `DSH_BRIDGE_ROOT`, and an update pointed at a home directory
+  // would scatter the package's `docs/`, `test/` and `plugin/` into it.
+  if (!safeUpdateRoot(root)) throw new Error(`refusing to write into ${root}: that is a filesystem root or the home directory`);
+  if (!isBridgeRoot(root)) throw new Error(`not a bridge install: ${root}`);
   const backupDir = join(root, backup);
   mkdirSync(backupDir, { recursive: true });
   const copied = [];
@@ -74,7 +80,15 @@ export function installRelease(version) {
     // `--prefix` puts the package in node_modules; the flat `package` name npm
     // used before v5 has not existed for years.
     copyRelease(join(work, 'node_modules', 'dsh-tg-bridge'), root, backup);
-    return backup;
+    // Copying first and asking questions later is how a release that cannot load
+    // replaces one that works, and the person is left with a bot that does not
+    // come back after `/restart`. Check, then keep it or put the old files back.
+    const verdict = checkInstall(root);
+    if (!verdict.ok) {
+      restoreBackup(root, join(root, backup));
+      return { backup, rolledBack: true, problems: verdict.problems };
+    }
+    return { backup, rolledBack: false, problems: [] };
   } finally {
     try {
       rmSync(work, { recursive: true, force: true });

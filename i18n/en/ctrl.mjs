@@ -273,6 +273,7 @@ export default {
   'ctrl.update.running': 'Installing {v} into the bridge directory…',
   'ctrl.update.done': 'Installed {v}. Load it: /restart confirm',
   'ctrl.update.backup': 'The way back: copy that folder over this one, or run /update confirm after a fix.',
+  'ctrl.update.broken': 'Release {v} did not install: it would not have loaded, so the files on disk were put back. Nothing changed and the bridge still runs. What is wrong with the release:\n{problems}',
   'ctrl.update.failed': 'The install failed (exit {code}). Nothing was changed; the bridge still runs the old code.',
   'ctrl.app.usage': 'Usage: /app restart confirm — restart the DSH app.',
   'ctrl.app.confirm': 'Restarting the app ends this chat. Repeat: /app restart confirm',

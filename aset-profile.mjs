@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { setAgentPreset, setModel, setSubagents } from './patch-rows.mjs';
 import { sandboxModeOf, setPermission } from './permission-rows.mjs';
 
@@ -160,10 +160,17 @@ export function pruneDerived(keep = [], { profiles = PROFILES } = {}) {
   } catch {
     return removed;
   }
+  // A recursive delete needs a containment check, not just a name pattern: the
+  // root comes from `DSH_HOME`, and `DSH_HOME=C:\` would put "derived profiles"
+  // wherever that machine happens to have a matching directory. The prefix check
+  // stays as the second line of defence.
+  const root = resolve(profiles);
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith(DERIVED_PREFIX) || wanted.has(entry.name)) continue;
+    const target = resolve(join(profiles, entry.name));
+    if (target !== root && !target.startsWith(root.endsWith(sep) ? root : root + sep)) continue;
     try {
-      rmSync(join(profiles, entry.name), { recursive: true, force: true });
+      rmSync(target, { recursive: true, force: true });
       removed.push(entry.name);
     } catch {
       // A profile in use by a running turn stays until the next sweep.

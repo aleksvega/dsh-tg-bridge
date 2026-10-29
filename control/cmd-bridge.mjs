@@ -338,18 +338,25 @@ export async function handleBridgeCommands(ctx) {
           return true;
         }
         say(t(lang, 'ctrl.update.running', { v: latest }));
-        let backup = '';
+        let result = null;
         try {
-          backup = installRelease(latest);
+          result = installRelease(latest);
         } catch (error) {
           say(t(lang, 'ctrl.update.failed', { code: 'npm' }) + `\n\n${String(error.message).slice(-700)}`);
+          return true;
+        }
+        // A release that cannot load was put back before it could replace a
+        // working one. Saying "installed" here would be a lie with a restart
+        // button attached, so it says what is wrong and keeps the old code.
+        if (result.rolledBack) {
+          say(t(lang, 'ctrl.update.broken', { v: latest }) + `\n\n${result.problems.slice(0, 6).join('\n')}`);
           return true;
         }
         // The files on disk are the new ones now; this process still runs the
         // old code, so the way back is one folder name.
         policy.notified = latest;
         saveState();
-        say(t(lang, 'ctrl.update.done', { v: latest }) + `\n${t(lang, 'ctrl.update.backup', { path: join(bridgeRoot(), backup) })}`);
+        say(t(lang, 'ctrl.update.done', { v: latest }) + `\n${t(lang, 'ctrl.update.backup', { path: join(bridgeRoot(), result.backup) })}`);
         return true;
       }
       // No argument: which bridge is running and where this install stands.

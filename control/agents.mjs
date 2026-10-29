@@ -2,7 +2,7 @@
 //
 // Split out of `control.mjs` by the 500-line plan: the command handlers that
 // follow call these, and none of them needs the dispatcher to do it.
-import { readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseModelSelection, parseSubagentFleet, parseSubagentRows } from '../agents.mjs';
 import { DSH_HOME } from '../paths.mjs';
@@ -56,11 +56,36 @@ export function soulOf() {
   return text.slice(at + PERSONA_HEADING.length).replace(/^\s*\n/, '').trim();
 }
 
-/** Replace (or create) the persona section, leaving the rest untouched. */
+/**
+ * Replace (or create) the persona section, leaving the rest untouched.
+ *
+ * The rest has to actually survive. This file is the person's own global
+ * instructions, written by hand, and the old version replaced everything from
+ * the persona heading to the end of the file: a second `## Persona` section — or
+ * any section that came after the first one — was silently deleted by a
+ * `/soul` call. Now only the persona section is replaced, and the file is
+ * copied aside first, because this is the one write in the bridge that can lose
+ * text a person typed themselves.
+ */
 export function setSoul(text) {
   const body = read(AGENTS);
   const at = body.indexOf(PERSONA_HEADING);
-  const head = at === -1 ? `${body.trimEnd()}\n\n` : body.slice(0, at).trimEnd() + '\n\n';
-  writeFileSync(AGENTS, `${head}${PERSONA_HEADING}\n\n${text.trim()}\n`, 'utf8');
+  let next;
+  if (at === -1) {
+    next = `${body.trimEnd()}\n\n${PERSONA_HEADING}\n\n${text.trim()}\n`;
+  } else {
+    // The section ends at the next top-level heading, so whatever follows it
+    // stays where it was.
+    const after = body.slice(at + PERSONA_HEADING.length);
+    const end = after.search(/\n##? /);
+    const rest = end === -1 ? '' : after.slice(end);
+    next = `${body.slice(0, at).trimEnd()}\n\n${PERSONA_HEADING}\n\n${text.trim()}\n${rest}`;
+  }
+  try {
+    if (existsSync(AGENTS)) copyFileSync(AGENTS, `${AGENTS}.bak`);
+  } catch {
+    // A backup that cannot be written must not block the person's edit.
+  }
+  writeFileSync(AGENTS, next, 'utf8');
 }
 
