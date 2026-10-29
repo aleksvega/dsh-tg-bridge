@@ -7,7 +7,7 @@
 // button that does nothing.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { CLI_JS, EXE } from './paths.mjs';
+import { dshLaunch } from './dsh-launch.mjs';
 import { config, log, state } from './state.mjs';
 import { providerKeys } from './secrets.mjs';
 import { tg } from './telegram.mjs';
@@ -42,8 +42,9 @@ export function profileOf(key) {
 /** Run one DSH headless turn; resolve {sessionId, text, error}. */
 export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = config.lang || 'en', env = {}) {
   return new Promise((resolve) => {
-    const args = turnArgs({ cli: CLI_JS, profile, extraArgs, sessionId, task });
-    const child = spawn(EXE, args, {
+    const launch = dshLaunch({ exists: existsSync });
+    const args = turnArgs({ lead: launch.lead, profile, extraArgs, sessionId, task });
+    const child = spawn(launch.exe, args, {
       // Per-topic project directory: a topic can be bound to one repository so
       // "work in my-app" stops meaning "cd in every command".
       cwd: cwd && existsSync(cwd) ? cwd : config.cwd,
@@ -107,7 +108,7 @@ export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [
       clearTimeout(timer);
       if (key) activeTurns.delete(key);
       const hint = error?.code === 'ENOENT'
-        ? t(lang, 'bridge.error.noApp', { path: EXE })
+        ? t(lang, 'bridge.error.noApp', { path: launch.exe })
         : t(lang, 'bridge.error.spawn', { msg: error?.message || String(error) });
       log(`turn spawn failed: ${error?.message || error}`);
       resolve({ sessionId: sid, text: '', error: hint });

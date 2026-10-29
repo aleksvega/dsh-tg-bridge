@@ -5,7 +5,8 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROFILES, APP, EXE, CLI_JS } from '../paths.mjs';
+import { PROFILES } from '../paths.mjs';
+import { dshLaunch } from '../dsh-launch.mjs';
 
 import { read, readJson, pkgPath, disabledIds } from './models.mjs';
 /** Live DSH app PIDs (empty when the app is not running). */
@@ -96,7 +97,16 @@ export function removeBundle(profile, name) {
   return true;
 }
 
-/** Run `dsh plugin ...` (which forwards to pnpm) and collect its output. */
+/** How to run the DSH CLI here, the same answer turns get (see `dsh-launch.mjs`). */
+function cliSpawn(args) {
+  const launch = dshLaunch({ exists: existsSync });
+  // An app that is configured but not installed is not an app: fall back to the
+  // command on PATH rather than failing with ENOENT on a path nobody has.
+  const usable = launch.kind === 'cli' || existsSync(launch.exe);
+  const env = { ...process.env, ...(usable && launch.kind === 'app' ? { ELECTRON_RUN_AS_NODE: '1' } : {}) };
+  return spawn(usable ? launch.exe : 'dsh', [...(usable ? launch.lead : []), ...args], { windowsHide: true, env });
+}
+
 /**
  * Create a profile from a shipped template, the same way the GUI does it:
  * `dsh <name> --from-default-profile <template>`. `--dump-config` stops right
@@ -105,14 +115,7 @@ export function removeBundle(profile, name) {
  */
 export function createProfile(name, template, timeoutMs = 180000) {
   return new Promise((resolve) => {
-    const useExe = process.platform === 'win32' && existsSync(EXE) && existsSync(join(APP, 'resources', 'app.asar'));
-    const args = [name, '--from-default-profile', template, '--dump-config'];
-    const child = useExe
-      ? spawn(EXE, ['--expose-internals', CLI_JS, ...args], {
-          windowsHide: true,
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        })
-      : spawn('dsh', args, { windowsHide: true });
+    const child = cliSpawn([name, '--from-default-profile', template, '--dump-config']);
     const timer = setTimeout(() => child.kill(), timeoutMs);
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
@@ -129,16 +132,10 @@ export function createProfile(name, template, timeoutMs = 180000) {
 
 export function dshPlugin(profile, args, timeoutMs = 180000) {
   return new Promise((resolve) => {
-    // Spawning the .cmd shim with shell:false fails with EINVAL on modern Node.
-    // Run the real CLI entry through the Electron binary instead, like the
-    // bridge does for turns; fall back to a plain `dsh` on other platforms.
-    const useExe = process.platform === 'win32' && existsSync(EXE) && existsSync(join(APP, 'resources', 'app.asar'));
-    const child = useExe
-      ? spawn(EXE, ['--expose-internals', CLI_JS, 'plugin', '--profile', profile, ...args], {
-          windowsHide: true,
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        })
-      : spawn('dsh', ['plugin', '--profile', profile, ...args], { windowsHide: true });
+    // Spawning the .cmd shim with shell:false fails with EINVAL on modern Node,
+    // so the app binary runs the CLI entry as Node instead; elsewhere the `dsh`
+    // command is already a real executable and needs no entrypoint argument.
+    const child = cliSpawn(['plugin', '--profile', profile, ...args]);
     let out = '';
     const timer = setTimeout(() => child.kill(), timeoutMs);
     child.stdout.setEncoding('utf8');

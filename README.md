@@ -91,6 +91,27 @@ npx dsh-tg-bridge@latest setup
 `init` writes the token, your id and the working directory; `setup` registers
 autostart and starts the bridge.
 
+### What it needs from DSH
+
+The bridge is a client of the DSH CLI, and the surface it uses is small enough to
+write down: `--profile`, `--json`, `--session-id`, `--expose-internals <cli.js>`
+when the app binary runs the CLI, and the `{"type": ...}` JSON events on stdout.
+Profiles are read as files (`cordis.patch.yml`, `package.json`) under
+`~/.dsh/profiles`. `package.json` spells the supported range out in
+`engines.dsh`, and it is capped below `0.3.0` on purpose: a minor bump may rename
+an event, and a bridge that guesses is a bridge that answers with silence.
+
+Two escape hatches, for a moved app or a DSH that ships differently:
+
+```bash
+DSH_BIN=/usr/local/bin/dsh        # the CLI itself, no entrypoint argument
+DSH_CLI_JS=/opt/dsh/lib/cli.js    # just the CLI entrypoint, run by DSH_BIN
+DSH_APP_DIR=/opt/DeepSeek-Harness # where the desktop app is installed
+```
+
+`/doctor` prints the command a turn would actually run, so a machine where these
+matter says so instead of failing with an empty answer.
+
 **As a DSH plugin** (the package carries a `dsh.bundle`; the catalog entry is
 pending review):
 

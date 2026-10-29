@@ -10,7 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # All three platforms the README promises. macOS was missing, and it is
+        # the one where a path bug lived through a green CI for a whole release:
+        # the turn runner spawned a Windows path everywhere.
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node: [24]
     runs-on: ${{ matrix.os }}
     steps:

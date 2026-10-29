@@ -27,12 +27,12 @@ const MAIL = ['someone', 'gmail.com'].join('@');
 /** Lines of the shape `bridge.log` actually carries. */
 const LOG = [
   '2026-10-29 09:12:01 bridge started',
-  `2026-10-29 09:12:03 in ${CHAT} topic=336703 "check the build"`,
+  `2026-10-29 09:12:03 in ${CHAT} topic=4242 "check the build"`,
   `2026-10-29 09:12:04 curl https://api.example.com/v1?key=${KEY}`,
   `2026-10-29 09:12:05 Authorization: Bearer ${BEARER}`,
   `2026-10-29 09:12:06 bot token ${BOT}`,
   `2026-10-29 09:12:07 cwd ${HOME}\\.dsh\\tg-bridge`,
-  `2026-10-29 09:12:08 chat_id: ${CHAT} thread=336703`,
+  `2026-10-29 09:12:08 chat_id: ${CHAT} thread=4242`,
   `2026-10-29 09:12:09 machine ${HEX}`,
   `2026-10-29 09:12:10 mail ${MAIL}`,
   '2026-10-29 09:12:11 turn failed 31s tools=4 model=deepseek/chat :: Error: sandbox escalation requires approval',
@@ -49,7 +49,7 @@ test('a real-shaped log tail comes out clean under the repo scanner', () => {
     failure: LOG[9],
     log: LOG,
     home: HOME,
-    ids: [CHAT, '336703'],
+    ids: [CHAT, '4242'],
     note: 'bot went silent after /cd',
   });
   assert.deepEqual(scanText(text), [], 'the bundle must not contain a secret by the scanner\'s rules');

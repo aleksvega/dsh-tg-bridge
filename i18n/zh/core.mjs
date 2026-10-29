@@ -201,7 +201,7 @@ export default {
   'bridge.progress.reasoningOnly': '这一轮没有生成回答，上面的笔记只是思考过程。请再把问题说一句，我来回答。',
   'bridge.error.inline': '错误：{msg}',
   'bridge.error.cliDied': 'CLI 以代码 {code} 退出且没有输出',
-  'bridge.error.noApp': '未在 {path} 找到 DeepSeek Harness，无法启动回合。请安装应用，或在 config.json 中用 `dshApp` 指定路径。',
+'bridge.error.noApp': '未在 {path} 找到 [DSH]，无法启动回合。请安装应用，或用 DSH_BIN / DSH_APP_DIR 指定它的位置。',
   'bridge.error.spawn': '无法启动 DSH 回合：{msg}',
   'bridge.turn.noDir': '本话题绑定的目录已不存在：{path}\n\n用 /cd <路径> 绑定另一个，或用 /cd reset 回到共享目录。未运行任何内容。',
   'bridge.turn.noPolicy': '本话题无法按当前配置启动回合：{reason}\n\n未运行任何内容。/permissions 查看配置档的权限表；/cd reset 清除话题目录。',

@@ -201,7 +201,7 @@ export default {
   'bridge.progress.reasoningOnly': 'The turn ended without an answer. What I was thinking stayed in the notes above, so say it again in one line and I will answer.',
   'bridge.error.inline': 'error: {msg}',
   'bridge.error.cliDied': 'the CLI exited with code {code} and printed nothing',
-  'bridge.error.noApp': 'DeepSeek Harness is not at {path} — the bridge cannot start a turn. Install the app or point `dshApp` in config.json at it.',
+'bridge.error.noApp': '[DSH] is not at {path} — the bridge cannot start a turn. Install the app, or set DSH_BIN / DSH_APP_DIR to where it lives.',
   'bridge.error.spawn': 'could not start the DSH turn: {msg}',
   'bridge.turn.noDir': 'The directory this topic is bound to is gone: {path}\n\nBind another with /cd <path>, or /cd reset to use the shared one. Nothing was run.',
   'bridge.turn.noPolicy': 'This topic cannot start a turn as configured: {reason}\n\nNothing was run. /permissions shows the profile\'s table; /cd reset clears the topic\'s directory.',

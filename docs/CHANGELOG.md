@@ -1,5 +1,38 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.28.0
+
+- **A turn starts on macOS and Linux too.** The turn runner spawned the Electron
+  app by an absolute Windows path, and that was the only path in the code: on a
+  Mac or a Linux box every turn failed with ENOENT on a file that cannot exist
+  there, while the README promised three platforms. Which binary runs a turn is
+  now one decision in one place (`dsh-launch.mjs`): the app with
+  `--expose-internals <cli.js>` where the app is installed, the `dsh` command from
+  PATH everywhere else, and `DSH_BIN` / `DSH_CLI_JS` / `DSH_APP_DIR` when the
+  answer is neither. The plugin commands had already learned the PATH form; they
+  ask the same question now, so there is no second copy of the answer.
+- **App paths are computed per platform.** `LOCALAPPDATA` is empty on macOS and
+  Linux, so the app directory used to collapse into the relative
+  `Programs/…` — a path that means "somewhere under the current directory".
+  Windows installs are unchanged, byte for byte; macOS gets the bundle's
+  `Contents/MacOS` and `Contents/Resources` split, Linux gets the usual share
+  directory.
+- **`/doctor` answers on every platform.** Its disk row shelled out to
+  `(Get-PSDrive C)` and was labelled "Disk C", so on a Mac the row silently
+  disappeared — a diagnostic that is quiet on the platform you are debugging is
+  worse than none. The reading comes from `statfs` and the label names the disk
+  it measured. The report also gained a **Turn command** row: the exact binary a
+  turn would start, which is the one fact that explains an ENOENT.
+- **The error message stopped naming a key that does not exist.** "point
+  `dshApp` in config.json at it" was never a setting; the sentence now names
+  `DSH_BIN` / `DSH_APP_DIR`, which are real.
+- **CI runs on macOS.** The matrix tested Ubuntu and Windows, which is why a
+  Windows-only turn runner stayed green for a release.
+- **Tests are platform-neutral.** `/cd` path expectations and the disk-drive
+  probe were written against Windows separators, so the same suite failed on
+  Linux for reasons that had nothing to do with the code. Both now describe a
+  platform instead of assuming one: 520 tests, green on Windows and Linux.
+
 ## 1.27.0
 
 - **A restart no longer leaves other topics guessing.** `/restart confirm` now

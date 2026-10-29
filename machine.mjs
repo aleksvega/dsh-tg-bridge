@@ -65,7 +65,8 @@ export async function sampleCpu(windowMs = 250) {
 }
 
 /** The disk a path lives on: `C:\Users\...` -> `C:\`. */
-export function driveOf(path) {
+export function driveOf(path, platform = process.platform) {
+  if (platform !== 'win32') return '/';
   const match = /^([A-Za-z]:)[\\/]/.exec(String(path || ''));
   return match ? `${match[1]}\\` : `${process.env.SystemDrive || 'C:'}\\`;
 }
@@ -76,7 +77,7 @@ export function driveOf(path) {
  * `statfsSync` throws on a path that does not exist, and a removed drive must
  * read as "unknown" rather than take the whole card down.
  */
-export function sampleDisk(drive = 'C:\\') {
+export function sampleDisk(drive = driveOf('')) {
   try {
     const stat = statfsSync(drive);
     const totalGb = round1((stat.blocks * stat.bsize) / GB);

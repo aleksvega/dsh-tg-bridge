@@ -201,7 +201,7 @@ export default {
   'bridge.progress.reasoningOnly': 'Ход закончился без ответа: размышление выше — не ответ. Повтори мысль одной строкой, и я отвечу.',
   'bridge.error.inline': 'ошибка: {msg}',
   'bridge.error.cliDied': 'CLI завершился с кодом {code} без вывода',
-  'bridge.error.noApp': 'DeepSeek Harness не найден по пути {path} — ход запустить нечем. Установите приложение или укажите путь в `dshApp` в config.json.',
+'bridge.error.noApp': '[DSH] не найден по пути {path} — ход запустить нечем. Установите приложение или задайте DSH_BIN / DSH_APP_DIR — где оно лежит.',
   'bridge.error.spawn': 'не удалось запустить ход DSH: {msg}',
   'bridge.turn.noDir': 'Каталог, к которому привязана тема, исчез: {path}\n\nПривяжи другой: /cd <путь>, или /cd reset — вернуться к общему. Ход не запускался.',
   'bridge.turn.noPolicy': 'Тема не может начать ход в текущей настройке: {reason}\n\nХод не запускался. /permissions покажет таблицу профиля; /cd reset снимает каталог темы.',

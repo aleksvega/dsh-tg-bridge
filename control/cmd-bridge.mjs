@@ -20,6 +20,8 @@ import { cutSession, isRewindPress } from '../rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from '../rewind-card.mjs';
 import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from '../menu-card.mjs';
 import { chainSummary } from '../fallback-card.mjs';
+import { driveOf, sampleDisk } from '../machine.mjs';
+import { describeLaunch, dshLaunch } from '../dsh-launch.mjs';
 import { explainCommand } from '../help-explain.mjs';
 import { profileValues, resolveSettings } from '../settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../update-policy.mjs';
@@ -226,16 +228,23 @@ export async function handleBridgeCommands(ctx) {
         add(t(lang, 'ctrl.doctor.logLines'), String(lines.length - start));
       } catch {}
 
-      // Disk space: the silent killer of model downloads and OCR.
-      try {
-        const drives = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', '(Get-PSDrive C).Free'], {
-          encoding: 'utf8',
-          windowsHide: true,
-          timeout: 15000,
-        });
-        const free = Number(drives) || 0;
-        add(t(lang, 'ctrl.doctor.disk'), t(lang, 'ctrl.doctor.diskFree', { gb: (free / 1024 ** 3).toFixed(1) }));
-      } catch {}
+      // Disk space: the silent killer of model downloads and OCR. This used to
+      // shell out to `powershell (Get-PSDrive C)`, so on macOS and Linux the row
+      // simply vanished — a diagnostic that is silent on the platform you are
+      // debugging is worse than none.
+      const disk = sampleDisk(driveOf(config.cwd || ''));
+      if (disk.freeGb !== null) {
+        // `C:\` is a path; the row wants the name of a disk, so the separator
+        // and its colon both go: "Disk C", "Disk /".
+        const label = disk.drive.replace(/[\\/:]+$/, '') || disk.drive;
+        add(t(lang, 'ctrl.doctor.disk', { drive: label }), t(lang, 'ctrl.doctor.diskFree', { gb: disk.freeGb.toFixed(1) }));
+      }
+
+      // Which binary a turn would actually start. On a machine where the app is
+      // missing but `dsh` is on PATH (or the other way round) this is the row
+      // that explains why every turn fails, so it is worth one line always.
+      const launch = dshLaunch({ exists: existsSync });
+      add(t(lang, 'ctrl.doctor.turnCmd'), `${describeLaunch(launch)}${launch.kind === 'cli' ? t(lang, 'ctrl.doctor.turnCmdPath') : ''}`);
 
       // Project directory bound to this topic and whether it exists. The bridge
       // default is a fact, not an accident: say when it is being used.
