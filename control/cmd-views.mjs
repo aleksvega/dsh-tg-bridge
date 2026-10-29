@@ -140,7 +140,10 @@ export async function handleViewCommands(ctx) {
       // belongs here, per topic. A new profile is a copy of a shipped template,
       // dependencies are installed on its first turn.
       const [action = '', verb = '', template = ''] = String(arg || '').trim().split(/\s+/).filter(Boolean);
-      const profiles = readdirSync(PROFILES, { withFileTypes: true })
+      // A fresh install has no `profiles/` until DSH writes one, and
+      // `readdirSync` on a missing directory throws: `/profile` answered a
+      // brand-new machine with an exception instead of the list of nothing.
+      const profiles = (existsSync(PROFILES) ? readdirSync(PROFILES, { withFileTypes: true }) : [])
         .filter((entry) => entry.isDirectory() && existsSync(join(PROFILES, entry.name, 'cordis.patch.yml')))
         // Overlay profiles are generated per model (photo turns and fallbacks)
         // and carry a marker row; they are an implementation detail, not a

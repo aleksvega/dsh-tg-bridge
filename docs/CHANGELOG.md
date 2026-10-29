@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.28.1
+
+- **`/profile` no longer throws on a fresh install.** It listed
+  `~/.dsh/profiles` without asking whether the directory exists, and on a machine
+  where DSH has not written one yet `readdirSync` is ENOENT: the first command a
+  new user tries answered with an exception. Found by asking the suite a
+  different question — "does every documented command answer?" — instead of "do
+  the tests pass?".
+- **Every documented command is now covered in every language.** Seven tests walk
+  all 38 commands in en/ru/zh and assert three things a translation can break: the
+  command claims its message, the answer is not empty, and no `{placeholder}`
+  survives. `/soul`, `/skills`, `/seed`, `/send` and `/crew` had no test at all
+  before — reachable, listed in `/help`, and nothing had ever proved they answer.
 ## 1.28.0
 
 - **A turn starts on macOS and Linux too.** The turn runner spawned the Electron
