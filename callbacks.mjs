@@ -358,11 +358,17 @@ export async function handleCardPress(query, ctx) {
       text: card.text,
       reply_markup: { inline_keyboard: inlineKeyboard(card.keyboard) },
       ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-    }).catch((error) => log(`settings card redraw failed: ${error.message}`));
+    }).catch((error) => {
+      const why = String(error.message || '');
+      // Tapping the tab you are already on is not a failure: Telegram refuses an
+      // edit that changes nothing, and the card is already what the press asked
+      // for. Logging it as a failure made a working tap look broken.
+      if (!/message is not modified/i.test(why)) log(`settings card redraw failed: ${why}`);
+    });
     await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
   };
 
-  if (wanted.page) {
+  if (wanted.tab) {
     await redraw(wanted.page);
     return;
   }

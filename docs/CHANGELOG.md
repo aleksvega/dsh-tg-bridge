@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.26.1
+
+- **The card's buttons work again.** 1.26.0 taught a switch press which page to
+  redraw, and the caller read "has a page" as "show me that page": every switch
+  redrew an identical card, Telegram refused the no-op edit, and the tap changed
+  nothing at all. No error in the chat, no reply — a dead button. The two actions
+  are now named apart (`tab` for the view, `command` for the setting), and a test
+  fails if a switch ever looks like a tab again.
+- **Tapping the tab you are on is quiet.** Telegram refuses an edit that changes
+  nothing; that refusal was logged as a failure and looked like a broken button.
+- **A topic without a name says its id.** The head read "Тема: тема {n}" whenever
+  the name was not cached yet — the first turn after a restart always raced the
+  cache, and the literal `{n}` looked like a template that forgot to render. It
+  now says `Тема: id 337382`, in all three languages.
+
 ## 1.26.0
 
 - **The settings card stays.** A tap used to turn the whole card into one line

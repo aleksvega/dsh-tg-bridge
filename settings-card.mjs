@@ -236,10 +236,15 @@ export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode
 }
 
 /**
- * Turn a button payload into what it stands for: `{ page }` for a tab,
+ * Turn a button payload into what it stands for: `{ tab }` for a tab,
  * `{ done: true }` for the way out, `{ command, label, page }` for a setting
  * (what to run, what to call it in the line above the rows, and which page to
  * redraw once it has run).
+ *
+ * The tab and the setting both need a page, and that is exactly how they got
+ * confused: a switch that carried `page` was read as "show me that page", so a
+ * press redrew an identical card and ran nothing — a dead button, with no error
+ * anywhere to say so. `tab` names the one action that only changes the view.
  *
  * Unknown rows and unknown values answer `null`: a button from a message written
  * before this release is the normal case, not an error, and the caller says so in
@@ -252,7 +257,7 @@ export function commandFor({ t, current = {}, updateMode = 'check' }, data) {
   // The way out is not a setting: it removes the card, which is the one action
   // the buttons could not do while a press turned the card into a line.
   if (row === 'done' && !value) return { done: true };
-  if (SETTINGS_PAGES.includes(row) && !value) return { page: row };
+  if (SETTINGS_PAGES.includes(row) && !value) return { tab: row };
   const button = settingsButtons({ t, current, updateMode }).find((b) => b.id === row && (b.value || '') === value);
   if (!button || !button.command) return null;
   return {

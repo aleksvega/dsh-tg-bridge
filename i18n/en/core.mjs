@@ -6,7 +6,7 @@ export default {
   'status.failed': 'Turn failed',
   'status.queued': 'queued',
   'status.stop': 'Stop',
-  'bridge.progress.topicNoName': 'topic {n}',
+  'bridge.progress.topicId': 'Topic: id {n}',
   'bridge.progress.topic': 'Topic: {name} (id {n})',
   'settings.row.toggle': '{label}: {now}' + String.fromCharCode(10) + '  tap to get {next}. {hint}',
   'settings.row.action': '{label}' + String.fromCharCode(10) + '  {hint}',

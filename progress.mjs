@@ -140,7 +140,14 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       // is unattributable the moment it scrolls: the same 💭 line in the wrong
       // place looks like a cross-topic bug, and half the time it is one. The
       // name comes from Telegram, cached: one API call per topic per process.
-      topic: threadId ? t(lang, 'bridge.progress.topic', { n: threadId, name: topicName(chatId, threadId) || t(lang, 'bridge.progress.topicNoName') }) : '',
+      // When the name is not there yet — the first turn after a restart always
+      // races the cache — say "id 337382" and not "тема {n}", which reads like a
+      // template that forgot to render.
+      topic: threadId
+        ? (topicName(chatId, threadId)
+          ? t(lang, 'bridge.progress.topic', { n: threadId, name: topicName(chatId, threadId) })
+          : t(lang, 'bridge.progress.topicId', { n: threadId }))
+        : '',
       seconds: Math.round((Date.now() - started) / 1000),
       // How fast this turn is actually generating, in tokens per second. The
       // number is the turn's average — output tokens over wall time — because

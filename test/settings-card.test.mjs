@@ -70,7 +70,7 @@ test('every switch points at the command that owns it', () => {
   for (const [data, command] of Object.entries(expected)) {
     assert.equal(commandFor({ t: tt, current }, data)?.command, command, data);
   }
-  assert.deepEqual(commandFor({ t: tt, current }, 'm:agent'), { page: 'agent' });
+  assert.deepEqual(commandFor({ t: tt, current }, 'm:agent'), { tab: 'agent' });
   // A button from an older card changes nothing.
   assert.equal(commandFor({ t: tt, current }, 'm:gone:on'), null);
   assert.equal(commandFor({ t: tt, current }, 'm:reasoning:sideways'), null);
@@ -100,6 +100,21 @@ test('a press knows which page to redraw', () => {
   assert.equal(commandFor({ t: tt, current }, 'm:pin:on')?.page, 'reply');
   assert.equal(commandFor({ t: tt, current }, 'm:u-late:on')?.page, 'updates');
   assert.equal(commandFor({ t: tt, current }, 'm:model')?.page, 'agent');
+});
+
+test('a switch is not a tab, and a tab is not a switch', () => {
+  // 1.26.0 shipped a dead card because of exactly this: a switch carried `page`,
+  // the caller read "has a page" as "show me that page", and every tap redrew an
+  // identical card and ran nothing. No error, no reply, no change — the worst
+  // kind of bug, because it looks like the button is broken rather than the code.
+  const current = settingsCurrent({ config: {}, state: {}, key: '1' });
+  const tt = (k, vars) => t('en', k, vars);
+  const switchPress = commandFor({ t: tt, current }, 'm:reasoning:chat');
+  assert.equal(switchPress.tab, undefined, 'a switch must not look like a tab');
+  assert.equal(switchPress.command, '/reasoning chat');
+  const tabPress = commandFor({ t: tt, current }, 'm:agent');
+  assert.deepEqual(tabPress, { tab: 'agent' });
+  assert.equal(tabPress.command, undefined, 'a tab must not look like a command');
 });
 
 test('only the value in force is marked, in the text and on the button', () => {

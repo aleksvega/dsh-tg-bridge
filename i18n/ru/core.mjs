@@ -6,7 +6,7 @@ export default {
   'status.failed': 'Ход не удался',
   'status.queued': 'в очереди',
   'status.stop': 'Стоп',
-  'bridge.progress.topicNoName': 'тема {n}',
+  'bridge.progress.topicId': 'Тема: id {n}',
   'bridge.progress.topic': 'Тема: {name} (id {n})',
   'settings.row.toggle': '{label}: {now}' + String.fromCharCode(10) + '  нажатие — {next}. {hint}',
   'settings.row.action': '{label}' + String.fromCharCode(10) + '  {hint}',

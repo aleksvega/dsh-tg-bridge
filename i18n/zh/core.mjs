@@ -6,7 +6,7 @@ export default {
   'status.failed': '运行失败',
   'status.queued': '排队中',
   'status.stop': '停止',
-  'bridge.progress.topicNoName': '话题 {n}',
+  'bridge.progress.topicId': '话题：id {n}',
   'bridge.progress.topic': '话题：{name}（id {n}）',
   'settings.row.toggle': '{label}: {now}' + String.fromCharCode(10) + '  点按 → {next}。{hint}',
   'settings.row.action': '{label}' + String.fromCharCode(10) + '  {hint}',
