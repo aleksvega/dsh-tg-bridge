@@ -4,10 +4,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { describeVerdicts, probeHint } from "../model-probe.mjs";
+import { exhausted } from "../fallback.mjs";
 
-/** Mirrors the condition in bridge.mjs that decides to speak up. */
+/** The condition in fallback.mjs that decides to speak up, named as it reads. */
 function saysAllDown(tried, probeKind, chainLength) {
-  return tried.length > 0 && (probeKind !== "" || tried.length >= chainLength);
+  return exhausted({ tried, probeKind, chainLength });
 }
 
 test("a chain stopped early still reports, because the verdict is the reason", () => {

@@ -8,17 +8,16 @@
 import { GENERAL_SAFE, commandOf } from './commands.mjs';
 import { CONTROL_COMMANDS, handleControl, modelOf, reasoningOf } from './control.mjs';
 import { explainFailure } from './failures.mjs';
+import { runFallbackChain } from './fallback.mjs';
 import { goalOf, renderPromptBlock } from './goals.mjs';
 import { resolveLang, t } from './i18n.mjs';
 import { sessionKey, threadOf } from './keys.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
-import { describeVerdicts, firstLiveModel, probeHint, probeModel } from './model-probe.mjs';
 import { looksLikeReasoning, stepLine } from './panel.mjs';
 import { DIR, GOAL_CMD, THOUGHT_DIR } from './paths.mjs';
 import { renderPrices } from './prices.mjs';
 import { settingsChipOf, turnProfileOf } from './profile-view.mjs';
-import { ensureProfile } from './profiles.mjs';
 import { startProgress } from './progress.mjs';
 import { lastPrompt, maxParallel, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
@@ -26,7 +25,6 @@ import { config, done, log, saveConfig, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
 import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnStartedAt, typingLoop } from './turn.mjs';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 export async function handleMessage(msg, album = null) {
@@ -355,91 +353,29 @@ ${t(lang, 'help.body')}`,
   // route ("all providers are busy", 503, or a turn that emits nothing at all)
   // used to end as silence. Retry the SAME prompt on the next model in the
   // chain before giving up — the person cares about an answer, not the vendor.
-  const chain = Array.isArray(config.fallbackModels) ? config.fallbackModels : [];
-  // A dead paid balance is not a "busy provider": it must trigger the free
-  // chain as well, otherwise the bridge sits on AUTH 403 and gives up.
-  const FALLBACK_TRIGGERS = /RATE_LIMIT|503|all providers|нет активности|EMPTY_RESPONSE|TIMEOUT|overloaded|AUTH|403|insufficient_user_quota|quota|UNKNOWN_MODEL|MISSING_CREDENTIAL/i;
-  const QUOTA_LIKE = /insufficient_user_quota|AUTH\b|\b403\b|\b401\b|quota|balance|баланс|payment|billing/i;
-  // "get_channel_failed / all providers are busy" is the provider's own channel
-  // pool, not the model: when it is down, it is down for every model in the
-  // chain. One probe then answers in seconds what four full turns spent 741
-  // seconds discovering.
-  const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|503/i;
-  const tried = [];
-  for (const entry of chain) {
-    if (!result.error || !FALLBACK_TRIGGERS.test(result.error)) break;
-    if (!entry.patch || !existsSync(entry.patch)) continue;
-    // The provider's channel pool is down: every model in the chain will answer
-    // the same 503. Ask once, quickly, and say so instead of burning a turn per
-    // model. A probe that DOES answer proves the pool is back — then the chain
-    // goes on, and the fallback at hand is tried as usual.
-    if (tried.length >= 1 && CHANNEL_DOWN.test(result.error)) {
-      const verdict = await probeModel(config.primaryModel || 'deepseek-v4.1-flash-1017');
-      log(`channel down after ${tried.length} model(s): probe says ${verdict.kind}; not trying ${entry.model}`);
-      if (!verdict.ok) break;
-    }
-    const quotaLike = QUOTA_LIKE.test(result.error);
-    // Quota failures never deserve a retry of the same model: the balance is
-    // gone, so waiting is pure loss. Anything else gets one retry at most.
-    const reason = quotaLike ? t(lang, 'bridge.fallback.quota') : t(lang, 'bridge.fallback.noAnswer');
-    tried.push(`${entry.model}: ${String(result.error).slice(0, 120)}`);
-    log(`fallback to ${entry.model} for ${where} reason=${quotaLike ? 'quota' : 'transient'} after: ${String(result.error).slice(0, 120)}`);
-    telemetry.model = entry.model;
-    await send(chatId, t(lang, 'bridge.fallback.switched', {
-      reason,
-      model: entry.model,
-      free: entry.free ? ' (free)' : '',
-    }), threadId);
-    result = await runTurnLive(text, sessionAtStart, key, {
-      onEvent,
-      onAbort: () => killTurn(key),
-      onHeartbeat: () => progress.heartbeat(), env: thoughtEnv,
-      // Same overlay problem as the vision turn: the host CLI has no --patch.
-      // A patch file that is missing or unreadable must not turn into an empty
-      // --profile argument, so the topic's own profile is the fallback.
-      profile: ensureProfile(entry.patch) || profileOf(key) || config.profile,
-      cwd,
-      lang,
-    });
-    if (!result.error) break;
-  }
-  // Every model refused. Before saying "all models are unavailable", ask each
-  // channel directly with a 1-token request: a 503 storm usually clears within
-  // seconds, and the verdict tells the person whether the balance is gone or the
-  // provider is merely busy — the old message always claimed quota.
-  let probeKind = '';
-  if (result.error && FALLBACK_TRIGGERS.test(result.error)) {
-    const models = [config.primaryModel || 'deepseek-v4.1-flash-1017', ...chain.map((entry) => entry.model)];
-    const { live, verdicts } = await firstLiveModel(models);
-    if (live) {
-      log(`probe: ${live.model} answers after ${verdicts.length} check(s), retrying the turn there`);
-      const entry = chain.find((item) => item.model === live.model);
-      result = await runTurnLive(text, sessionAtStart, key, {
-        onEvent,
-        onAbort: () => killTurn(key),
-        onHeartbeat: () => progress.heartbeat(),
-        profile: entry ? ensureProfile(entry.patch) : turnProfile,
-        cwd,
-        lang,
-      });
-    } else {
-      // Nothing answers: the verdict is the only useful part of the failure.
-      probeKind = describeVerdicts(verdicts);
-      log(`probe: no channel answers (${verdicts.map((v) => `${v.model}:${v.kind}`).join(', ')})`);
-    }
-  }
-  // Every model refused — or the provider's own channel pool was down and the
-// chain stopped early, which is the same answer to the person: one message
-// naming the causes, not a cascade of errors.
-  if (result.error && tried.length > 0 && (probeKind || tried.length >= (Array.isArray(config.fallbackModels) ? config.fallbackModels.length : 0))) {
-    log(`all fallbacks exhausted for ${where}: ${tried.length} probe=${probeKind || 'n/a'}`);
-    const verdictLine = probeKind ? `\n${probeHint(probeKind, lang)}` : '';
-    result = {
-      sessionId: result.sessionId,
-      text: '',
-      error: t(lang, 'bridge.fallback.allDown', { list: tried.map((line) => `• ${line}`).join('\n') }) + verdictLine,
-    };
-  }
+  // The walk lives in `fallback.mjs`: a chain that mixes companies needs a probe
+  // per provider, and this file is at its size ceiling.
+  result = await runFallbackChain({
+    result,
+    chain: Array.isArray(config.fallbackModels) ? config.fallbackModels : [],
+    // The route this topic actually runs on, so a final verdict names the right
+    // host instead of a hardcoded one.
+    primary: modelOf(turnProfile || profileOf(key) || config.profile),
+    text,
+    sessionAtStart,
+    key,
+    where,
+    chatId,
+    threadId,
+    lang,
+    cwd,
+    turnProfile,
+    topicProfile: profileOf(key),
+    telemetry,
+    onEvent,
+    thoughtEnv,
+    send,
+  });
   // A session opened in the desktop UI holds its write handle, so the CLI
   // refuses to adopt it. Retry once, then continue in a fresh session instead
   // of failing the user's message.

@@ -112,9 +112,34 @@ Optional provider settings live in `config.json`:
 | `pricesUrl` | retired: `/prices` always reads OpenRouter's public list and labels the number as a reference for the model |
 | `vision.patch` | opt-in overlay profile for photo turns; default `""` — the turn's own model reads images |
 | `vision.enabled` | set `true` to run photo turns on `vision.patch` instead of the topic profile |
-| `fallbackModels` | free-model fallbacks; default `[]` |
+| `fallbackModels` | ordered failover chain; default `[]` — see below |
 | `maxParallel` | how many topics run at once, 1–8, default `3`; also `/jobs 5` in the chat |
 | `replayWindowMs` | how old a journaled update may be and still be replayed after a restart; default `600000` (10 min) |
+
+Each `fallbackModels` entry is one attempt, tried in order after the turn's own
+model refuses:
+
+```json
+{
+  "provider": "router-a",
+  "model": "some-model",
+  "patch": "~/.dsh/tg-bridge/model-a.yml",
+  "free": false
+}
+```
+
+`patch` is an overlay file with a single `agent-default-model` row
+(`provider` + `model`); it is materialised once as its own profile, so the turn
+keeps every other setting and only the model changes. `provider` is the id the
+provider is written under in the profile — it decides whose key and host the
+pre-flight probe asks, so the same model id on two routers stays two attempts.
+`free` only adds `(free)` to the switch notice.
+
+The chain may mix companies: a 503 from one provider says nothing about another,
+so a busy channel skips its own models and the next company is still tried. Put
+models from different companies next to each other — two arms of one router are
+one outage, not two chances — and keep the `:free` models at the end, as the
+last resort.
 
 Get your id from [@userinfobot](https://t.me/userinfobot), the token from
 [@BotFather](https://t.me/BotFather).

@@ -1,5 +1,31 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.24.0
+
+- **The fallback chain could not cross providers.** `model-probe.mjs` read the
+  *first* provider block of the profile and asked that host about every model in
+  the chain. With one router that was right; the moment the chain mixed
+  companies it became the bug: a 503 from the first router was reported as the
+  verdict for a model that lives on a different company's host, and
+  `handle-message.mjs` stopped the chain after one probe. The log of a live turn
+  says it plainly — `channel down after 2 model(s): probe says ok; not trying
+  kimi-k3:free`, then `all fallbacks exhausted … : 3 probe=n/a`, while a working
+  provider sat right behind it. `providerFor(id)` now returns the named
+  provider's row, `probeModel(model, { provider })` asks that company, and each
+  entry is probed on its own route, so a dead pool skips only its own models.
+- **A chain that mixes companies is a documented shape.** Each `fallbackModels`
+  entry may carry `provider`, and the switch notice names the route as
+  `provider/model`, because the same model id on two routers is two different
+  attempts. README explains the overlay file, the ordering rule (different
+  companies next to each other, `:free` last) and why one vendor twice in a row
+  is one outage rather than two chances.
+- **The walk lives in `fallback.mjs`.** `handle-message.mjs` was at the 500-line
+  ceiling and the chain is a decision of its own — which model, on whose route,
+  and when to stop asking. Its three regexes and the give-up condition are now
+  exported and tested as data (`test/fallback-chain.test.mjs`), including the
+  case that used to be silent: a short chain with no verdict must not claim
+  "all models are unavailable".
+
 ## 1.23.0
 
 - **Buttons were never sent.** Every card built its keyboard as `{ text, data }`
