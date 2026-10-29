@@ -7,28 +7,46 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AgentsetStore } from './agentsets.mjs';
 import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from './agents.mjs';
-import { modelOf, modelsOf } from './control.mjs';
+import { modelOf, modelsOf } from './control/models.mjs';
 import { materialiseProfile, pruneDerived } from './aset-profile.mjs';
 import { profileValues, resolveSettings, settingsChip } from './settings.mjs';
 import { sessionKey } from './keys.mjs';
 import { DIR, DSH_HOME } from './paths.mjs';
 import { log, state } from './state.mjs';
 import { profileOf } from './turn.mjs';
-export function settingsChipOf(key) {
+import { effectivePreset, permissionEnabled } from './permission-rows.mjs';
+
+/** The patch text of one profile, read on demand; '' when it cannot be read. */
+function patchOf(profile) {
+  try {
+    return readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The chip above a turn's progress: what the topic's OWN profile says.
+ *
+ * `profile` is the one `turnPlan` chose — a derived profile has its own
+ * `defaultPreset`, so reading the base profile here would show the install's
+ * preset on a topic that runs in a different one.
+ */
+export function settingsChipOf(key, profile = '') {
   try {
     const id = state.agentsets?.[key];
     if (!id) return '';
     const store = new AgentsetStore(join(DIR, 'agentsets.json')).load();
     const set = store.get(id);
     if (!set) return '';
-    const profile = profileOf(key);
-    const patch = readFileSync(join(DSH_HOME, 'profiles', profile, 'cordis.patch.yml'), 'utf8');
+    const running = profile || turnProfileOf(key);
+    const patch = patchOf(running);
     const resolved = resolveSettings({
       set,
       override: state.settings?.[key] || null,
-      profile: profileValues(profileRowOf(profile, patch)),
-      models: modelsOf(profile),
-      efforts: parseReasoningEfforts(patch, set.model || modelOf(profile).model) || [],
+      profile: profileValues(profileRowOf(running, patch)),
+      models: modelsOf(running),
+      efforts: parseReasoningEfforts(patch, set.model || modelOf(running).model) || [],
       permissions: parsePermissionPresets(patch)?.presets?.map((p) => p.id) || [],
       presets: parseAgentPresets(patch)?.presets?.map((p) => p.id) || [],
     });
@@ -54,35 +72,101 @@ export function profileRowOf(profile, patch = '') {
 }
 
 /**
- * The profile a turn actually runs under. A bound set becomes a profile of its
- * own (`aset-profile.mjs`), because DSH has no per-topic override; without a set
- * the answer is the topic's or the install's profile, unchanged.
- * `keep` tells the sweep every profile still in use.
+ * The directory a topic's writes are confined to, or '' when this topic is not
+ * narrowed.
+ *
+ * Three ways to end up empty, and all three are deliberate: no `/cd` (nothing to
+ * narrow to), `/cd ... wide` (the person asked for the profile's own boundary),
+ * or a profile that cannot express a boundary at all — no permission table, no
+ * sandbox row — where writing half a policy would be worse than writing none.
+ * @param {string} key session key
+ * @param {string} [base] the profile the topic runs under
  */
-export function turnProfileOf(key) {
+export function workspaceOf(key, base = profileOf(key)) {
+  const dir = String(state.cwd?.[key] || '');
+  if (!dir || state.wide?.[key]) return '';
+  return permissionEnabled(patchOf(base)) ? dir : '';
+}
+
+/**
+ * Everything a turn needs to know about its profile, including the one case that
+ * must stop it: a set that asks for a narrower policy and a base profile that
+ * cannot express one. Answering with the base profile there would run the turn
+ * under the wrong policy silently — the exact bug this change closes — so the
+ * caller gets `error` and answers one line instead of spawning.
+ *
+ * @returns {{profile: string, workspace: string, error?: string}}
+ */
+export function turnPlan(key) {
   const base = profileOf(key);
+  const workspace = workspaceOf(key, base);
+  const id = state.agentsets?.[key];
+  let store = null;
   try {
-    const id = state.agentsets?.[key];
-    if (!id) return base;
-    const store = new AgentsetStore(join(DIR, 'agentsets.json')).load();
-    const set = store.get(id);
-    if (!set) return base;
-    const derived = materialiseProfile(set, base);
-    if (!derived) return base;
-    const keep = Object.keys(state.agentsets || {})
-      .map((topic) => {
-        const bound = state.agentsets[topic];
-        const other = store.get(bound);
-        return other ? materialiseProfile(other, profileOf(topic)) : '';
-      })
-      .filter(Boolean);
-    pruneDerived(keep);
-    return derived;
+    store = new AgentsetStore(join(DIR, 'agentsets.json')).load();
+  } catch {
+    store = null;
+  }
+  const set = id && store ? store.get(id) : null;
+  if (id && !set) return { profile: base, workspace, error: `no set ${id}` };
+  const narrows = Boolean(String(set?.permissions || '').trim());
+  if (narrows && !permissionEnabled(patchOf(base))) {
+    return {
+      profile: base,
+      workspace: '',
+      error: `profile ${base} has no permission table and sandbox row, so the set's preset "${set.permissions}" cannot be applied to this topic`,
+    };
+  }
+  // A topic with no set but a bound directory still needs a profile of its own:
+  // the base one carries the install's boundary, not this topic's.
+  const material = set || (workspace ? { id: 'workspace' } : null);
+  if (!material) return { profile: base, workspace };
+  try {
+    const derived = materialiseProfile(material, base, { workspace });
+    if (!derived) return { profile: base, workspace };
+    pruneDerived(keepList(store, base));
+    return { profile: derived, workspace };
   } catch (error) {
     // A broken store must not cost the turn: the profile runs as it would have.
     log(`aset profile failed for ${key}: ${error.message}`);
-    return base;
+    return { profile: base, workspace };
   }
+}
+
+/**
+ * Every derived profile still in use, so the sweep does not delete one out from
+ * under a topic that is about to run. Both bindings count: an agent set and a
+ * `/cd` directory each materialise a profile.
+ */
+function keepList(store, base) {
+  const topics = new Set([...Object.keys(state.agentsets || {}), ...Object.keys(state.cwd || {})]);
+  const keep = [];
+  for (const topic of topics) {
+    const other = profileOf(topic);
+    const set = store?.get(state.agentsets?.[topic]) || null;
+    const workspace = workspaceOf(topic, other);
+    const material = set || (workspace ? { id: 'workspace' } : null);
+    if (!material) continue;
+    const name = materialiseProfile(material, other, { workspace });
+    if (name) keep.push(name);
+  }
+  return keep;
+}
+
+/** The profile name alone, for the callers that cannot act on an error. */
+export function turnProfileOf(key) {
+  return turnPlan(key).profile || profileOf(key);
+}
+
+/**
+ * The permission preset this topic actually starts in, read from the profile
+ * the topic runs under — the derived one when it has one, because that is the
+ * file the host boots. A card that read the base profile would show the
+ * install's preset on a topic that runs in a different one.
+ */
+export function presetOf(key) {
+  const profile = turnProfileOf(key);
+  return { profile, preset: effectivePreset(patchOf(profile)) };
 }
 
 /**

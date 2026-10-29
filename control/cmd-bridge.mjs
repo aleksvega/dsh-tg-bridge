@@ -24,7 +24,7 @@ import { profileValues, resolveSettings } from '../settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../update-policy.mjs';
 import { isNewer, pluginInfo, rowLine, searchPlugins } from '../plugin-search.mjs';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
-import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from '../paths.mjs';
+import { APP, CLI_JS, DSH_CMD, DSH_HOME, DIR, EXE, HOME, LOG, PROFILES, THOUGHT_DIR } from '../paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
@@ -32,6 +32,8 @@ import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
+import { buildReport, tailOf, writeReport } from '../report.mjs';
+import { effectivePreset } from '../permission-rows.mjs';
 
 /**
  * Which bridge is running, which one npm has, and whether this install can
@@ -63,7 +65,7 @@ function versionCard(lang) {
 }
 
 export async function handleBridgeCommands(ctx) {
-  const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang, saveState } = ctx;
+  const { command, arg, send, reply, log, profile, state, key, config, chatId, threadId, lang: rawLang, saveState } = ctx;
   // The topic's language, then the config default, then English. Never Russian:
   // a group that has no opinion still must not guess a language.
   const lang = normalizeLang(rawLang) || normalizeLang(config?.lang) || 'en';
@@ -328,6 +330,47 @@ export async function handleBridgeCommands(ctx) {
       // the state), which meant "am I current?" took two messages. One card
       // answers both, and `/version` still arrives here rewritten.
       say(versionCard(lang) + '\n\n' + describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified })));
+      return true;
+    }
+    case '/report': {
+      // A bug report assembled from what the bridge already knows, so "it broke"
+      // does not need five follow-up questions. It is redacted before it leaves
+      // (`report.mjs`), and it goes to the owner's own id: in a group the answer
+      // is the path on this machine, because the log tail is not group material.
+      const owner = Number(config.allowedUserIds?.[0]) || 0;
+      const toOwner = Boolean(owner) && Number(chatId) === owner && !Number(threadId);
+      const patchText = read(patchPath(activeProfile));
+      const preset = effectivePreset(patchText)?.id || '';
+      const chain = (config.fallbackModels || []).map((entry) => (entry.provider ? `${entry.provider}/${entry.model}` : entry.model)).join(' → ');
+      const failure = state.lastFailure?.[key]?.error || '';
+      const text = buildReport({
+        version: bridgeVersion(),
+        profile: activeProfile,
+        preset,
+        model: modelOf(activeProfile).model,
+        chain,
+        cwd: state.cwd?.[key] || config.cwd || '',
+        failure,
+        log: tailOf(LOG, 120),
+        home: HOME,
+        ids: [chatId, threadId, ...(config.allowedUserIds || [])],
+        note: String(arg || '').trim(),
+      });
+      const path = writeReport(text, join(DIR, 'reports'));
+      if (!path) {
+        say(t(lang, 'ctrl.report.failed'));
+        return true;
+      }
+      if (toOwner && ctx.sendFile) {
+        try {
+          await ctx.sendFile(path, t(lang, 'ctrl.report.caption', { v: bridgeVersion() || '?' }));
+          return true;
+        } catch (error) {
+          say(t(lang, 'ctrl.report.sendFailed', { err: error.message, path }));
+          return true;
+        }
+      }
+      say(t(lang, 'ctrl.report.pathOnly', { path }));
       return true;
     }
     default:

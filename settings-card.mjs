@@ -145,6 +145,15 @@ export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode
   for (const button of buttons) byId.set(button.id, [...(byId.get(button.id) || []), button]);
   for (const group of byId.values()) lines.push(rowLine(group[0], group, t));
 
+  // The permission row opens a command instead of toggling, so its current value
+  // has to be spelled out here: `current.permissions` comes from the profile this
+  // topic actually boots, which for a bound topic is not the install's profile.
+  if (page === 'agent' && current.permissions) {
+    lines.push(t('settings.agent.permission', {
+      preset: current.permissions.preset || t('settings.notSet'),
+      profile: current.permissions.profile || '',
+    }));
+  }
   if (page === 'reply' && bound) lines.push('', t('settings.reply.setBound', { name: bound.name || bound.id }));
   lines.push('', t('settings.card.foot'));
 

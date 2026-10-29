@@ -17,7 +17,7 @@ import { keyboardCommand } from './menu-card.mjs';
 import { looksLikeReasoning, stepLine } from './panel.mjs';
 import { DIR, GOAL_CMD, THOUGHT_DIR } from './paths.mjs';
 import { renderPrices } from './prices.mjs';
-import { settingsChipOf, turnProfileOf } from './profile-view.mjs';
+import { settingsChipOf, turnPlan } from './profile-view.mjs';
 import { startProgress } from './progress.mjs';
 import { lastPrompt, maxParallel, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
@@ -26,6 +26,7 @@ import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mj
 import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnStartedAt, typingLoop } from './turn.mjs';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 
 export async function handleMessage(msg, album = null) {
   const chatId = msg.chat.id;
@@ -120,7 +121,20 @@ export async function handleMessage(msg, album = null) {
   log(`in ${where} from=${from} len=${text.length}${msg.is_topic_message ? ' topic-message' : ''}`);
   // A bound set replaces the profile for this turn only: the media route above
   // still wins, because it carries a per-turn model the person chose out loud.
-  if (!turnProfile) turnProfile = turnProfileOf(key);
+  //
+  // The plan also decides the sandbox boundary. When it comes back with an
+  // error the turn does not start: a set that asks for a narrower policy on a
+  // profile that cannot express one would otherwise run under the WIDE policy
+  // and look like it worked, which is the bug this whole change exists for.
+  if (!turnProfile) {
+    const plan = turnPlan(key);
+    if (plan.error) {
+      log(`turn refused for ${where}: ${plan.error}`);
+      await send(chatId, t(lang, 'bridge.turn.noPolicy', { reason: plan.error }), threadId);
+      return;
+    }
+    turnProfile = plan.profile;
+  }
 
   // A brand-new forum topic starts empty: the title says what the person wants
   // but the thread itself has no message, so scrolling back shows a blank
@@ -284,7 +298,16 @@ ${t(lang, 'help.body')}`,
     saveState();
   }
   // Project directory bound to this topic (set with /cd); config.cwd otherwise.
-  const cwd = (state.cwd && state.cwd[key]) || config.cwd;
+  // A bound directory that has been deleted or renamed is reported as such: the
+  // old silent fallback to config.cwd ran the turn in a different project than
+  // the one the person bound, and every path in the answer was wrong.
+  const boundDir = (state.cwd && state.cwd[key]) || '';
+  if (boundDir && !existsSync(boundDir)) {
+    log(`turn refused for ${where}: bound directory gone (${boundDir})`);
+    await send(chatId, t(lang, 'bridge.turn.noDir', { path: boundDir }), threadId);
+    return;
+  }
+  const cwd = boundDir || config.cwd;
   // What the person actually wrote, before any injected block: the progress
   // message echoes it back so the first thing they see names their task, not a
   // generic spinner.
@@ -319,11 +342,11 @@ ${t(lang, 'help.body')}`,
 
   // Live progress: one status message per turn, rewritten as the agent works.
   // Without it a long turn and a hung turn looked exactly alike in the chat.
-  const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key), thoughtFile);
+  const progress = await startProgress(chatId, threadId, lang, request, settingsChipOf(key, turnProfile), thoughtFile);
   // Turn telemetry for the log: what the agent did, how much it cost, on which
   // model. Without it /logs shows only "in" and "sent" — useless when asking
   // "why did this take 9 minutes".
-  const telemetry = { steps: 0, tools: 0, inputTokens: 0, cacheReadTokens: 0, model: modelOf(profileOf(key)).model };
+  const telemetry = { steps: 0, tools: 0, toolNames: [], inputTokens: 0, cacheReadTokens: 0, model: modelOf(profileOf(key)).model };
   const onEvent = (event) => {
     try {
       // The id of the session this process actually works in. A new topic has
@@ -333,6 +356,7 @@ ${t(lang, 'help.body')}`,
       if (event.type === 'tool_call') {
         telemetry.tools += 1;
         telemetry.steps += 1;
+        if (event.tool && telemetry.toolNames.length < 40) telemetry.toolNames.push(String(event.tool));
         log(`  tool[${telemetry.steps}] ${(stepLine(event) || event.tool || 'tool').slice(0, 140)}`);
       } else if (event.type === 'tool_result') {
         const failed = event.status && event.status !== 'completed';
@@ -420,6 +444,19 @@ ${t(lang, 'help.body')}`,
     // into the error report), so only the log gets the detail here — a second
     // ⚠️ message would just duplicate it.
     log(`turn failed ${where} ${seconds}s ${summary} :: ${result.error.slice(0, 400)}`);
+    // Keep the last failure for `/report`: the person who asks for a bug report
+    // is usually the one who just saw this line, and asking them to reproduce it
+    // before a report can be written is how a report never gets written.
+    state.lastFailure = state.lastFailure || {};
+    state.lastFailure[key] = {
+      at: new Date().toISOString(),
+      error: result.error.slice(0, 2000),
+      model: telemetry.model,
+      tools: telemetry.toolNames,
+      cwd,
+      seconds,
+    };
+    saveState();
     return;
   }
   log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);

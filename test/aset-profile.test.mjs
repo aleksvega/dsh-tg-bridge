@@ -91,6 +91,34 @@ test('a preset the base starts with is not a delta on its own', async () => {
   assert.equal(materialiseProfile({ id: 'x', dshPreset: 'standard' }, 'headless', { profiles }), '');
 });
 
+test('a bound workspace becomes the profile\'s own sandbox root', async () => {
+  const { materialiseProfile } = await import('../aset-profile.mjs');
+  const home = fakeHome();
+  const profiles = join(home, 'profiles');
+  // The base has no sandbox row at all, so the derived profile has to state one:
+  // inheriting the bundle's default is exactly the leak this task closes.
+  const name = materialiseProfile({ id: 'work', model: 'base-model' }, 'headless', {
+    profiles,
+    workspace: 'C:/work/project',
+  });
+  assert.match(name, /^aset-[0-9a-f]{10}$/);
+  const patch = readFileSync(join(profiles, name, 'cordis.patch.yml'), 'utf8');
+  assert.match(patch, /- id: sandbox-policy/);
+  assert.match(patch, /workspaceRoot: C:\/work\/project/);
+  // The mode comes from the preset the profile already starts in, not from a guess.
+  assert.match(patch, /^ {4}mode: danger-full-access$/m);
+  // The base patch itself is untouched: materialising is a copy, not an edit.
+  assert.equal(readFileSync(join(profiles, 'headless', 'cordis.patch.yml'), 'utf8'), BASE_PATCH);
+  // A different directory is a different profile — a moved topic must not keep
+  // the workspaceRoot of the project it left.
+  const moved = materialiseProfile({ id: 'work', model: 'base-model' }, 'headless', {
+    profiles,
+    workspace: 'C:/work/other',
+  });
+  assert.notEqual(moved, name);
+  assert.match(readFileSync(join(profiles, moved, 'cordis.patch.yml'), 'utf8'), /workspaceRoot: C:\/work\/other/);
+});
+
 test('a sweep removes stale generated profiles and keeps the ones in use', async () => {
   const { materialiseProfile, pruneDerived } = await import('../aset-profile.mjs');
   const home = fakeHome();

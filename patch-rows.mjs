@@ -1,15 +1,16 @@
-// The three patch knobs a settings bundle writes, expressed as text -> text.
+// The patch knobs a settings bundle writes, expressed as text -> text.
 //
 // Built on `profile-edit.mjs` instead of a YAML writer on purpose: the patch is
 // the person's config — comments, ordering and quoting stay where they are, and
 // a new value lands on the existing line. Each function returns the new patch,
 // or the input unchanged when the profile has no such row.
+//
+// Permissions live in `permission-rows.mjs`: they are two rows that must agree,
+// and a writer that can move only one of them is the bug that file prevents.
 import { setRowConfig } from './profile-edit.mjs';
 
 /** The row that decides which model a turn runs on. */
 export const MODEL = '@deepseek-ai/dsh-agent-default-model';
-/** The row whose `defaultPreset` picks an entry of its permission table. */
-export const PERMISSIONS = '@deepseek-ai/dsh-permission-presets';
 /** The registry whose `selectedDefault` starts the agent preset. */
 export const PRESETS = '@deepseek-ai/dsh-agent-preset-registry';
 const SUBAGENT = '@deepseek-ai/dsh-tool-subagent';
@@ -19,11 +20,6 @@ export function setModel(patch, model, provider = '') {
   let next = setRowConfig(patch, { pkg: MODEL, path: ['model'], value: model }) ?? String(patch ?? '');
   if (provider) next = setRowConfig(next, { pkg: MODEL, path: ['provider'], value: provider }) ?? next;
   return next;
-}
-
-/** Choose one entry of the profile's own permission table. */
-export function setPermissionPreset(patch, preset) {
-  return setRowConfig(patch, { pkg: PERMISSIONS, path: ['defaultPreset'], value: preset }) ?? String(patch ?? '');
 }
 
 /** Start the agent-preset registry in `preset`. */

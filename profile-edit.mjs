@@ -104,6 +104,38 @@ export function setRowConfig(text, { pkg, path, value, match }) {
   return changed > 0 ? lines.join(eol) : null;
 }
 
+/** Does the patch declare a row for `pkg` at all? */
+export function rowExists(text, pkg) {
+  return rowsOf(String(text ?? '').split(/\r?\n/), pkg).length > 0;
+}
+
+/**
+ * Append a row the patch does not have yet — the other half of "make the file
+ * say one thing": a setting the profile never mentioned needs a row before it
+ * can be written into one.
+ *
+ * Returns null when a row for `pkg` is already there, so a caller may call this
+ * unconditionally without ending up with two rows that disagree.
+ * @param {string} text profile patch
+ * @param {{id: string, pkg: string, config?: Record<string, string|number>}} row
+ */
+export function appendRow(text, { id, pkg, config = {} }) {
+  const source = String(text ?? '');
+  if (rowExists(source, pkg)) return null;
+  const eol = eolOf(source);
+  const lines = source.split(/\r?\n/);
+  // Drop trailing blanks so the new row starts after exactly one separator.
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+  const insert = ['- id: ' + id, `  name: '${pkg}'`];
+  const keys = Object.entries(config).filter(([, value]) => value !== '' && value !== undefined && value !== null);
+  if (keys.length > 0) {
+    insert.push('  config:');
+    for (const [key, value] of keys) insert.push(...valueLines(key, '    ', value));
+  }
+  lines.push('', ...insert, '');
+  return lines.join(eol);
+}
+
 /**
  * Remove one key from a row's config, with the lines nested under it.
  * Returns null when nothing was there to remove.

@@ -16,7 +16,8 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { setAgentPreset, setModel, setPermissionPreset, setSubagents } from './patch-rows.mjs';
+import { setAgentPreset, setModel, setSubagents } from './patch-rows.mjs';
+import { sandboxModeOf, setPermission } from './permission-rows.mjs';
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 const PROFILES = join(DSH_HOME, 'profiles');
@@ -25,7 +26,7 @@ const PROFILES = join(DSH_HOME, 'profiles');
 export const DERIVED_PREFIX = 'aset-';
 
 /** `aset-` + 10 hex: short enough for a DSH profile name, long enough to collide never. */
-export function derivedName(base, set) {
+export function derivedName(base, set, workspace = '') {
   const material = JSON.stringify([
     base,
     set?.name || '',
@@ -33,6 +34,11 @@ export function derivedName(base, set) {
     set?.effort || '',
     set?.permissions || '',
     set?.dshPreset || '',
+    // The bound directory belongs in the name: a topic moved with `/cd` must not
+    // keep a profile whose workspaceRoot points at the project it left. It is a
+    // separate argument, not a set field, because a set is shared between topics
+    // and the workspace is not.
+    String(workspace || ''),
     set?.agents || null,
     set?.toolFilter || null,
   ]);
@@ -44,14 +50,30 @@ export function derivedName(base, set) {
  * A field that already matches the base is skipped, so the copy differs from
  * the base only where the set differs — otherwise every generated profile
  * would pin today's model forever.
+ *
+ * The workspace is the exception: a bound topic states its own boundary even
+ * when the base happens to name the same directory, because inheriting one is
+ * how a later edit to the base quietly widens a topic that never asked.
  */
-export function overlayPatch(basePatch, set, base = {}) {
+export function overlayPatch(basePatch, set, base = {}, workspace = '') {
   const source = String(basePatch ?? '');
   let next = source;
   const model = String(set?.model || '').trim();
   if (model && model !== base.model) next = setModel(next, model, String(set?.provider || '').trim());
   const permissions = String(set?.permissions || '').trim();
-  if (permissions && permissions !== base.permissions) next = setPermissionPreset(next, permissions);
+  const bound = String(workspace || '').trim();
+  // Both permission rows are written together (see `permission-rows.mjs`): the
+  // preset that is chosen and the sandbox mode it stands for. A profile that
+  // moves one and not the other describes a policy it does not run.
+  const presetId = (permissions && permissions !== base.permissions) ? permissions : '';
+  if (presetId || bound) {
+    const wanted = presetId || base.permissions || '';
+    next = setPermission(next, {
+      preset: wanted,
+      sandbox: sandboxModeOf(next, wanted),
+      workspaceRoot: bound,
+    });
+  }
   const preset = String(set?.dshPreset || '').trim();
   if (preset && preset !== base.preset) next = setAgentPreset(next, preset);
   if (set?.agents && typeof set.agents === 'object') next = setSubagents(next, set.agents);
@@ -62,16 +84,23 @@ export function overlayPatch(basePatch, set, base = {}) {
  * Build `<base>`'s copy for `set` and return the profile name to run under.
  * Returns '' when there is nothing to materialise (the set changes nothing a
  * profile owns) or when the base profile is missing.
+ *
+ * `workspace` is the topic's bound directory, if any: it becomes this profile's
+ * `workspaceRoot`, which is what makes the host sandbox — not a prompt — the
+ * thing that stops a turn at the project's edge.
  */
-export function materialiseProfile(set, base, { profiles = PROFILES } = {}) {
-  if (!set || !base) return '';
+export function materialiseProfile(set, base, { profiles = PROFILES, workspace = '' } = {}) {
+  // A topic may be bound to a directory without being bound to a set: `/cd` is
+  // the common case and it still needs a profile of its own, or the boundary is
+  // whatever the base says.
+  if (!base || (!set && !workspace)) return '';
   const baseDir = join(profiles, base);
   const basePatchPath = join(baseDir, 'cordis.patch.yml');
   if (!existsSync(basePatchPath)) return '';
   const basePatch = readFileSync(basePatchPath, 'utf8');
-  const { patch, changed } = overlayPatch(basePatch, set, baseRowOf(basePatch));
+  const { patch, changed } = overlayPatch(basePatch, set, baseRowOf(basePatch), workspace);
   if (!changed) return '';
-  const name = derivedName(base, set);
+  const name = derivedName(base, set, workspace);
   const dir = join(profiles, name);
   if (existsSync(join(dir, 'cordis.patch.yml'))) return name;
   mkdirSync(dir, { recursive: true });

@@ -1,5 +1,51 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.25.0
+
+- **A bound topic no longer writes the whole home directory.** `/cd my-app` used
+  to change only the turn's working directory: the sandbox still pointed at the
+  profile's own root, so a model that wandered into a sibling project was allowed
+  to write there. On a permission-enabled profile `/cd` now writes
+  `sandbox-policy.workspaceRoot` with the same directory, which makes the
+  boundary real — measured, not assumed: a write outside the root comes back as
+  `[sandbox: file access denied under workspace-write mode]`, and switching the
+  turn's own `working-directory` does not move the boundary. `danger-full-access`
+  is now an explicit per-topic choice (`/cd <dir> wide`, or `/permissions
+  danger-full-access`) instead of the quiet default. A profile with no permission
+  table keeps the old behaviour, and `/cd` says which of the two it is doing.
+- **One row is not a setting.** The `sandbox-policy` row alone is ignored when the
+  profile also has a permission table: `mode: read-only` next to `defaultPreset:
+  danger-full-access` still wrote outside the root. Both rows are now written by
+  one function (`permission-rows.mjs`) from one preset, so a file cannot end up
+  disagreeing with itself, and `/permissions` reads the *effective* preset rather
+  than the table's current value. A preset with `approval: ask` is listed with the
+  reason it cannot be used from a chat — a headless turn has no approval channel,
+  and picking it used to mean a turn that failed closed.
+- **Per-topic permissions.** A topic bound to an agent set gets that set's preset
+  on its own derived profile, so two topics can hold two presets without reading
+  each other's row. `/permissions` writes the set when the topic is bound and the
+  profile when it is not, and says which. `/settings` shows the topic's effective
+  preset, not the install's.
+- **`/cd` survives a real filesystem.** Resolution moved into `control/cd-path.mjs`
+  as a pure function: `~`, a drive letter, a UNC path, a POSIX absolute path, a
+  bare project name under `projectsDir`, a relative path, `reset` — and the three
+  failures a chat actually hits (empty, missing, exists-but-is-a-file) each get
+  their own sentence. A bound directory that disappeared is reported as such
+  instead of silently falling back to `config.cwd`.
+- **`/report` turns "it broke" into data.** One command collects version, node,
+  platform, profile, preset, model, fallback chain, cwd, the turn's tool names,
+  the topic's last failure and the last 120 log lines — then removes tokens, bot
+  tokens, `Bearer` headers, private keys, home paths, chat ids, machine ids and
+  email addresses before writing the file. In a direct chat it arrives as a
+  document; in a group the answer is the path only. `test/report.test.mjs` runs
+  the repo's own `scan-secrets.mjs` rules over a fixture that looks like a real
+  log tail and fails if a single rule matches. `docs/SUPPORT.md` says what to
+  send, what never to send, and how to tell the three kinds of silence apart.
+- **The docs say what is true.** README gained the three sandbox modes with what
+  each one actually allows, the measured note that the sandbox row alone changes
+  nothing, and an attachment table that names the one hidden prerequisite: voice
+  needs `faster-whisper` and is off by default.
+
 ## 1.24.0
 
 - **The fallback chain could not cross providers.** `model-probe.mjs` read the

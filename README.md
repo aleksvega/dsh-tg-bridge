@@ -16,7 +16,9 @@ a bot that answers, one step at a time.
 - **Voice**: local faster-whisper, the transcript is shown before the answer.
 - **Photos**: the turn's own model reads them through `read_image`, text and UI
   included; no second model is needed (a vision overlay stays opt-in).
-- **Project per topic**: `/cd my-app`, and all turns run from that directory.
+- **Project per topic**: `/cd my-app`, and all turns run from that directory — on
+  a permission-enabled profile the sandbox is narrowed to it too, so the agent
+  cannot write outside the project.
 - **Goal and checklist per topic**: `/goal`, `/tasks`; both survive restarts and are prepended to every turn.
 - **Live progress**: one edited message per turn — steps, a timer and the cache hit rate, plus
   the model's reasoning in a collapsed block you can tap open. A long turn adds a second
@@ -29,6 +31,9 @@ a bot that answers, one step at a time.
 - **`dsh-tg check`**: diagnostics in one command, no changes to the system.
 - **Languages**: menus and service messages in `en`, `ru`, `zh`; `/lang` pins the topic language, and without it a new topic takes the language of the message itself (Cyrillic → `ru`, Han characters → `zh`), then the Telegram `language_code`, then `en`.
 - **"Stop"/"Retry" buttons, tool confirmations**: right in the message, no commands to type.
+- **`/report`**: one command turns "it broke" into a redacted document — version,
+  profile, preset, model, directory, the last failure and the log tail, with
+  tokens, keys and home paths removed before the file is written.
 
 ## Requirements
 
@@ -210,7 +215,8 @@ Send the bot:
 | `/update` | which bridge runs, what npm has, and whether a newer release exists (`/update confirm` installs it) |
 | `/thoughts [file\|all\|off]` | the last turn's reasoning as a message; `file`/`all` send the full log as a Markdown document, `off` hides the block |
 | `/help` | commands grouped by category |
-| `/cd my-app` | topic bound to the project |
+| `/cd my-app` | topic bound to the project, and the sandbox narrowed to it |
+| `/report` | a redacted bundle (version, profile, preset, model, cwd, last failure, log tail) sent to the owner as a document; in a group, the path only |
 | `/prices` | what the current model costs, and whose price that is: your provider's, the same model on another gateway, or "no public price" when nobody publishes one |
 
 ## Commands
@@ -226,7 +232,7 @@ Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
 Extensions:   /skills · /plugins · /plugins search <word> · /plugins disable|enable <id> · /soul
 Updates:      /update · /update confirm · /update on|off|check|auto · /subscribe on|off
-Diagnostics:  /doctor · /logs [errors|N|text]
+Diagnostics:  /doctor · /logs [errors|N|text] · /report
 Service:      /app · /restart · /help
 Settings:     /settings — the same switches as buttons, grouped in four tabs
 Display:      /lang · /reasoning on|off · /thoughts
@@ -309,13 +315,18 @@ local path and that path is steered, exactly as an idle turn would hand it over.
 
 What each kind of attachment becomes inside a running turn:
 
-| Sent | Inside the turn |
-|---|---|
-| voice note, audio file, audio sent as a document | transcript, echoed as `🎤 …` before the steer |
-| small text file (`.md`, `.json`, `.csv`, `.py`, `.log`, … up to 60 KB) | the content itself between `<file>` markers — no tool call needed |
-| PDF, archive, binary, anything bigger | its local path under `~/.dsh/tg-bridge/inbox/` |
-| video, video note, animation | its path; the agent can pull frames or sound out with ffmpeg |
-| photo | its path plus one honest line; the turn reads it with `read_image`, and says so in one line if it cannot |
+| Sent | Inside the turn | Needs |
+|---|---|---|
+| voice note, audio file, audio sent as a document | transcript, echoed as `🎤 …` before the steer | `faster-whisper` on `PATH`, enabled with `init --voice`; **off by default** |
+| small text file (`.md`, `.json`, `.csv`, `.py`, `.log`, … up to 60 KB) | the content itself between `<file>` markers — no tool call needed | nothing |
+| PDF, archive, binary, anything bigger | its local path under `~/.dsh/tg-bridge/inbox/` | nothing; the agent opens it with its own tools |
+| video, video note, animation | its path; the agent can pull frames or sound out with ffmpeg | ffmpeg, only if frames or audio are needed |
+| photo | its path plus one honest line; the turn reads it with `read_image`, and says so in one line if it cannot | a model that accepts images |
+
+Voice is the one row with a hidden prerequisite. Without `faster-whisper`
+installed, a voice note still arrives — as a path the agent cannot read — so the
+bridge says transcription is off instead of pretending it heard something. Run
+`dsh-tg init --voice` after installing the transcriber; nothing else changes.
 
 A caption does not turn the attachment into a text-only message: it is folded into the same
 hand-over, so "why did this fail" plus a `.log` file arrives as one steer.
@@ -431,6 +442,52 @@ profile's first turn. The binding is per topic: `/model` then edits that profile
 has with the `dsh-plugin` keyword — the desktop app's plugin browser, from the chat. Each result
 carries a plus button that runs `/plugins add <name>`.
 
+### The directory a topic writes in
+
+`/cd my-app` does two things, and they are worth separating because they used to
+be one: the turn runs *in* that directory, and the sandbox *stops* at it. The
+second half only works on a profile that has a permission table — the bridge
+writes the row only when one exists, and never invents one for a profile that
+opted out.
+
+```
+/cd my-app            bind the topic: run here, and write only here
+/cd ~/Projects/api wide   run here, but do not narrow the sandbox
+/cd reset             unbind; the topic goes back to config.cwd
+/cd                   what this topic is bound to, and how
+```
+
+| Sandbox mode | Writes inside the root | Writes outside the root |
+|---|---|---|
+| `read-only` | denied | denied |
+| `workspace-write` | allowed | denied |
+| `danger-full-access` | allowed | allowed |
+
+`workspaceRoot` is the boundary, and it holds even when the turn switches its own
+working directory: the refusal follows the configured root, not the directory the
+agent moved to. That is the point — a model that wanders into another project
+gets a refusal instead of a write.
+
+Three things this table does **not** say, because measurement disagreed with the
+obvious reading:
+
+- the sandbox row alone changes nothing. `mode: read-only` in the
+  `sandbox-policy` row plus `defaultPreset: danger-full-access` in the permission
+  table still wrote outside the root. The permission table wins; the sandbox row
+  is a default for a profile that has no table.
+- `danger-full-access` therefore has to be chosen on purpose, per topic
+  (`/permissions danger-full-access`), and it is the only mode that reaches
+  outside the root.
+- a preset with `approval: ask` cannot be used from a chat at all: a headless
+  turn has no approval channel, so the escalation fails closed and the turn
+  errors. `/permissions` lists such a preset with the reason instead of letting
+  someone pick a trap.
+
+Stock installs are not permission-enabled: `cordis.patch.yml` ships with the
+`tg-bridge` plugin row only, so `/cd` binds the directory and `/permissions`
+edits the profile-wide preset, exactly as before. The per-topic behaviour starts
+the first time a profile gains a permission table.
+
 ### Goals and tasks
 
 A topic carries its own goal and checklist, so the aim survives `/new`, a
@@ -464,6 +521,7 @@ no lock race and no lost update.
 ## Documentation
 
 - [docs/TELEGRAM-SETUP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TELEGRAM-SETUP.md): BotFather settings, group and bot permissions
+- [docs/SUPPORT.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/SUPPORT.md): what to send with a bug report, what never to send, and the one-line answer for "the bot went silent"
 - [docs/ROADMAP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/ROADMAP.md): what comes next
 - [docs/UX-ANALYSIS.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/UX-ANALYSIS.md): interactive UX review
 - [docs/COST.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/COST.md): what one turn costs and how to reduce it

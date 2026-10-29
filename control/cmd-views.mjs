@@ -32,6 +32,7 @@ import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
+import { presetOf } from '../profile-view.mjs';
 
 export async function handleViewCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
@@ -229,7 +230,18 @@ export async function handleViewCommands(ctx) {
         say(t(lang, 'ctrl.settings.usage'));
         return true;
       }
-      const current = settingsCurrent({ config, state, key, reasoningOf });
+      // The preset the topic actually starts in comes from the profile it boots,
+      // which for a bound topic is a derived copy — not the install's profile.
+      let permission = null;
+      try {
+        permission = presetOf(key);
+      } catch {
+        permission = null;
+      }
+      const current = {
+        ...settingsCurrent({ config, state, key, reasoningOf }),
+        permissions: permission ? { profile: permission.profile, preset: permission.preset?.id || '' } : null,
+      };
       const bound = agentsetOf(state, key);
       const card = renderSettingsCard({
         page: SETTINGS_PAGES.includes(page) ? page : 'reply',

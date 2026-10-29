@@ -20,7 +20,7 @@ const SECTIONS = {
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
   talk: ['effort', 'reasoning', 'thoughts', 'prices', 'lang'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
-  house: ['settings', 'update', 'subscribe', 'doctor', 'logs', 'restart', 'app', 'help'],
+  house: ['settings', 'update', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'help'],
 };
 
 /**

@@ -11,6 +11,7 @@ import { t, LANGS, normalizeLang } from '../i18n.mjs';
 import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from '../goals.mjs';
 import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from '../thoughts.mjs';
 import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from '../agents.mjs';
+import { effectivePreset, setPermission } from '../permission-rows.mjs';
 import { setRowConfig, unsetRowConfig } from '../profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from '../reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from '../agentsets.mjs';
@@ -254,46 +255,74 @@ export async function handleAgentCommands(ctx) {
     }
     case '/permissions': {
       // Sandbox and approval policy decide what a turn may touch. The desktop
-      // shows them as a preset picker; here they are a profile row, so the
-      // switch is honest about being profile-wide: every topic on this profile
-      // changes with it.
-      const table = parsePermissionPresets(read(patchPath(activeProfile)));
+      // shows them as a preset picker; here they are two profile rows, and the
+      // *effective* preset is what `defaultPreset` names — not the first row of
+      // the table, which happens to agree only because nobody edits by hand.
+      //
+      // A topic bound to an agent set already runs under a profile of its own
+      // (`aset-profile.mjs`), so there the choice belongs to the set: it moves
+      // this topic and leaves every other topic where it was. An unbound topic
+      // has no such profile, so the write is profile-wide — and says so.
+      const boundId = state.agentsets?.[key] || '';
+      const boundSet = boundId ? agentset().get(boundId) : null;
+      const text = read(patchPath(activeProfile));
+      const table = parsePermissionPresets(text);
       if (!table) {
         say(t(lang, 'ctrl.perm.none', { name: activeProfile }));
         return true;
       }
+      const current = effectivePreset(text);
+      const currentId = boundSet
+        ? String(boundSet.permissions || current?.id || '')
+        : current?.from === 'unknown' ? '' : current?.id || '';
       const wanted = String(arg || '').trim();
       if (!wanted) {
-        const lines = [
-          t(lang, 'ctrl.perm.title', { name: activeProfile }),
-          table.current
-            ? t(lang, 'ctrl.perm.current', { name: table.current })
-            : t(lang, 'ctrl.perm.noCurrent'),
-        ];
+        const lines = [t(lang, 'ctrl.perm.title', { name: activeProfile })];
+        if (boundSet) lines.push(t(lang, 'ctrl.perm.topicTitle', { name: boundSet.name || boundSet.id }));
+        if (currentId) lines.push(t(lang, 'ctrl.perm.current', { name: currentId }));
+        else if (current?.from === 'unknown') lines.push(t(lang, 'ctrl.perm.broken', { name: current.id }));
+        else lines.push(t(lang, 'ctrl.perm.noCurrent'));
         for (const preset of table.presets) {
-          const mark = preset.id === table.current ? '*' : ' ';
-          lines.push(`  ${mark} ${preset.id}${preset.sandbox ? ` — ${preset.sandbox}, ${preset.approval || '?'}` : ''}`);
+          const mark = preset.id === currentId ? '*' : ' ';
+          // A chat has no approval channel: `ask` fails closed at spawn, so the
+          // preset is listed with the reason instead of looking selectable.
+          const note = preset.approval === 'ask' ? t(lang, 'ctrl.perm.needsApproval') : '';
+          lines.push(`  ${mark} ${preset.id}${preset.sandbox ? ` — ${preset.sandbox}, ${preset.approval || '?'}` : ''}${note}`);
         }
         if (table.presets.length === 0) lines.push(t(lang, 'ctrl.perm.noPresets'));
-        lines.push(t(lang, 'ctrl.perm.hint'));
+        lines.push(t(lang, boundSet ? 'ctrl.perm.hintTopic' : 'ctrl.perm.hint'));
         say(lines.join('\n'));
         return true;
       }
-      if (!table.presets.some((preset) => preset.id === wanted)) {
+      const chosen = table.presets.find((preset) => preset.id === wanted);
+      if (!chosen) {
         say(t(lang, 'ctrl.perm.unknown', {
           name: wanted,
           list: table.presets.map((preset) => preset.id).join(', '),
         }));
         return true;
       }
-      if (wanted === table.current) {
+      if (chosen.approval === 'ask') {
+        say(t(lang, 'ctrl.perm.cannotAsk', { name: wanted }));
+        return true;
+      }
+      if (wanted === currentId) {
         say(t(lang, 'ctrl.perm.already', { name: wanted }));
         return true;
       }
-      const next = setRowConfig(read(patchPath(activeProfile)), {
-        pkg: '@deepseek-ai/dsh-permission-presets', path: ['defaultPreset'], value: wanted,
-      });
-      if (!next) { say(t(lang, 'ctrl.perm.already', { name: wanted })); return true; }
+      if (boundSet) {
+        const result = agentset().put({ ...boundSet, permissions: wanted });
+        if (!result.ok) {
+          say(t(lang, 'ctrl.set.failed', { error: result.error || '?' }));
+          return true;
+        }
+        ctx.saveState();
+        say(t(lang, 'ctrl.perm.setTopic', { name: wanted, set: boundSet.name || boundSet.id }));
+        return true;
+      }
+      // One writer for both rows: the preset and the sandbox mode it stands for.
+      const next = setPermission(text, { preset: wanted });
+      if (!next || next === text) { say(t(lang, 'ctrl.perm.already', { name: wanted })); return true; }
       writePatch(activeProfile, next);
       say(t(lang, 'ctrl.perm.set', { name: wanted, profile: activeProfile }));
       return true;

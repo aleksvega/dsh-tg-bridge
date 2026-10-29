@@ -32,6 +32,8 @@ import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, reasoningOf, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
+import { resolveCd } from './cd-path.mjs';
+import { permissionEnabled } from '../permission-rows.mjs';
 
 export async function handleSessionCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
@@ -186,9 +188,16 @@ export async function handleSessionCommands(ctx) {
     }
     case '/cd': {
       // Bind THIS topic to a project directory. Every later turn in the topic
-      // spawns the CLI with that cwd, so "work in my-app" stops
-      // meaning "cd ... in every single command".
-      const wanted = (arg || '').trim().replace(/^"|"$/g, '');
+      // spawns the CLI with that cwd, so "work in my-app" stops meaning
+      // "cd ... in every single command".
+      //
+      // The same binding also narrows the host sandbox: the topic's derived
+      // profile gets `workspaceRoot` = this directory, so a write outside it is
+      // refused by the host, not discouraged by a prompt. `/cd <dir> wide` keeps
+      // the old, profile-wide boundary for a topic that genuinely needs it.
+      const parts = String(arg || '').trim().split(/\s+/).filter(Boolean);
+      const wide = parts.length > 1 && parts[parts.length - 1].toLowerCase() === 'wide';
+      const wanted = (wide ? parts.slice(0, -1).join(' ') : parts.join(' ')).replace(/^"|"$/g, '');
       state.cwd = state.cwd || {};
       if (!wanted) {
         // A topic without its own directory still has one: the bridge default.
@@ -199,10 +208,13 @@ export async function handleSessionCommands(ctx) {
           current
             ? `${current}${state.cwd[key] ? '' : t(lang, 'ctrl.cd.defaultSuffix')}`
             : t(lang, 'ctrl.cd.unset'),
-          '',
-          t(lang, 'ctrl.cd.bind'),
-          t(lang, 'ctrl.cd.resetHint'),
         ];
+        if (state.cwd[key]) {
+          lines.push(state.wide?.[key]
+            ? t(lang, 'ctrl.cd.boundWide')
+            : t(lang, 'ctrl.cd.boundNarrow'));
+        }
+        lines.push('', t(lang, 'ctrl.cd.bind'), t(lang, 'ctrl.cd.resetHint'));
         try {
           const dirs = readdirSync(config.projectsDir || join(HOME, 'Projects'), { withFileTypes: true })
             .filter((entry) => entry.isDirectory())
@@ -214,23 +226,51 @@ export async function handleSessionCommands(ctx) {
       }
       if (wanted === 'reset') {
         delete state.cwd[key];
+        if (state.wide) delete state.wide[key];
         ctx.saveState();
         say(t(lang, 'cmd.cd.reset'));
         return true;
       }
-      let target = wanted;
-      // Bare project name -> resolve under ~/Projects for convenience.
-      if (!/^[A-Za-z]:|^\//.test(target)) {
-        const guess = join(HOME, 'Projects', target);
-        if (existsSync(guess)) target = guess;
-      }
-      if (!existsSync(target)) {
-        say(t(lang, 'cmd.cd.none', { path: target }));
+      // Resolution lives in `cd-path.mjs`: a pure table of the ways a person
+      // spells a directory, so "is it a file?" and "did it try Projects?" are
+      // tested instead of discovered in a turn that spawns in the wrong place.
+      const resolved = resolveCd(wanted, {
+        home: HOME,
+        projectsDir: config.projectsDir || join(HOME, 'Projects'),
+        configCwd: config.cwd || HOME,
+        probe: (path) => {
+          try {
+            return statSync(path).isDirectory() ? 'dir' : 'file';
+          } catch {
+            return 'none';
+          }
+        },
+      });
+      if (resolved.error === 'notdir') {
+        say(t(lang, 'cmd.cd.file', { path: resolved.path }));
         return true;
       }
-      state.cwd[key] = target;
+      if (resolved.error) {
+        say(t(lang, 'cmd.cd.none', { path: resolved.path }));
+        return true;
+      }
+      state.cwd[key] = resolved.path;
+      state.wide = state.wide || {};
+      if (wide) state.wide[key] = true;
+      else delete state.wide[key];
       ctx.saveState();
-      say(t(lang, 'cmd.cd.bound', { path: target }));
+      // Say which boundary the topic now has. "Bound" alone reads as "the agent
+      // may write here", and with `wide` that would be the opposite of the truth.
+      // The boundary only exists when the profile can express one; reading the
+      // patch here keeps this file out of the profile module's import cycle.
+      let narrow = false;
+      try {
+        const patch = readFileSync(join(DSH_HOME, 'profiles', activeProfile, 'cordis.patch.yml'), 'utf8');
+        narrow = permissionEnabled(patch);
+      } catch {
+        narrow = false;
+      }
+      say(t(lang, narrow ? 'cmd.cd.boundNarrow' : 'cmd.cd.bound', { path: resolved.path }));
       return true;
     }
     case '/menu': {
