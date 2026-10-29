@@ -1,5 +1,19 @@
 # Tasks — topic workspace, per-topic permissions, bug reports
 
+## 0. Write the two rows together, always
+
+- [ ] 0.1 `patch-rows.mjs`: one `setPermission(patch, preset, workspaceRoot)` that
+  writes `defaultPreset` **and** the `sandbox-policy` row (`mode` from the
+  chosen preset, `workspaceRoot`), so the file cannot end up disagreeing with
+  itself.
+- [ ] 0.2 `test/patch-rows.test.mjs`: after a call, both rows name the same mode;
+  a patch that had only one row gains the other.
+- [ ] 0.3 Startup check: `defaultPreset` missing from the table is a refusal at
+  boot with one line, not a turn that dies on its first tool call.
+- [ ] 0.4 `/permissions` reads the *effective* preset from `defaultPreset` (today
+  it reads the table and the table's current value — the same thing only
+  because nobody edits the row by hand).
+
 ## 1. Make the boundary real before making it settable
 
 - [ ] 1.1 `aset-profile.mjs`: accept `workspace` in a set; hash it into
@@ -32,6 +46,12 @@
   the derived profile's row, not the base one.
 - [ ] 3.3 Test: two topics, different presets, two derived profiles, neither
   reading the other's row.
+- [ ] 3.4 Only presets that can work without an approval channel are offered in
+  a chat (`never`); a preset with `approval: ask` is listed with the reason it
+  cannot be used yet, and becomes selectable when task 23 lands.
+- [ ] 3.5 Measured evidence in the test's comment: the three experiments from
+  `design.md` (sandbox row ignored, preset wins, root holds) — a future change
+  that flips this must fail a test, not a user's turn.
 
 ## 4. Bug reports that arrive as data
 

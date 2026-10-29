@@ -1,115 +1,115 @@
-# Design: where a workspace ends and a permission begins
+# Design: the permission model, as the host actually implements it
 
-## The two knobs are not the same knob
+Everything below was observed on a live profile with `dsh --patch`, not read off
+a docs page. Each claim names the experiment that produced it.
 
-`cwd` is where the process starts. `workspaceRoot` + `sandbox` is what it may
-reach. The bridge has always set the first and inherited the second, and that
-asymmetry is the whole bug:
-
-```
-cwd          = Projects/latin-bot      ← where the turn starts
-workspaceRoot= C:/Users/bistr          ← what the turn may write
-sandbox      = danger-full-access      ← and the mode ignores the root anyway
-```
-
-A model that decides `Projects/game/README.md` is "the file it needs" is not
-misbehaving; it is using the permissions it was given. Fixing the prompt cannot
-fix that. Only the pair `(sandbox, workspaceRoot)` can.
-
-## What the host actually offers
-
-Read from the shipped bundle (`app.asar`) and the live profile, not from docs:
-
-| Row | Key | Values seen |
-| --- | --- | --- |
-| `@deepseek-ai/dsh-sandbox-policy` | `mode` | `read-only`, `workspace-write`, `danger-full-access` |
-| | `workspaceRoot` | any directory |
-| `@deepseek-ai/dsh-user-approval` | `policy` | `never`, and the interactive policies the desktop uses |
-| `@deepseek-ai/dsh-permission-presets` | `presets.<id>.{sandbox,approval}` | a table; `defaultPreset` picks one |
-
-The live profile currently pins `mode: danger-full-access` **and**
-`defaultPreset: danger-full-access`. Two places agree on the widest setting,
-which is why `/permissions` alone would not have narrowed anything: the row the
-preset service reads and the row the sandbox service reads are different rows,
-and the current patch sets both.
-
-`provider api` values the host knows: `openai-completions`,
-`openai-responses`, `anthropic-messages`, `google-generative-ai`. The bridge's
-`providerFor()` only passes the value through, so a profile may already declare
-any of them; no code change is needed to *use* an Anthropic-shaped route, only a
-row in the profile.
-
-## Where the per-topic decision lives
-
-DSH has no per-topic override — one turn runs under one profile. So a topic's
-workspace and preset are materialised into a derived profile, exactly as
-`/crew` does for a model (`aset-profile.mjs`):
+## Two rows that look like one
 
 ```
-base profile  ──overlay rows──►  aset-<hash>/
-  cordis.patch.yml               cordis.patch.yml  (sandbox-policy row replaced,
-                                                    permission row replaced)
-  node_modules ─────────────────► junction, same plugins
+- id: sandbox-policy            ← mode + workspaceRoot
+  name: '@deepseek-ai/dsh-sandbox-policy'
+- id: permission                ← presets + defaultPreset
+  name: '@deepseek-ai/dsh-permission-presets'
 ```
 
-The derived name already hashes `permissions`, so adding `workspace` to the hash
-material is enough for a changed directory to produce a different profile and a
-stale one to be pruned by `pruneDerived`.
+It is natural to read the first as the setting and the second as a menu of
+alternatives. The experiments say the opposite: **`defaultPreset` is what the
+turn runs under, and the `sandbox-policy` row is overwritten by it at boot.**
 
-`turn.mjs` passes `cwd` independently. Both are needed: `cwd` for relative paths
-and the session's identity, `workspaceRoot` for the boundary. A topic whose
-`cwd` is outside its own `workspaceRoot` is a configuration error and must be
-refused loudly at `/cd` time, not discovered mid-turn.
+| Patch under test | `sandbox-policy.mode` | `defaultPreset` | A write outside the root |
+| --- | --- | --- | --- |
+| A | `read-only` | `danger-full-access` | **succeeded** |
+| B | `danger-full-access` | `read-only` | **denied**: `[sandbox: file access denied under read-only mode]` |
+| C | `workspace-write` | `workspace-write` | denied outside, allowed inside |
 
-## The direction of failure
+Experiment A is the one that matters. A profile that says `read-only` in the row
+a reader would call "the sandbox setting" still wrote
+`<home>\sandbox-probe-outside.txt`, and the turn's own system prompt
+reported the session policy as `danger-full-access`. The permission service
+wins; the sandbox row is a default for a profile that has no permission table.
 
-| Failure | Today | Must be |
-| --- | --- | --- |
-| overlay cannot be written | turn runs on base preset (wide) | turn refuses with one line naming the preset it could not apply |
-| bound `cwd` deleted | silently falls back to `config.cwd` (`turn.mjs:39`) | turn refuses and says the directory is gone |
-| `/cd` to a path outside the profile root | accepted | accepted, but the topic's `workspaceRoot` widens with it — and the chat says so |
+The live profile has both set to `danger-full-access`, so nothing contradicts
+nothing — which is exactly why the bug was invisible.
 
-The first row is the one that matters: a permissions feature whose failure mode
-is "run unconfined" is worse than no feature, because it teaches people to trust
-it.
+## `workspaceRoot` is the boundary, and it holds
 
-## What `/cd` has to survive
+With `workspace-write` and `workspaceRoot: .../dsh-tg-bridge-oss`:
 
-The current test set (`cmd-session.mjs:187`) resolves a bare name under
-`~/Projects`, treats anything matching `^[A-Za-z]:|^/` as absolute, and accepts
-whatever `existsSync` says. On POSIX the drive-letter branch is dead weight; on
-Windows a path like `\\server\share` (UNC) is neither. The rule that replaces it:
+- writing inside the root: allowed, no prompt;
+- writing `.../latvian-b1/outside-probe.txt`:
+  `[sandbox: file access denied under workspace-write mode]`;
+- calling `working-directory` to switch the turn to `latvian-b1` and then
+  writing there: the switch reports OK, **the write is still denied**. The
+  boundary follows the configured root, not the turn's current directory.
 
-1. `reset` → unbind.
-2. An existing absolute path (Windows drive, UNC, POSIX) → use as-is.
-3. A bare name → `~/Projects/<name>`, then `config.cwd/<name>`.
-4. Anything else → one line saying what was tried, not a silent fallback.
+That last row is the answer to "the model wanders into another project": with
+the root set per topic, a wander is a refusal, not a write.
 
-Case 4 is the honest one: today a typo produces "path not found: <path>" with
-the *resolved* path, which is fine, but a path that exists and is a file (not a
-directory) is accepted and then fails inside the turn.
+## Approval is unavailable in a headless turn
 
-## Reports: what leaves the machine
+With `approval: ask`, an out-of-root write fails closed:
 
-A report is a file, because a screenshot of a stack trace is not data. Contents:
+```
+Error: sandbox escalation to "danger-full-access" requires approval,
+but no approval channel is available
+```
 
-- bridge version, host version, platform, profile name, model, chain position;
-- the failing turn's last N log lines, with `token`, `apiKey`, `Bearer`,
-  any `*_API_KEY` value and the home directory replaced by `<home>`;
-- the names of the tools the turn called — never their arguments, which is where
-  a person's file contents and secrets live.
+A headless turn has nobody to ask. So `ask` is not a middle setting in Telegram
+— it is a synonym for "deny, with a longer error". The only honest choices in a
+chat are a preset that needs no approval, or a button that answers the prompt.
+That is why the per-topic preset (task 31) and the approval card (task 23) are
+one feature, not two: without the card, `ask` is a dead option, and without the
+preset, the card has nothing per-topic to switch.
 
-Redaction runs before the file is written, and `scan-secrets.mjs` runs over the
-produced fixture in a test, so a pattern that slips through fails the suite
-rather than a stranger's inbox.
+## So what `/permissions` does today
 
-## Alternatives considered
+`cmd-agents.mjs:255` reads the preset table of the **profile**, lists it, and
+writes `defaultPreset` into that same profile. Because `defaultPreset` is the
+effective knob, the command works — but it works on *every topic at once*, and
+the reply says so. That is a real command with a real effect and the wrong
+scope.
 
-- **Ask the model to stay in its directory.** Rejected: a prompt is not a
-  boundary, and the complaint is precisely that a model wandered.
-- **One profile per topic, always.** Rejected: a profile copy per topic is a
-  directory per topic, and most topics need no override at all. Derived-only
-  keeps the default case free.
-- **Ship the chain presets in the repo.** Rejected: vendor names and keys are
-  personal data; the repo's own portability scan forbids them outside the
-  CHANGELOG.
+## The shape the bridge should have
+
+```
+topic ──bind──► workspace (a directory)      ← /cd, tested per platform
+  │
+  └──preset──► (sandbox, approval)           ← per-topic, derived profile
+                 │
+                 └─ sandbox-policy row rewritten to the same mode,
+                    workspaceRoot = the bound directory
+```
+
+Both rows must be written together, because a reader — and the boot sequence —
+will believe whichever one it looks at. A derived profile that sets only
+`defaultPreset` leaves a `sandbox-policy` row claiming something else, and the
+next person to debug this reads the wrong row, as I did.
+
+## Failure directions
+
+| Failure | Must do |
+| --- | --- |
+| derived profile cannot be written for a narrower preset | refuse the turn, name the preset |
+| derived profile cannot be written for a wider preset | run the base preset and say the wider one did not apply |
+| bound directory missing | refuse, name it (today: silent fallback to `config.cwd`) |
+| `defaultPreset` names a preset the table lacks | refuse at boot, not at the first tool call |
+
+## Non-goal: `ask` without a channel
+
+Shipping `approval: ask` in a headless profile produces a permission system that
+can only say no. Until a turn can put a button in the chat, the bridge offers
+`read-only`, `workspace-write` and `danger-full-access`, all with `never`, and
+says in one line what `danger-full-access` means.
+
+## What the profile says now, and what it should say
+
+```
+today                                   after
+mode: danger-full-access                mode: workspace-write
+workspaceRoot: <home>                   workspaceRoot: <the topic's project>
+approval.policy: never                  approval.policy: never
+defaultPreset: danger-full-access       defaultPreset: workspace-write
+```
+
+The two rows must agree. If only `defaultPreset` moves, the file lies; if only
+`sandbox-policy` moves, the file is ignored. Both, or neither.

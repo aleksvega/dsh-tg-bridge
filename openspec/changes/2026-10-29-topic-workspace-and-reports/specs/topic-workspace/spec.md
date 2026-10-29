@@ -2,6 +2,25 @@
 
 ## ADDED Requirements
 
+### Requirement: The two permission rows agree
+
+A profile the bridge writes SHALL carry the same mode in `defaultPreset`'s entry
+and in the `sandbox-policy` row, because the permission table decides what a turn
+runs under and the sandbox row is otherwise a comment that lies.
+
+#### Scenario: A preset is applied
+
+- **WHEN** the bridge writes a permission preset into a profile
+- **THEN** `defaultPreset` names that preset, the preset's `sandbox` equals the
+  `sandbox-policy.mode` line, and a test asserts both
+
+#### Scenario: Only one row is present
+
+- **WHEN** a profile has a permission table but no `sandbox-policy` row, or the
+  reverse
+- **THEN** the bridge writes the missing row in the same edit, so the file never
+  describes two different policies
+
 ### Requirement: A bound topic writes only its own directory
 
 A turn whose topic is bound to a directory SHALL run under a `workspaceRoot`
@@ -75,3 +94,21 @@ that would allow it, never as a generic turn failure.
 - **WHEN** the host refuses a write because of the preset
 - **THEN** the chat shows which path was refused and which preset refused it,
   with a button that opens the preset choice for this topic
+
+### Requirement: An unusable preset is not offered as a choice
+
+A preset whose `approval` is `ask` SHALL NOT be presented as selectable in a
+chat until a turn can put the approval question in front of the person, because
+a headless turn fails closed and the choice would read as a lie.
+
+#### Scenario: `ask` is listed but not offered
+
+- **WHEN** the permission table contains a preset with `approval: ask`
+- **THEN** `/permissions` lists it with the reason it cannot be used yet, and
+  refuses to set it
+
+#### Scenario: The approval channel exists
+
+- **WHEN** a turn can ask the person through a chat button
+- **THEN** `ask` presets become selectable, and the refusal above is removed in
+  the same change that adds the button

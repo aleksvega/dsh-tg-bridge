@@ -8,15 +8,21 @@ Telegram today, and one of them is already causing damage.
 | Question | What the code does now | What that means |
 | --- | --- | --- |
 | Which folder does this topic work in? | `state.cwd[key]`, set by `/cd`, passed to the CLI as `cwd` (`turn.mjs:39`) | works, but has no test, and a stale path silently falls back to `config.cwd` |
-| What may a turn touch? | one profile-wide table, `defaultPreset: danger-full-access`, `workspaceRoot: C:/Users/bistr` | **every topic may write every project in the home directory** — the reported "the Latin-bot project reaches into the game project" |
+| What may a turn touch? | one profile-wide table, `defaultPreset: danger-full-access`, `workspaceRoot: <home>` | **every topic may write every project in the home directory** — the reported "the Latin-bot project reaches into the game project" |
 | Where does a user's error go? | `/logs` on the owner's machine, `bridge.log` | a stranger has to retype a stack trace into a chat, and the owner cannot reproduce it |
 
-The sandbox row is the real fault. Its comment claims "home-wide writes only …
-cannot touch C:\Windows", and that is true — but "home-wide" is the whole point
-of the complaint. `workspaceRoot` is one directory for the entire install, so a
-per-topic `cwd` decides where a turn *starts*, never what it may *reach*: a turn
-bound to `Projects/latin-bot` may still write `Projects/game` with one absolute
-path. `danger-full-access` makes that path legal everywhere.
+The sandbox row is the real fault, and the experiments found a second one behind
+it: the row that *looks* like the setting is not the setting. `defaultPreset` in
+the permission table is what a turn runs under; the `sandbox-policy.mode` row is
+overwritten at boot. A profile that says `mode: read-only` and
+`defaultPreset: danger-full-access` still writes anywhere — measured, not
+assumed. Both rows must therefore be written together, by one function.
+
+`workspaceRoot` is one directory for the entire install, so a per-topic `cwd`
+decides where a turn *starts*, never what it may *reach*: a turn bound to
+`Projects/latin-bot` may still write `Projects/game` with one absolute path.
+`danger-full-access` makes that path legal everywhere. With `workspace-write`
+and the root set to one project, the same write is refused — also measured.
 
 ## What changes
 
