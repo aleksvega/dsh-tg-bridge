@@ -97,3 +97,32 @@ test("the notes switch answers in the language of the topic, at every end", asyn
     }
   }
 });
+
+test("the pin switch answers in every language, and a bare one changes nothing", async () => {
+  // Same lesson as the notes switch: the command was added after the surface
+  // walk was written, so the walk only covers it if it is spelled out here.
+  for (const lang of LANGS) {
+    for (const arg of ["", "on", "off"]) {
+      const said = [];
+      const ctx = {
+        command: "/pin", arg, text: `/pin ${arg}`.trim(), lang, chatId: 1, threadId: 0, key: "3:0",
+        state: { sessions: {}, lang: {} }, config: { profile: "headless", lang },
+        activeTurns: new Map(), saveState: () => {}, log: () => {}, send: (s) => said.push(String(s)),
+        reply: (s) => said.push(String(s)), api: async () => ({}), sendFile: async () => {},
+        stopTurn: () => false,
+      };
+      await handleControl(ctx);
+      const where = `/pin ${arg || "(bare)"} in ${lang}`;
+      const text = said.join("\n");
+      // Not "longer than ten characters": the same sentence is a third of the
+      // length in Chinese, and this walk failed on a correct `msg.pinOff`
+      // because a character count is the wrong way to ask "did it say anything".
+      // An answer that is only its own key is what silence looks like here, and
+      // the assertion below catches exactly that.
+      assert.ok(text.trim().length > 0, `${where} said nothing`);
+      assert.ok(!/\b(msg|ctrl|settings)\.[a-z]/i.test(text), `${where} shows a raw key`);
+      if (lang !== "ru") assert.doesNotMatch(text, cyrillic, `${where} answered in Russian`);
+      assert.equal(ctx.state.pin?.["3:0"], arg === "" ? undefined : arg, `${where} stored the wrong mode`);
+    }
+  }
+});
