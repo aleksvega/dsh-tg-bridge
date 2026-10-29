@@ -7,10 +7,11 @@ import { isFallbackPress, pressTarget } from './fallback-card.mjs';
 import { progressOf, toggleTask } from './goals.mjs';
 import { handleMessage } from './handle-message.mjs';
 import { resolveLang, t } from './i18n.mjs';
+import { handleLoadPress } from './load-guard.mjs';
 import { sessionKey } from './keys.mjs';
 import { commandForName, isMenuPress, menuTarget, renderPanel, runsUnasked } from './menu-card.mjs';
 import { DIR, DSH_HOME, LOG } from './paths.mjs';
-import { approvals, enqueue, lastPrompt, maxParallel, rewindUsed } from './queue.mjs';
+import { approvals, enqueue, lastPrompt, maxParallel, redeliver, rewindUsed } from './queue.mjs';
 import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { runCommandFromButton } from './run-command.mjs';
@@ -150,6 +151,13 @@ export async function handleCallback(query) {
   if (data.startsWith('jb:')) {
     await clearKeyboard();
     await runCommandFromButton(`/jobs ${data.slice(3)}`, { chatId, threadId, key });
+    return;
+  }
+
+  // A button on the load card, or on the notice that held a prompt back. Both
+  // are `/load` verbs, so the tap and the typed command run the same code.
+  if (data.startsWith('ld:')) {
+    await handleLoadPress({ data, key, t, lang, answer, clearKeyboard, redeliver, runCommandFromButton, chatId, threadId, log });
     return;
   }
 

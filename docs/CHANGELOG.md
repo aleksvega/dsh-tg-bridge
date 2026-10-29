@@ -1,5 +1,51 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.27.0
+
+- **A restart no longer leaves other topics guessing.** `/restart confirm` now
+  records which turns it is about to kill, and the new process posts one line in
+  each of those topics: the turn was stopped, the session is intact, send the
+  message again. Before, the card there stayed on ⏳ forever and nothing said why.
+  The note itself had been written to the wrong directory since it was introduced
+  (`control/` instead of the bridge root), so even the "back online" confirmation
+  after a restart was silently lost — that is fixed too.
+- **`/fallback test` measures the wait, not just the verdict.** Each live route
+  now reports milliseconds to the first token and the fastest one is named once.
+  Two routes that both answer are not equally good, and the head of the chain is
+  chosen on that number. A route that did not answer prints no time, so
+  `no balance · 120 ms` can never read as "works, just slow". The probe streams
+  and stops at the first chunk; a provider that ignores `stream` is still read as
+  the plain JSON answer it is.
+- **`/fallback first <provider>/<model>`** puts a route at the head of the chain,
+  or moves it there if it is already in the list. `add` appends, which is right
+  for a spare and wrong for the route that should answer before the primary:
+  moving it up eight times was eight presses and a guess about where the head is.
+- **`/model provider/model` moves the route as well as the model.** Asking for
+  the same model on a different provider used to rewrite only the model name and
+  silently keep the old host — the one case where "I changed the model" and "the
+  answers come from somewhere else now" are different claims. The reply now names
+  the route the patch actually carries, and a provider the profile does not
+  declare is refused before the file is touched.
+- **A flaky album test is no longer flaky.** Its quiet window was 60 ms against
+  10 ms gaps, so a busy machine failed a test about ordering because of the clock.
+- **`/stop` stops looking like a crash.** A turn killed on purpose was reported as
+  a failure, twice over: the card said «сбой хода», and the sentence underneath
+  read `CLI завершился с кодом {code} без вывода` — with the placeholder still in
+  it, because a killed child reports `code === null` and the formatter only fills
+  the variables it is given a value for. A deliberate stop is now its own outcome
+  (`turn-outcome.mjs`), the card says the turn stopped and the session is intact,
+  and an unknown exit code prints as `?` rather than as `{code}`.
+- **`/load`: the machine's own numbers, and a limit that holds a turn.** This
+  bridge runs on somebody's desktop, next to whatever else that desktop is for. The
+  card shows free space on the disk the topic writes to, free RAM, average CPU
+  since the last reading, how many turn slots are busy and how many prompts are
+  waiting — the one row Task Manager cannot answer, because it sees Electron
+  children and not Telegram topics. `/load on` makes a prompt that arrives while
+  the machine is over a limit wait instead of starting: the message is kept, not
+  refused, and one press sends it anyway. Limits are `/load limit cpu 80`,
+  `limit ram 10`, `limit disk 20`; the guard ships off, so an upgrade never holds
+  a turn nobody asked it to hold.
+
 ## 1.26.1
 
 - **The card's buttons work again.** 1.26.0 taught a switch press which page to

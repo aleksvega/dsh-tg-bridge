@@ -62,6 +62,9 @@ const VERDICT = {
   busy: 'busy',
   network: 'network',
   missing: 'missing',
+  // A 200 with no body: the route took the request and said nothing. Saying "ok"
+  // there is how a dead channel looks healthy on the card.
+  empty: 'empty',
 };
 
 export async function handleFallbackCommands(ctx) {
@@ -190,6 +193,49 @@ export async function handleFallbackCommands(ctx) {
       return true;
     }
 
+    // A route the person wants tried FIRST, not appended.
+    //
+    // `add` puts a route at the tail, which is right for a spare and wrong for
+    // the one that should answer when the primary is busy: moving it up eight
+    // times is eight presses, and the last one is always a guess about where the
+    // head is. This is `add` plus "put it in front", in one word.
+    case 'first':
+    case 'head': {
+      const route = splitRoute(rest.join(' '));
+      if (!route.model) {
+        say(t(lang, 'ctrl.fallback.addUsage'));
+        return true;
+      }
+      const known = providerIds(activeProfile);
+      const provider = route.provider || known[0] || '';
+      if (!known.includes(provider)) {
+        say(t(lang, 'ctrl.fallback.unknownProvider', { name: provider || '?', list: known.join(', ') }));
+        return true;
+      }
+      const full = `${provider}/${route.model}`;
+      // Already in the chain: move it instead of adding a twin. Two entries of
+      // one route would be tried twice for the same failure.
+      const existing = chain.findIndex((item) => item.provider === provider && item.model === route.model);
+      if (existing === 0) {
+        say(t(lang, 'ctrl.fallback.alreadyFirst', { route: full }));
+        return true;
+      }
+      if (existing > 0) {
+        const [moved] = chain.splice(existing, 1);
+        chain.unshift(moved);
+        done('ctrl.fallback.moved', { route: labelOf(moved), n: 1 });
+        return true;
+      }
+      const patch = join(DIR, overlayName({ provider, model: route.model }));
+      writeFileSync(patch, overlayText({ provider, model: route.model }), 'utf8');
+      const fresh = { provider, model: route.model, patch };
+      if (/:free$/i.test(route.model)) fresh.free = true;
+      chain.unshift(fresh);
+      log(`fallback: added ${full} at the head (${patch})`);
+      done('ctrl.fallback.addedFirst', { route: full });
+      return true;
+    }
+
     // A probe proves the key works, not that this conversation is acceptable: the
     // hint says so, because "route is fine" beside a 400 would be a lie.
     //
@@ -217,8 +263,8 @@ export async function handleFallbackCommands(ctx) {
       }));
       const rows = targets.map((item) => {
         const verdict = verdicts.get(item) || { kind: 'other' };
-        log(`fallback probe ${labelOf(item)}: ${verdict.kind}${verdict.detail ? ` (${String(verdict.detail).slice(0, 80)})` : ''}`);
-        return { n: chain.indexOf(item) + 1, route: labelOf(item), kind: VERDICT[verdict.kind] || 'other' };
+        log(`fallback probe ${labelOf(item)}: ${verdict.kind} ${verdict.ms || 0}ms${verdict.detail ? ` (${String(verdict.detail).slice(0, 80)})` : ''}`);
+        return { n: chain.indexOf(item) + 1, route: labelOf(item), kind: VERDICT[verdict.kind] || 'other', ms: verdict.ms };
       });
       // One way back to the card: the probe answer is long, and the person who
       // just learned route 4 is dead wants the list, not a typed command.

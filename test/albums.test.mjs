@@ -9,14 +9,18 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('items of one album arrive as a single batch, in order', async () => {
   const flushed = [];
-  const buffer = createAlbumBuffer({ quietMs: 60, maxMs: 600, onFlush: (items, key) => flushed.push([key, items]) });
+  // The window is deliberately wider than the gaps between the pushes. It used to
+  // be 60 ms against 10 ms gaps, which passed until the machine was busy: one
+  // stalled tick and the first item flushed alone, failing a test about ordering
+  // because of the clock rather than the code.
+  const buffer = createAlbumBuffer({ quietMs: 200, maxMs: 2000, onFlush: (items, key) => flushed.push([key, items]) });
   buffer.push('chat:1', 'a');
   await sleep(10);
   buffer.push('chat:1', 'b');
   await sleep(10);
   buffer.push('chat:1', 'c');
   assert.equal(buffer.pending(), 1);
-  await sleep(200);
+  await sleep(600);
   assert.equal(buffer.pending(), 0);
   assert.deepEqual(flushed, [['chat:1', ['a', 'b', 'c']]]);
 });

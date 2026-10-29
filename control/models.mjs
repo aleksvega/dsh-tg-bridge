@@ -5,6 +5,7 @@
 import { copyFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { t } from '../i18n.mjs';
+import { providerRows } from '../model-probe.mjs';
 import { PROFILES } from '../paths.mjs';
 
 export const read = (path) => {
@@ -134,15 +135,40 @@ export function modelsReport(lang, profile) {
   ].join('\n');
 }
 
-/** Rewrite the default model of a profile; returns false for an unknown id. */
+/**
+ * Rewrite the default model of a profile; returns false for an unknown id.
+ *
+ * `provider/model` moves the route as well as the model. Without that a person
+ * who wants the SAME model on a different router has no way to say so: `/model
+ * deepseek-v4.1-flash` keeps whatever provider the patch already had, so the
+ * switch silently keeps the slow host — the one case where "I changed the model"
+ * and "the answers come from somewhere else now" are different claims.
+ */
 export function setModel(profile, wanted) {
+  const text0 = String(wanted || '').trim();
+  const slash = text0.indexOf('/');
+  const provider = slash > 0 ? text0.slice(0, slash) : '';
+  const model = slash > 0 ? text0.slice(slash + 1) : text0;
+  if (!model) return false;
   const ids = modelsOf(profile);
-  if (ids.length > 0 && !ids.includes(wanted)) return false;
+  if (ids.length > 0 && !ids.includes(model)) return false;
   const path = patchPath(profile);
   const text = read(path);
-  const re = /(- id: agent-default-model[\s\S]*?^\s+model:\s*)(\S+)/m;
-  if (!re.test(text)) return false;
-  writeFileSync(path, text.replace(re, `$1${wanted}`), 'utf8');
+  // A provider the profile does not declare cannot boot the turn: writing it
+  // anyway would leave a patch that looks edited and a bot that cannot answer,
+  // so the row is checked before the file is touched.
+  if (provider && !providerRows(text).some((row) => row.id === provider)) return false;
+  const block = /- id: agent-default-model[\s\S]*?(?=\n- id:|\n- insert:|$)/.exec(text);
+  if (!block) return false;
+  // Provider first, then model: both live in the same block, and replacing the
+  // block wholesale would drop `reasoningEffort` and anything else a person set.
+  let next = block[0].replace(/^(\s+model:\s*)\S+/m, `$1${model}`);
+  if (provider) {
+    if (/^\s+provider:\s*\S+/m.test(next)) next = next.replace(/^(\s+provider:\s*)\S+/m, `$1${provider}`);
+    else next = next.replace(/^(\s+model:\s*\S+)/m, `$1\n    provider: ${provider}`);
+  }
+  if (next === block[0]) return false;
+  writeFileSync(path, text.replace(block[0], next), 'utf8');
   return true;
 }
 

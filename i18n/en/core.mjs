@@ -14,7 +14,7 @@ export default {
   'settings.state.on': 'on',
   'settings.state.off': 'off',
   'settings.state.auto': 'auto',
-  'help.body': "Write the task as plain text. Each forum topic is its own session:\n\nWork: /cd \u003cproject\u003e · /new · /stop · /send \u003cfile\u003e · /seed \u003ctext\u003e\nGoals: /goal · /tasks [\u003ctext\u003e|done N] · /tasks (tap to tick)\nSessions: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003cname\u003e\nAgents: /agents · /agents set model|depth|filter … @tool\nModels: /model · /model \u003cid\u003e · /fallback · /prices · /thoughts\nTuning: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind\nExtensions: /skills · /plugins [add|remove] · /soul\nVersions: /update [confirm|on|off|auto] · /subscribe on|off\nOther: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\nPanels: /menu — the same commands as buttons, page by page. /menu on puts four keys under the message field.",
+  'help.body': "Write the task as plain text. Each forum topic is its own session:\n\nWork: /cd \u003cproject\u003e · /new · /stop · /send \u003cfile\u003e · /seed \u003ctext\u003e\nGoals: /goal · /tasks [\u003ctext\u003e|done N] · /tasks (tap to tick)\nSessions: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003cname\u003e\nAgents: /agents · /agents set model|depth|filter … @tool\nModels: /model · /model \u003cid\u003e · /fallback · /load · /prices · /thoughts\nTuning: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind\nExtensions: /skills · /plugins [add|remove] · /soul\nVersions: /update [confirm|on|off|auto] · /subscribe on|off\nOther: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\nPanels: /menu — the same commands as buttons, page by page. /menu on puts four keys under the message field.",
   'settings.reply.title': 'What the bot says',
   'settings.agent.title': 'Who answers, and how hard it works',
   'settings.updates.title': 'New releases (this install, not this topic)',
@@ -98,6 +98,8 @@ export default {
   'steer.ackFallback': '↪ Got the addition — folding it into this turn.',
   'msg.started': 'Telegram bridge for DSH is running (headless). Send a task; /help for commands.',
   'msg.restarted': 'Bridge restarted — back online (pid {pid}).\nThe topic and session are the same; keep going.',
+    'msg.turnStopped': 'Turn stopped. The session is intact — write again to continue from here.',
+  'msg.turnInterrupted': 'The restart stopped the turn that was running here. Send the message again — the session is intact, only this turn is gone.',
   'cmd.restart.prompt': 'To restart the bridge: /restart confirm. For the DSH app: /app restart confirm.',
   'cmd.restart.started': 'Restarting the bridge…',
   'msg.generalGuard': "This is the General topic, where topics are started. {cmd} changes “{topic}”, so open that topic and send it there. Reading works here: /status, /sessions, /stop.",
@@ -250,4 +252,5 @@ export default {
   'bridge.cb.taskDone': 'Done',
   'bridge.cb.taskUndone': 'Reopened',
   'bridge.cb.taskStale': 'That task is gone — /tasks shows the current list',
+  'msg.loadHeld': "Held back: {what}. Nothing was started, so nothing was spent — press «Run anyway» to send it now, or wait until the machine calms down.",
 };

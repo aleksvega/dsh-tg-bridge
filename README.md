@@ -24,6 +24,10 @@ a bot that answers, one step at a time.
   the model's reasoning in a collapsed block you can tap open. A long turn adds a second
   collapsed block with every tool call, so the whole run stays in the chat as one message.
 - **No lost messages**: a journal with acknowledgement and replay.
+- **Knows how busy the computer is**: `/load` shows free space on the topic's disk,
+  free RAM and average CPU, plus how many turns are running and waiting. `/load on`
+  makes a prompt wait instead of starting while the machine is over a limit you set
+  — kept, never refused, and one press sends it anyway.
 - **Settings per topic**: `/crew use reviewer` gives one topic its own model,
   effort, permissions, agent preset and language while the others keep the profile;
   `/crew off` returns it. Four built-in sets ship read-only and can be copied.
@@ -172,7 +176,8 @@ card so the distinction is visible instead of guessed.
 /fallback use 3 | skip 3  one route back in or out
 /fallback up 3 | down 3   move a route in the order
 /fallback test [3]        ask each route (or one) with a 1-token request
-/fallback add <provider>/<model>   write an overlay and append the route
+/fallback add <provider>/<model>     write an overlay and append the route
+/fallback first <provider>/<model>   put it at the head: tried before every other route
 /fallback remove 3        drop a route from the list (its overlay file stays)
 ```
 
@@ -181,6 +186,18 @@ it, and the card redraws in place after each press. `test` proves the key and th
 channel are alive — not that the provider accepts this conversation, so a route
 can answer `ping` and still refuse a long prompt with a 400. The card says that
 in as many words.
+
+`test` also times each route: how long it takes to produce the first token, and
+which live route is fastest right now. Two routes that both answer are not
+equally good — 400 ms and 9 s feel like different products — and the head of the
+chain is the one a person picks on that number. A route that did not answer
+prints no time, so `no balance · 120 ms` can never read as "works, just slow".
+
+`first` exists because `add` appends: when the route you want should answer
+*before* the primary, appending it means moving it up eight times and guessing
+where the head is. `/fallback first router-a/deepseek-v4.1-flash` writes the
+same overlay and puts it at position 1 — or moves it there if it is already in
+the chain.
 
 Get your id from [@userinfobot](https://t.me/userinfobot), the token from
 [@BotFather](https://t.me/BotFather).
@@ -270,6 +287,7 @@ Extensions:   /skills · /plugins · /plugins search <word> · /plugins disable|
 Updates:      /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text] · /report
 Service:      /app · /restart · /help
+Machine:      /load · /load on|off · /load limit cpu|ram|disk <n>
 Settings:     /settings — the same switches as buttons, grouped in four tabs
 Display:      /lang · /reasoning off|card|chat · /pin on|off · /thoughts
 ```

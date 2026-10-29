@@ -14,7 +14,7 @@ export default {
   'settings.state.on': 'вкл',
   'settings.state.off': 'выкл',
   'settings.state.auto': 'авто',
-  'help.body': "Задачу можно писать обычным текстом. Каждая ветка форума — отдельная сессия:\n\nРабота: /cd \u003cпроект\u003e · /new · /stop · /send \u003cфайл\u003e · /seed \u003cтекст\u003e\nЦели: /goal · /tasks [\u003ctext\u003e|done N] · /tasks (нажать, чтобы отметить)\nСессии: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003cимя\u003e\nАгенты: /agents · /agents set model|depth|filter … @tool\nМодели: /model · /model \u003cid\u003e · /fallback · /prices · /thoughts\nНастройка: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind\nРасширения: /skills · /plugins [add|remove] · /soul\nВерсии: /update [confirm|on|off|auto] · /subscribe on|off\nПрочее: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\nПанели: /menu — те же команды кнопками, по страницам. /menu on добавляет четыре клавиши под полем ввода.",
+  'help.body': "Задачу можно писать обычным текстом. Каждая ветка форума — отдельная сессия:\n\nРабота: /cd \u003cпроект\u003e · /new · /stop · /send \u003cфайл\u003e · /seed \u003cтекст\u003e\nЦели: /goal · /tasks [\u003ctext\u003e|done N] · /tasks (нажать, чтобы отметить)\nСессии: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003cимя\u003e\nАгенты: /agents · /agents set model|depth|filter … @tool\nМодели: /model · /model \u003cid\u003e · /fallback · /load · /prices · /thoughts\nНастройка: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind\nРасширения: /skills · /plugins [add|remove] · /soul\nВерсии: /update [confirm|on|off|auto] · /subscribe on|off\nПрочее: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\nПанели: /menu — те же команды кнопками, по страницам. /menu on добавляет четыре клавиши под полем ввода.",
   'settings.reply.title': 'Что бот говорит',
   'settings.agent.title': 'Кто отвечает и как старается',
   'settings.updates.title': 'Новые версии (эта установка, не тема)',
@@ -98,6 +98,8 @@ export default {
   'steer.ackFallback': '↪ Принял дополнение — учту его в этом же ходе.',
   'msg.started': 'Telegram-мост DSH запущен (headless). Пиши задачу; /help — команды.',
   'msg.restarted': 'Мост перезапущен — на связи (pid {pid}).\nТема и сессия прежние, можно продолжать.',
+    'msg.turnStopped': 'Ход остановлен. Сессия цела — напиши снова, чтобы продолжить с этого места.',
+  'msg.turnInterrupted': 'Перезапуск остановил ход, который здесь шёл. Пришли сообщение ещё раз — сессия цела, потерян только этот ход.',
   'cmd.restart.prompt': 'Перезапуск моста: /restart confirm. Приложение DSH: /app restart confirm.',
   'cmd.restart.started': 'Перезапускаю мост…',
   'msg.generalGuard': "Это общая тема «Все» — здесь темы начинаются. {cmd} меняет «{topic}», поэтому откройте ту тему и отправьте команду там. Читать можно и здесь: /status, /sessions, /stop.",
@@ -250,4 +252,5 @@ export default {
   'bridge.cb.taskDone': 'Готово',
   'bridge.cb.taskUndone': 'Снова открыта',
   'bridge.cb.taskStale': 'Такой задачи уже нет — /tasks покажет текущий список',
+  'msg.loadHeld': "Придержал: {what}. Ничего не запущено, и ничего не потрачено — нажми «Всё равно запустить», чтобы отправить сейчас, или подожди, пока машина освободится.",
 };

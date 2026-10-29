@@ -123,9 +123,14 @@ export async function handleViewCommands(ctx) {
         return true;
       }
       const desktop = scope === 'both' ? setModel('desktop', wanted) : false;
+      // Report the route the patch now carries, not the string that was typed:
+      // `/model deepseek-v4.1-flash` leaves the provider as it was, and the answer
+      // is the only place that says so. "Model → deepseek" while the turn still
+      // runs on the slow host is the confusion this line exists to remove.
+      const route = modelOf(activeProfile);
       say(t(lang, 'ctrl.model.switched', {
         name: activeProfile,
-        model: wanted,
+        model: `${route.provider}/${route.model}`,
         desktop: desktop ? t(lang, 'ctrl.model.withDesktop', { model: wanted }) : '',
       }));
       return true;

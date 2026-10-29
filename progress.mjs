@@ -323,6 +323,13 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     async finish(result) {
       clearTimeout(timer);
       clearInterval(thoughtTimer);
+      if (result?.stopped) {
+        // The person pressed Стоп. The card says so in their words, not with a
+        // ⚠️ and not with a retry button: nothing failed, and the session is
+        // exactly where they left it, so the next message just continues.
+        await edit(`⏹ ${t(lang, 'msg.turnStopped')}`, continueKeyboard(sessionKey(chatId, threadId), lang));
+        return true;
+      }
       if (result?.error) {
         // A failed turn leaves the status message as the error report and swaps
         // «Стоп» for «Повторить»: the person's next move is a retry, not a stop.

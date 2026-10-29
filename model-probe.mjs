@@ -161,24 +161,71 @@ async function probeModel(model, { timeoutMs = 15000, provider: wanted = '' } = 
   if (!key) return { model, ok: false, kind: 'auth', detail: `${provider.keyEnv || 'the key'} is missing` };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // How long the route takes to produce its first token. Two routes that both
+  // answer "ok" are not equally good: one says the word in 300 ms and another in
+  // nine seconds, and that gap is what a person feels on every turn. The probe
+  // therefore streams and stops at the first chunk — the time to the first token,
+  // not the time to the end of a one-token answer, which would hide a slow start
+  // behind a fast finish.
+  const startedAt = Date.now();
   try {
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false }),
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: true }),
       signal: controller.signal,
     });
-    const body = await response.text();
-    const kind = classify(response.status, body);
-    return {
-      model,
-      ok: kind === 'ok',
-      kind,
-      status: response.status,
-      detail: kind === 'ok' ? '' : body.slice(0, 200),
-    };
+    if (response.status !== 200) {
+      const body = await response.text();
+      const kind = classify(response.status, body);
+      return {
+        model,
+        ok: kind === 'ok',
+        kind,
+        ms: Date.now() - startedAt,
+        status: response.status,
+        detail: body.slice(0, 200),
+      };
+    }
+    // The first chunk that carries `data:` is the first token. A provider that
+    // ignores `stream` answers with one plain JSON body; that body IS the answer,
+    // so its first byte is the moment the route started talking, and calling it
+    // "empty" would report a working route as dead.
+    let first = 0;
+    let sse = false;
+    let plain = '';
+    if (response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (!first) first = Date.now() - startedAt;
+          if (chunk.includes('data:')) {
+            sse = true;
+            break;
+          }
+          plain += chunk;
+          // A non-streaming body is complete once the JSON parses; no need to
+          // wait for the connection to close to learn that the route answered.
+          if (plain.trim().startsWith('{') && /"choices"\s*:/.test(plain)) break;
+        }
+      } finally {
+        try { await reader.cancel(); } catch {}
+      }
+    }
+    if (!first) {
+      return { model, ok: false, kind: 'empty', ms: Date.now() - startedAt, detail: 'the answer carried no body' };
+    }
+    if (!sse) {
+      const kind = classify(200, plain);
+      return { model, ok: kind === 'ok', kind, ms: first, status: 200, detail: kind === 'ok' ? '' : plain.slice(0, 200) };
+    }
+    return { model, ok: true, kind: 'ok', ms: first, status: 200, detail: '' };
   } catch (error) {
-    return { model, ok: false, kind: 'network', detail: String(error?.message ?? error) };
+    return { model, ok: false, kind: 'network', ms: Date.now() - startedAt, detail: String(error?.message ?? error) };
   } finally {
     clearTimeout(timer);
   }

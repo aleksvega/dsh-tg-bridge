@@ -13,6 +13,7 @@ import { providerKeys } from './secrets.mjs';
 import { tg } from './telegram.mjs';
 import { t } from './i18n.mjs';
 import { turnArgs } from './cli-args.mjs';
+import { turnOutcome } from './turn-outcome.mjs';
 
 /** Turns currently running, keyed like sessions — `/stop` kills one. */
 export const activeTurns = new Map();
@@ -20,6 +21,15 @@ export const activeTurns = new Map();
 export const liveSessions = new Map();
 /** Wall-clock start of the running turn per session key, for the queue notice. */
 export const turnStartedAt = new Map();
+/**
+ * Turns a person stopped on purpose, keyed like sessions.
+ *
+ * A killed child exits by signal, so its exit code is `null` and there is no
+ * stderr: the turn looked exactly like a crash and the chat said "сбой хода"
+ * after `/stop` — an alarming word for the thing the person just asked for. The
+ * flag is set by `killTurn` and read once by the close handler.
+ */
+export const stoppedTurns = new Set();
 
 /**
  * Which profile runs this topic's turns. `/profile <name>` binds one topic to
@@ -108,22 +118,20 @@ export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [
       // No live process means no agent to steer; a job written now would wait
       // for the next turn instead of the current one.
       if (key) liveSessions.delete(key);
-      // Keep the whole diagnostic: the CLI prints the useful phrase
+      // A failure keeps the whole diagnostic: the CLI prints the useful phrase
       // ("pending (waiting for service: speechToText)") on the lines AFTER the
       // one-line summary, and trimming early hid the real cause from the chat.
-      // A bare "exit 1" with an empty stderr told the person nothing, so fall
-      // back to the tail of stdout, where the CLI puts its own error line.
-      let error = '';
-      if (code !== 0) {
-        const errText = stderr.trim();
-        const outTail = stdout
-          .split(/\r?\n/)
-          .filter((line) => line.trim() !== '' && !line.trim().startsWith('{'))
-          .join('\n')
-          .trim();
-        error = errText || outTail.slice(-1200) || t(lang, 'bridge.error.cliDied', { code });
-      }
-      resolve({ sessionId: sid, text: finalText, error });
+      // `turnOutcome` also knows that a stop is not a failure and that a killed
+      // child has no exit code, which is how `{code}` once reached the screen.
+      const outcome = turnOutcome({
+        code,
+        stopped: key ? stoppedTurns.delete(key) : false,
+        stderr,
+        stdout,
+        finalText,
+        lang,
+      });
+      resolve({ sessionId: sid, text: outcome.text, error: outcome.error, stopped: outcome.stopped });
     });
   });
 }
@@ -229,11 +237,16 @@ export function killTurn(key) {
   const child = activeTurns.get(key);
   if (!child) return false;
   try {
+    // Remembered BEFORE the kill: the close handler runs on the next tick and
+    // has to know that this exit was asked for. Without the flag a stop is
+    // indistinguishable from a crash — same null exit code, same empty stderr.
+    if (key) stoppedTurns.add(key);
     child.kill();
     activeTurns.delete(key);
     log(`killed hung turn for ${key}`);
     return true;
   } catch (error) {
+    if (key) stoppedTurns.delete(key);
     log(`kill failed for ${key}: ${error.message}`);
     return false;
   }

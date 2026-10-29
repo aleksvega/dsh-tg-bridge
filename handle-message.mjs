@@ -13,6 +13,8 @@ import { runFallbackChain } from './fallback.mjs';
 import { goalOf, renderPromptBlock } from './goals.mjs';
 import { resolveLang, t } from './i18n.mjs';
 import { sessionKey, threadOf } from './keys.mjs';
+import { holdIfLoaded } from './load-guard.mjs';
+import { guardOf } from './machine.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
 import { looksLikeReasoning, stepLine } from './panel.mjs';
@@ -284,6 +286,31 @@ ${t(lang, 'help.body')}`,
   // something to resend. Bounded: only the latest prompt per topic matters.
   lastPrompt.set(key, msg);
 
+  // Project directory bound to this topic (set with /cd); config.cwd otherwise.
+  // A bound directory that has been deleted or renamed is reported as such: the
+  // old silent fallback to config.cwd ran the turn in a different project than
+  // the one the person bound, and every path in the answer was wrong.
+  const boundDir = (state.cwd && state.cwd[key]) || '';
+  if (boundDir && !existsSync(boundDir)) {
+    log(`turn refused for ${where}: bound directory gone (${boundDir})`);
+    await send(chatId, t(lang, 'bridge.turn.noDir', { path: boundDir }), threadId);
+    return;
+  }
+  const cwd = boundDir || config.cwd;
+
+  // The load guard: one more Electron child on a machine at 95 % CPU is the
+  // difference between a slow window and a frozen one for whoever else is using
+  // this computer. Checked before the first process, when nothing is spent yet;
+  // the prompt is held, not refused — see `load-guard.mjs`.
+  if (await holdIfLoaded({ t, lang, key, where, cwd, chatId, threadId, msg, album, sendWithMarkup, log, guard: guardOf(config.loadGuard) })) return;
+
+  // What the person actually wrote, before any injected block: the progress
+  // message echoes it back so the first thing they see names their task, not a
+  // generic spinner.
+  const request = text;
+
+  // The typing indicator and the turn clock start here, after the guard: a
+  // "bot is typing" bubble over a turn that is not running is a lie.
   const stop = { done: false };
   const typing = typingLoop(chatId, threadId, stop);
   const started = Date.now();
@@ -298,21 +325,6 @@ ${t(lang, 'help.body')}`,
     state.lastKey = key;
     saveState();
   }
-  // Project directory bound to this topic (set with /cd); config.cwd otherwise.
-  // A bound directory that has been deleted or renamed is reported as such: the
-  // old silent fallback to config.cwd ran the turn in a different project than
-  // the one the person bound, and every path in the answer was wrong.
-  const boundDir = (state.cwd && state.cwd[key]) || '';
-  if (boundDir && !existsSync(boundDir)) {
-    log(`turn refused for ${where}: bound directory gone (${boundDir})`);
-    await send(chatId, t(lang, 'bridge.turn.noDir', { path: boundDir }), threadId);
-    return;
-  }
-  const cwd = boundDir || config.cwd;
-  // What the person actually wrote, before any injected block: the progress
-  // message echoes it back so the first thing they see names their task, not a
-  // generic spinner.
-  const request = text;
 
   // Desktop-style goal: the topic's goal and task list travel with every turn,
   // so a fresh session after /new still knows what the project is aiming at.
@@ -446,6 +458,14 @@ ${t(lang, 'help.body')}`,
     ? Math.round((telemetry.cacheReadTokens / Math.max(1, telemetry.cacheReadTokens + telemetry.inputTokens)) * 100)
     : 0;
   const summary = `tools=${telemetry.tools} tokens=${telemetry.inputTokens} cache=${cachePct}% model=${telemetry.model} cwd=${cwd}`;
+  if (result.stopped) {
+    // Stopped on purpose: no answer, but nothing broke either. It gets its own
+    // log word so "why did the turn end" is answerable without guessing, and it
+    // deliberately does NOT overwrite `state.lastFailure` — `/report` after a
+    // stop should describe the last real failure, not the stop itself.
+    log(`turn stopped ${where} ${seconds}s ${summary}`);
+    return;
+  }
   if (result.error) {
     // The status message already carries the failure (progress.finish turned it
     // into the error report), so only the log gets the detail here — a second

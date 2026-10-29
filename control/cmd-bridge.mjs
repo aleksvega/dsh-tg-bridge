@@ -25,7 +25,7 @@ import { profileValues, resolveSettings } from '../settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../update-policy.mjs';
 import { isNewer, pluginInfo, rowLine, searchPlugins } from '../plugin-search.mjs';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
-import { APP, CLI_JS, DSH_CMD, DSH_HOME, DIR, EXE, HOME, LOG, PROFILES, THOUGHT_DIR } from '../paths.mjs';
+import { APP, CLI_JS, DSH_CMD, DSH_HOME, DIR, EXE, HOME, LOG, PROFILES, RESTART_NOTICE, THOUGHT_DIR } from '../paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
@@ -83,12 +83,29 @@ export async function handleBridgeCommands(ctx) {
       const bridge = fileURLToPath(new URL('./bridge.mjs', import.meta.url));
       // Tell the replacement process where to confirm, so the chat does not go
       // silent after "Перезапускаю мост…" (it did, twice on 2026-10-24).
+      //
+      // It also carries the topics whose turn this restart is about to kill. A
+      // turn is a child process: `process.exit` takes it down with the bridge, and
+      // the topic it was working in keeps a card that says ⏳ forever, with nothing
+      // to explain it. The person in that topic finds out by scrolling to a card
+      // that stopped moving — so the new process names each one.
+      const interrupted = [...(ctx.activeTurns?.keys?.() || [])]
+        .map((k) => String(k).split(':'))
+        .map(([chat, thread]) => ({ chatId: Number(chat), threadId: Number(thread) || 0 }))
+        .filter((t2) => Number.isFinite(t2.chatId) && t2.chatId > 0);
       try {
-        writeFileSync(
-          fileURLToPath(new URL('./restart-notice.json', import.meta.url)),
-          JSON.stringify({ chatId: ctx.chatId, threadId: ctx.threadId || 0, at: Date.now() }),
-          'utf8',
-        );
+        // The path the reader uses, not a path relative to this file: this case
+        // lives in `control/`, and the old `new URL('./restart-notice.json', …)`
+        // wrote the note one directory below where `bridge.mjs` looked for it.
+        // Every restart confirmation since then was silently lost — the person
+        // saw "Перезапускаю мост…" and then nothing, which is exactly the doubt
+        // the note exists to remove.
+        writeFileSync(RESTART_NOTICE, JSON.stringify({
+          chatId: ctx.chatId,
+          threadId: ctx.threadId || 0,
+          at: Date.now(),
+          interrupted,
+        }), 'utf8');
       } catch (error) {
         log(`restart notice not written: ${error.message}`);
       }

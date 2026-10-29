@@ -123,6 +123,28 @@ test('the probe answer names the route, the verdict and its own limit', () => {
   assert.match(text, /does not prove/, 'a probe is not a full turn, and the card says so');
 });
 
+test('the probe measures the wait, not just the word "ok"', () => {
+  // Two routes can both answer "ok" and feel nothing alike: one says the word in
+  // 300 ms, another in nine seconds, and the person is choosing the head of the
+  // chain on exactly that difference. A probe that reports only "answers" makes
+  // the slow route look as good as the fast one.
+  const text = renderProbe({
+    t: tr,
+    rows: [
+      { n: 1, route: 'alpha/fast', kind: 'ok', ms: 412 },
+      { n: 2, route: 'beta/slow', kind: 'ok', ms: 9120 },
+    ],
+  });
+  assert.match(text, /412 ms to first token/);
+  assert.match(text, /9120 ms to first token/);
+  assert.match(text, /Fastest right now: alpha\/fast \(412 ms\)/, 'the fastest route is named once, not left to arithmetic');
+  // A route that did not answer has no latency to print: a made-up number would
+  // read as "this route works, it is just slow".
+  const dead = renderProbe({ t: tr, rows: [{ n: 1, route: 'alpha/m', kind: 'balance', ms: 120 }] });
+  assert.doesNotMatch(dead, /to first token/);
+  assert.doesNotMatch(dead, /Fastest right now/);
+});
+
 test('the remove menu names every route instead of asking for a number', () => {
   const chain = [route(dir, { model: 'a' }), route(dir, { model: 'b' })];
   const rows = removeKeyboard({ t: tr, chain });

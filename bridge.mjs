@@ -166,6 +166,20 @@ async function main() {
             `✅ ${t(lang, 'msg.restarted', { pid: process.pid })}`,
             notice.threadId || 0,
           );
+          // A turn is a child process, so the restart killed it. The topic it was
+          // working in is left with a card stuck on ⏳ and no reason for it: the
+          // person there typed a message, walked away, and comes back to a card
+          // that stopped moving. Say so where the work was, not only where the
+          // restart was ordered.
+          for (const place of Array.isArray(notice.interrupted) ? notice.interrupted : []) {
+            if (place.chatId === notice.chatId && (place.threadId || 0) === (notice.threadId || 0)) continue;
+            try {
+              const there = resolveLang(state, sessionKey(place.chatId, place.threadId || 0), null, config);
+              await send(place.chatId, `⚠️ ${t(there, 'msg.turnInterrupted')}`, place.threadId || 0);
+            } catch (error) {
+              log(`interrupted notice failed for ${place.chatId}:${place.threadId}: ${error.message}`);
+            }
+          }
         }
       }
     } catch (error) {

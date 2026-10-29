@@ -14,7 +14,7 @@ export default {
   'settings.state.on': '开',
   'settings.state.off': '关',
   'settings.state.auto': '自动',
-  'help.body': "任务直接以文本发送。每个论坛话题是一个独立会话：\n\n工作: /cd \u003c项目\u003e · /new · /stop · /send \u003c文件\u003e · /seed \u003c文本\u003e\n目标: /goal · /tasks [\u003ctext\u003e|done N] · /tasks（点击勾选）\n会话: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003c名称\u003e\n智能体: /agents · /agents set model|depth|filter … @tool\n模型: /model · /model \u003cid\u003e · /fallback · /prices · /thoughts\n调优: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind\n扩展: /skills · /plugins [add|remove] · /soul\n版本: /update [confirm|on|off|auto] · /subscribe on|off\n其他: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\n面板: /menu — 同样的命令做成按钮，分页浏览。/menu on 在输入框下方加四个键。",
+  'help.body': "任务直接以文本发送。每个论坛话题是一个独立会话：\n\n工作: /cd \u003c项目\u003e · /new · /stop · /send \u003c文件\u003e · /seed \u003c文本\u003e\n目标: /goal · /tasks [\u003ctext\u003e|done N] · /tasks（点击勾选）\n会话: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003c名称\u003e\n智能体: /agents · /agents set model|depth|filter … @tool\n模型: /model · /model \u003cid\u003e · /fallback · /load · /prices · /thoughts\n调优: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind\n扩展: /skills · /plugins [add|remove] · /soul\n版本: /update [confirm|on|off|auto] · /subscribe on|off\n其他: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\n面板: /menu — 同样的命令做成按钮，分页浏览。/menu on 在输入框下方加四个键。",
   'settings.reply.title': '机器人怎么说',
   'settings.agent.title': '谁来回答、投入多少',
   'settings.updates.title': '新版本（针对本次安装，而非话题）',
@@ -98,6 +98,8 @@ export default {
   'steer.ackFallback': '↪ 收到补充，会在本轮里一并处理。',
   'msg.started': 'DSH 的 Telegram 桥已启动（headless）。直接发送任务；/help 查看命令。',
   'msg.restarted': '桥已重启，连接正常（pid {pid}）。\n主题和会话不变，可以继续。',
+    'msg.turnStopped': '回合已停止。会话完好——再发一条消息即可从这里继续。',
+  'msg.turnInterrupted': '重启停止了这里正在进行的回合。请再发一次消息——会话完好，只丢了这个回合。',
   'cmd.restart.prompt': '重启桥：/restart confirm。重启 DSH 应用：/app restart confirm。',
   'cmd.restart.started': '正在重启桥…',
   'msg.generalGuard': "这里是「全部」主题，用来开新话题。{cmd} 会改动「{topic}」，请打开那个话题再发送。这里可以直接读：/status、/sessions、/stop。",
@@ -250,4 +252,5 @@ export default {
   'bridge.cb.taskDone': '已完成',
   'bridge.cb.taskUndone': '已重新打开',
   'bridge.cb.taskStale': '该任务已不存在——用 /tasks 查看当前列表',
+  'msg.loadHeld': "已暂缓：{what}。没有启动任何东西，也没有产生费用——点按「仍然运行」立即发送，或等机器空闲。",
 };

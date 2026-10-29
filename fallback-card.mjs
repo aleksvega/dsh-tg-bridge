@@ -165,16 +165,32 @@ export function removeKeyboard({ t, chain = [] }) {
  *
  * A probe proves the key works, not that the provider accepts this conversation;
  * a card that said "all routes are fine" beside a 400 would send the person to
- * the wrong fix.
+ * the wrong fix. It also prints how long each route took to say one token: two
+ * routes that both answer "ok" are not equally good, and a person picking the
+ * first of the chain is choosing on speed, not on the word "ok".
  */
 export function renderProbe({ t, rows = [] }) {
   const lines = [t('ctrl.fallback.testTitle')];
   for (const row of rows) {
+    // Latency is printed only for a route that actually answered. "no balance ·
+    // 120 ms" invites the reading "it works, it is just slow", which is the one
+    // thing a dead route must never look like.
+    const speed = row.kind === 'ok' && Number.isFinite(row.ms) && row.ms > 0
+      ? t('ctrl.fallback.testSpeed', { ms: row.ms })
+      : '';
     lines.push(t('ctrl.fallback.testLine', {
       n: row.n,
       route: row.route,
       verdict: t(`ctrl.fallback.verdict.${row.kind}`),
+      speed,
     }));
+  }
+  // The fastest route that answered, named once: the list already shows it, but
+  // the whole point of measuring is the one-line verdict a person acts on.
+  const live = rows.filter((row) => row.kind === 'ok' && Number.isFinite(row.ms));
+  if (live.length > 1) {
+    const best = live.reduce((a, b) => (a.ms <= b.ms ? a : b));
+    lines.push('', t('ctrl.fallback.testFastest', { route: best.route, ms: best.ms }));
   }
   lines.push('', t('ctrl.fallback.testHint'));
   return lines.join('\n');
