@@ -1,5 +1,49 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.30.1
+
+- **A version earns its place by answering a turn, and a version that only ever
+  throws is replaced by the last one that did.** 1.30.0 shipped a call to a
+  function that did not exist. Every import resolved, every file parsed, the
+  whole suite was green — and the first real message threw, so the person was
+  left on a release that answered nothing. Nothing in the update path can catch
+  that: a name that is never defined inside a function body is invisible to a
+  static check, and only a turn that runs can prove otherwise. So the install now
+  keeps a record per version: it is *proven* once it has answered, *faulted* when
+  it throws a code fault, and *unknown* until then. Two code faults on a version
+  that has never answered, while a proven version is still on record, put the
+  proven one back — from npm, or from the copy the last update saved when the
+  registry cannot be reached — announce it in the chat, and ask the supervisor
+  for a restart instead of exiting under a half-finished turn. The record is
+  narrow on purpose: a 402, a 429, a timeout and "all providers are busy" all
+  reach a turn as errors, and none of them is a verdict on the release. Rolling a
+  working install back because someone's balance ran out would be a worse bug
+  than the one this fixes.
+- **The supervisor catches the failure the bridge cannot report.** A release that
+  throws while it loads never runs a turn, so nothing above ever sees it: the
+  bridge dies, the minute tick starts it, it dies again, forever. The tick now
+  keeps its own evidence — two starts in a row that never became healthy — and
+  applies the same rule before it starts the bridge again. It also refuses to
+  repeat a restore it just performed, and resets the count the moment a bridge is
+  alive, so a laptop that reboots twice is not mistaken for a broken release.
+- **`/update rollback` is the manual way back.** The automatic rule needs two
+  faults before it acts, which is right for a machine deciding alone and wrong
+  for a person who has already seen one. The command returns to the last proven
+  release immediately, and says so when there is nothing to return to.
+- **`/update` says what is proven about the version it is running.** The card
+  used to list a version number and leave the reader to guess whether it worked.
+  It now says "proven, N turns answered", "faulted, N code faults", or
+  "installed, not yet answered", and names the release a rollback would return
+  to. An install that has just updated is marked unproven rather than inheriting
+  the old version's record — a rollback to nothing is not a rollback.
+- **A 💭 line is no longer cut mid-word.** The thought stream clipped each line at
+  140 characters with no ellipsis, so the chat showed sentences that stopped in
+  the middle of a word ("…при провале — от", "…откатывается на по") and read as
+  broken output rather than as a decision. Lines are now clipped at a word
+  boundary with a trailing `…`, at a budget that keeps a real sentence readable,
+  and the card and the chat show exactly the same text because both read it from
+  one function.
+
 ## 1.30.0
 
 - **A sandbox refusal no longer reads as a breakdown.** The CLI marks three

@@ -7,5 +7,5 @@ import ctrl from './zh/ctrl.mjs';
 import sandbox from './zh/sandbox.mjs';
 import core from './zh/core.mjs';
 import fallback from './zh/fallback.mjs';
-
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback };
+import release from './zh/release.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release };

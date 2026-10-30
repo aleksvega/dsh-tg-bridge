@@ -23,6 +23,7 @@ import { renderPrices } from './prices.mjs';
 import { settingsChipOf, turnPlan } from './profile-view.mjs';
 import { startProgress } from './progress.mjs';
 import { reportRefusals } from './sandbox-note.mjs';
+import { noteTurn } from './stability.mjs';
 import { makeTurnEvents, newTelemetry } from './turn-events.mjs';
 import { lastPrompt, maxParallel, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
@@ -459,26 +460,23 @@ ${t(lang, 'help.body')}`,
     return;
   }
   if (result.error) {
-    // The status message already carries the failure (progress.finish turned it
-    // into the error report), so only the log gets the detail here — a second
-    // ⚠️ message would just duplicate it.
+    // The card already carries the failure, so only the log gets the detail — a
+    // second ⚠️ message would duplicate it. The release record decides whether a
+    // code fault means the version on disk cannot be trusted, and does the
+    // rollback itself: a turn that throws is the only evidence a static check
+    // cannot produce.
     log(`turn failed ${where} ${seconds}s ${summary} :: ${result.error.slice(0, 400)}`);
-    // Keep the last failure for `/report`: the person who asks for a bug report
-    // is usually the one who just saw this line, and asking them to reproduce it
-    // before a report can be written is how a report never gets written.
-    state.lastFailure = state.lastFailure || {};
-    state.lastFailure[key] = {
-      at: new Date().toISOString(),
-      error: result.error.slice(0, 2000),
-      model: telemetry.model,
-      tools: telemetry.toolNames,
-      cwd,
-      seconds,
-    };
+    await noteTurn(state, {
+      key, error: result.error, model: telemetry.model, tools: telemetry.toolNames, cwd, seconds,
+      lang, chatId, threadId, log, t, send,
+    });
     saveState();
     return;
   }
   log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);
+  // An answered turn proves this release works, and makes it the version a later
+  // rollback returns to.
+  await noteTurn(state, { saveState });
   // A turn that ends without an answer hands back its last assistant text —
   // the reasoning — and sending that looks exactly like the bot answering with
   // its own notes. Say what happened instead of forwarding the page.

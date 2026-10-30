@@ -16,6 +16,30 @@
 // is not this turn's progress.
 import { readFileSync } from 'node:fs';
 
+/**
+ * The longest a single note may be when it reaches the chat.
+ *
+ * Telegram allows 4096, so this is a readability budget, not an API limit — and
+ * a budget applied with `slice` alone is what made the decision trail look
+ * broken: the card showed "…при провале — от" and the chat showed "…откатывается
+ * на по" in the middle of a word, with nothing saying a cut had happened. A note
+ * that is too long is now cut at a word boundary and marked with an ellipsis, so
+ * the reader sees a shortened thought rather than a truncated one.
+ */
+export const NOTE_MAX = 300;
+
+/** Cut `text` at a word boundary at or under `max`, with an honest ellipsis. */
+export function clipNote(text, max = NOTE_MAX) {
+  const value = String(text || '').trim();
+  if (value.length <= max) return value;
+  const head = value.slice(0, max - 1);
+  const space = head.search(/\s\S*$/);
+  // No space at all (one long token, or a script that does not break on spaces):
+  // a hard cut is the only option left, and the ellipsis still says it happened.
+  const cut = space > max * 0.5 ? head.slice(0, space) : head;
+  return `${cut.trimEnd()}…`;
+}
+
 /** Every note in one file, as `{ at, text }`, oldest first. Missing file = []. */
 export function readNotes(file) {
   try {
@@ -26,7 +50,7 @@ export function readNotes(file) {
         try {
           const row = JSON.parse(line);
           const text = String(row.text || '').trim();
-          return text ? { at: Number(row.at) || 0, text: text.slice(0, 140) } : null;
+          return text ? { at: Number(row.at) || 0, text: clipNote(text) } : null;
         } catch { return null; }
       })
       .filter(Boolean);

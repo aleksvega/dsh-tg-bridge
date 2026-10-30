@@ -96,6 +96,40 @@ export function installRelease(version) {
   }
 }
 
+/** The update backups this install keeps, newest first. */
+export function updateBackups(root = bridgeRoot()) {
+  try {
+    return readdirSync(root)
+      .filter((name) => name.startsWith('update-backup-'))
+      .sort()
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The newest saved copy of the files an update replaced.
+ *
+ * The offline way back: an install whose registry is unreachable can still be
+ * put back to the release it ran before the update, because `copyRelease` saved
+ * it. Restoring is only ever done after the candidate failed its own check, so
+ * the files being put back are the ones that were working.
+ */
+export function newestUpdateBackup(root = bridgeRoot()) {
+  const [newest] = updateBackups(root);
+  return newest ? join(root, newest) : '';
+}
+
+/** Put the newest saved copy back over this install. Returns the directory used. */
+export function restoreUpdateBackup(dir) {
+  if (!dir || !existsSync(dir)) throw new Error('no update backup to restore');
+  const root = bridgeRoot();
+  if (!safeUpdateRoot(root)) throw new Error(`refusing to write into ${root}`);
+  restoreBackup(root, dir);
+  return dir;
+}
+
 /** Version of the bridge this process runs, read from its own package.json. */
 export function bridgeVersion() {
   const root = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');

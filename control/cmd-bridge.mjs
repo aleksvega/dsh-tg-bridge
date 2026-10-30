@@ -35,6 +35,7 @@ import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
+import { applyRollback, releaseFacts } from '../stability.mjs';
 import { buildReport, tailOf, writeReport } from '../report.mjs';
 import { effectivePreset } from '../permission-rows.mjs';
 
@@ -45,7 +46,7 @@ import { effectivePreset } from '../permission-rows.mjs';
  * It lives in a function because `/update` without an argument now opens with
  * the same lines: "am I current?" used to be two commands and two messages.
  */
-function versionCard(lang) {
+function versionCard(lang, state = {}) {
   const installed = bridgeVersion();
   const latest = npmLatest('dsh-tg-bridge');
   const where = process.env.DSH_BRIDGE_ROOT || join(DSH_HOME, 'tg-bridge');
@@ -54,6 +55,14 @@ function versionCard(lang) {
   lines.push(t(lang, 'ctrl.version.latest', { v: latest || t(lang, 'ctrl.version.offline') }));
   if (installed && latest && installed !== latest) lines.push(t(lang, 'ctrl.version.update', { v: latest }));
   lines.push(t(lang, 'ctrl.version.root', { path: where }));
+  // What this install has proved about the code it is running. A version that
+  // has answered a turn is the one an update may fall back to; one that has
+  // only ever thrown is named as such instead of looking equal to a good one.
+  const facts = releaseFacts(state, installed);
+  lines.push(t(lang, facts.verdict === 'proven' ? 'rel.proven' : facts.verdict === 'faulted' ? 'rel.faulted' : 'rel.unproven', {
+    n: facts.verdict === 'proven' ? facts.turns : facts.faults,
+  }));
+  if (facts.lastGood) lines.push(t(lang, 'rel.lastGood', { v: facts.lastGood }));
   lines.push(t(lang, 'ctrl.version.hint'));
   // The number above comes from package.json on disk; the code actually
   // answering this came from the files as they were at process start. When
@@ -305,7 +314,7 @@ export async function handleBridgeCommands(ctx) {
       // Kept as the body `/update` uses: the old spelling is rewritten to
       // `/update` before dispatch, so this only answers if something calls it
       // directly. One card, one source of the numbers.
-      say(versionCard(lang));
+      say(versionCard(lang, state));
       return true;
     }
     case '/update': {
@@ -326,6 +335,21 @@ export async function handleBridgeCommands(ctx) {
           saveState();
         }
         say(change.text);
+        return true;
+      }
+      if (sub === 'rollback') {
+        // The manual way back. It exists because the automatic one needs two
+        // faults before it acts: someone who has seen one is allowed to decide
+        // sooner than the rule does.
+        const facts = releaseFacts(state, installed);
+        if (!facts.lastGood) { say(t(lang, 'rel.manualNone')); return true; }
+        if (!facts.canRollBack) { say(t(lang, 'rel.manualCurrent', { v: facts.lastGood })); return true; }
+        const done = await applyRollback(state, {
+          version: facts.lastGood, lang, t, log, chatId, threadId,
+          send: (id, text, thread) => send(id, text, thread),
+        });
+        saveState();
+        if (done.ok) say(t(lang, 'rel.manualDone', { v: facts.lastGood }));
         return true;
       }
       if (sub === 'confirm') {
@@ -352,6 +376,11 @@ export async function handleBridgeCommands(ctx) {
           say(t(lang, 'ctrl.update.broken', { v: latest }) + `\n\n${result.problems.slice(0, 6).join('\n')}`);
           return true;
         }
+        // The new files are on disk but the release is unproven until a turn
+        // answers on it. A version that is new and unproven must not keep the
+        // old proven one's record, or a rollback would return to nothing.
+        if (!state.release) state.release = {};
+        state.release.unproven = latest;
         // The files on disk are the new ones now; this process still runs the
         // old code, so the way back is one folder name.
         policy.notified = latest;
@@ -363,7 +392,7 @@ export async function handleBridgeCommands(ctx) {
       // This used to be two commands (`/version` for the numbers, `/update` for
       // the state), which meant "am I current?" took two messages. One card
       // answers both, and `/version` still arrives here rewritten.
-      say(versionCard(lang) + '\n\n' + describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified })));
+      say(versionCard(lang, state) + '\n\n' + describeUpdate(updateState({ installed, latest, mode: policy.mode, notified: policy.notified })));
       return true;
     }
     case '/report': {
