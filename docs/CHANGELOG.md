@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.31.1
+
+- **`/version` and `/update` can no longer disagree.** They are one card, but
+  each asked npm separately, and on a slow runner one `npm view` answered while
+  the other timed out — so the same question, asked twice, gave "1.31.0" and
+  "offline". The answer is now memoised for a minute. A minute of staleness means
+  nothing to a release check; two answers to one question is a bug a person can
+  see. It also stops `/update` twice in a row from blocking the bot for 45
+  seconds each time.
+
 ## 1.31.0
 
 - **`/diff`: the review loop, from a phone.** A turn that changes files used to end

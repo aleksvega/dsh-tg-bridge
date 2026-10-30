@@ -153,15 +153,34 @@ export function newestModuleMtime(root) {
   return newest;
 }
 
-/** Latest published version of an npm package, or '' when npm is unreachable. */
+/**
+ * Latest published version of an npm package, or '' when npm is unreachable.
+ *
+ * The answer is memoised for a minute, for two reasons that both showed up as
+ * bugs. The first is honesty: `/update` and `/version` are the same card, and
+ * when the network was slow enough for one `npm view` to time out and the other
+ * to answer, the two spellings of one command disagreed about the same fact.
+ * The second is cost: `npm view` blocks the process for up to 45 seconds, and a
+ * second card inside that minute should not pay it again. A stale minute is
+ * nothing to a release check; two answers to one question is not.
+ */
+const LATEST_TTL_MS = 60 * 1000;
+const latestCache = new Map();
+
 export function npmLatest(name) {
+  const key = String(name);
+  const hit = latestCache.get(key);
+  if (hit && Date.now() - hit.at < LATEST_TTL_MS) return hit.value;
+  let value = '';
   try {
-    const r = spawnSync('npm', ['view', name, 'version'], { encoding: 'utf8', shell: true, timeout: 45000, windowsHide: true });
+    const r = spawnSync('npm', ['view', key, 'version'], { encoding: 'utf8', shell: true, timeout: 45000, windowsHide: true });
     const out = String(r.stdout || '').trim().split(/\s+/).pop() || '';
-    return r.status === 0 && /^\d/.test(out) ? out : '';
+    value = r.status === 0 && /^\d/.test(out) ? out : '';
   } catch {
-    return '';
+    value = '';
   }
+  latestCache.set(key, { value, at: Date.now() });
+  return value;
 }
 
 /**
