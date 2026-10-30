@@ -160,6 +160,18 @@ export async function typingLoop(chatId, threadId, stopFlag) {
  * Returns {sessionId, text, error}: the error carrying "no activity" when the
  * idle window expires.
  */
+/**
+ * Bind one turn's options to a function of the session id.
+ *
+ * The retry paths in `handle-message.mjs` need the same turn with another
+ * session — a session recorded in a different directory, or one whose write
+ * handle was held. Building those options twice is how `attempt` went missing
+ * in 1.30.0 and every turn failed with "attempt is not defined".
+ */
+export function turnAttempt(task, key, options) {
+  return (sessionId) => runTurnLive(task, sessionId, key, options);
+}
+
 export function runTurnLive(task, sessionId, key, options = {}) {
   const idleMs = Number(options.idleMs ?? config.turnIdleMs ?? 300000);
   // A tool can legitimately run for many minutes (install, build, test suite)

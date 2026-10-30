@@ -29,7 +29,7 @@ import { token } from './secrets.mjs';
 import { config, done, log, saveConfig, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
 import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
-import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnStartedAt, typingLoop } from './turn.mjs';
+import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnAttempt, turnStartedAt, typingLoop } from './turn.mjs';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 
@@ -377,6 +377,7 @@ ${t(lang, 'help.body')}`,
     log,
     onSession: (id) => liveSessions.set(key, id),
   });
+  const attempt = turnAttempt(text, key, { onEvent, onAbort: () => killTurn(key), env: thoughtEnv, profile: turnProfile || profileOf(key), cwd, lang });
   let result = await attempt(sessionAtStart);
   if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
     delete state.sessions[key];
