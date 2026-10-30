@@ -7,7 +7,7 @@ import { maxParallel, queues } from './queue.mjs';
 import { config, log, saveConfig, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
 import { ensureTopicSeed } from './topics.mjs';
-import { activeTurns, profileOf, turnStartedAt } from './turn.mjs';
+import { activeTurns, baseProfileOf, turnStartedAt } from './turn.mjs';
 
 export async function runCommandFromButton(typed, { chatId, threadId, key }) {
   const lang = langFor(chatId, threadId);
@@ -40,7 +40,7 @@ export async function runCommandFromButton(typed, { chatId, threadId, key }) {
     // message is a normal one — a promise nothing was keeping.
     ephemeral: (out) => sendEphemeral(chatId, out, threadId),
     seedTopic: ensureTopicSeed,
-    profile: profileOf(key),
+    profile: baseProfileOf(key),
     reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
     stopTurn: (k) => {
       const child = activeTurns.get(k);

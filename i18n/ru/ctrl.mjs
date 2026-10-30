@@ -145,6 +145,7 @@ export default {
   'ctrl.session.none': '(ещё нет)',
   'ctrl.status.head': '📊 Статус моста',
   'ctrl.status.profile': 'Профиль: {name} ({route})',
+  'ctrl.status.modelTopic': 'Эта тема: {route}',
   'ctrl.status.thread': 'Ветка: {name}',
   'ctrl.status.threadDefault': 'общая',
   'ctrl.status.session': 'Сессия: {id}',

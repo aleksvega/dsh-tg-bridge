@@ -7,6 +7,13 @@
 export default {
   'ctrl.model.pickTitle': '🎛 Маршруты профиля {profile}',
   'ctrl.model.pickNow': 'Сейчас: {route}',
+  'ctrl.model.pickNowTopic': 'Эта тема: {route}',
+  'ctrl.model.pickNowDefault': 'По умолчанию в профиле: {route} — для остальных тем',
+  'ctrl.model.pickFollow': '↩ Снова как в профиле',
+  'ctrl.model.topicSet': 'Эта тема теперь отвечает на {route}. Остальные темы — {default}.',
+  'ctrl.model.topicCleared': 'Эта тема снова как в профиле: {route}.',
+  'ctrl.model.topicNone': 'У этой темы своего маршрута не было, она и так как в профиле: {route}.',
+  'ctrl.model.topicKept': 'Свой маршрут сохранили тем: {n}.',
   'ctrl.model.pickUnknown': 'Сейчас: в профиле {profile} нет строки модели по умолчанию',
   'ctrl.model.pickGroup': '— {provider} —',
   'ctrl.model.pickHint': 'Нажми маршрут, чтобы переключиться. Провайдер и модель меняются вместе: одно и то же имя модели могут отдавать разные эндпоинты.',

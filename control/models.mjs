@@ -226,8 +226,25 @@ export function setModel(profile, wanted) {
   // anyway would leave a patch that looks edited and a bot that cannot answer,
   // so the row is checked before the file is touched.
   if (provider && !providerRows(text).some((row) => row.id === provider)) return false;
-  const block = /- id: agent-default-model[\s\S]*?(?=\n- id:|\n- insert:|$)/.exec(text);
-  if (!block) return false;
+  const next = rewriteModelText(text, { provider, model });
+  if (!next) return false;
+  writeFileSync(path, next, 'utf8');
+  return true;
+}
+
+/**
+ * The same rewrite as `setModel`, with no file and no profile: returns the new
+ * patch text, or '' when there is nothing to change.
+ *
+ * Separate because a per-topic route needs the identical edit on a COPY of a
+ * profile — a topic that picks its own model must not move the one every other
+ * topic boots, and two copies of this regex would drift apart the first time
+ * either is touched.
+ */
+export function rewriteModelText(text, { provider = '', model = '' } = {}) {
+  if (!model) return '';
+  const block = /- id: agent-default-model[\s\S]*?(?=\n- id:|\n- insert:|$)/.exec(String(text || ''));
+  if (!block) return '';
   // Provider first, then model: both live in the same block, and replacing the
   // block wholesale would drop `reasoningEffort` and anything else a person set.
   let next = block[0].replace(/^(\s+model:\s*)\S+/m, `$1${model}`);
@@ -235,9 +252,8 @@ export function setModel(profile, wanted) {
     if (/^\s+provider:\s*\S+/m.test(next)) next = next.replace(/^(\s+provider:\s*)\S+/m, `$1${provider}`);
     else next = next.replace(/^(\s+model:\s*\S+)/m, `$1\n    provider: ${provider}`);
   }
-  if (next === block[0]) return false;
-  writeFileSync(path, text.replace(block[0], next), 'utf8');
-  return true;
+  if (next === block[0]) return '';
+  return String(text).replace(block[0], next);
 }
 
 /** Top-level patch entry ids that carry `disabled:` in a profile. */

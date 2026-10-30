@@ -25,15 +25,16 @@ import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../upd
 import { isNewer, pluginInfo, rowLine, searchPlugins } from '../plugin-search.mjs';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
 import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from '../paths.mjs';
-import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch, routesOf } from './models.mjs';
-import { modelCard } from './model-card.mjs';
+import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, disabledIds, setDisabled, writePatch } from './models.mjs';
+import { handleModelCommand } from './cmd-model.mjs';
+import { topicRoute } from './topic-route.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { reasoningMode } from '../notes.mjs';
-import { saveConfig } from '../state.mjs';
+import { saveConfig, saveState } from '../state.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 import { presetOf } from '../profile-view.mjs';
 import { costReport } from '../cost.mjs';
@@ -61,6 +62,13 @@ export async function handleViewCommands(ctx) {
       lines.push(t(lang, 'ctrl.status.session', { id: sessionId || t(lang, 'ctrl.session.none') }));
       if (title) lines.push(t(lang, 'ctrl.status.title', { title }));
       lines.push(t(lang, 'ctrl.status.profile', { name: activeProfile, route: `${head.provider}/${head.model}` }));
+      // Only when the topic is not on the profile's route: two identical lines
+      // would make the difference look bigger than it is, and the default line
+      // above already says what the profile serves.
+      const own = topicRoute({ state, config, key });
+      if (own.source === 'topic') {
+        lines.push(t(lang, 'ctrl.status.modelTopic', { route: `${own.provider}/${own.model}` }));
+      }
       lines.push(t(lang, 'ctrl.status.thread', { name: ctx.threadId || t(lang, 'ctrl.status.threadDefault') }));
       if (stats?.createdAt) lines.push(t(lang, 'ctrl.status.created', { when: stamp(stats.createdAt) }));
       if (stats?.lastActivity) lines.push(t(lang, 'ctrl.status.activity', { when: stamp(stats.lastActivity) }));
@@ -113,35 +121,10 @@ export async function handleViewCommands(ctx) {
       say(modelsReport(lang, activeProfile));
       return true;
     }
-    case '/model': {
-      const [wanted = '', scope = ''] = (arg || '').split(/\s+/);
-      if (!wanted) {
-        // One command, two states: bare `/model` offers the routes as buttons,
-        // and `/model <route>` picks one. The list is provider + model, not the
-        // ids alone: `deepseek-v4.1-flash` is declared by two providers, so a
-        // list of ids showed the same name twice and said nothing about where
-        // the answers would come from.
-        const card = modelCard({ profile: activeProfile, routes: routesOf(activeProfile), t: (k, v) => t(lang, k, v) });
-        say(card.text, { keyboard: card.keyboard });
-        return true;
-      }
-      if (!setModel(activeProfile, wanted)) {
-        say(t(lang, 'ctrl.model.failed', { name: activeProfile, model: wanted }));
-        return true;
-      }
-      const desktop = scope === 'both' ? setModel('desktop', wanted) : false;
-      // Report the route the patch now carries, not the string that was typed:
-      // `/model deepseek-v4.1-flash` leaves the provider as it was, and the answer
-      // is the only place that says so. "Model → deepseek" while the turn still
-      // runs on the slow host is the confusion this line exists to remove.
-      const route = modelOf(activeProfile);
-      say(t(lang, 'ctrl.model.switched', {
-        name: activeProfile,
-        model: `${route.provider}/${route.model}`,
-        desktop: desktop ? t(lang, 'ctrl.model.withDesktop', { model: wanted }) : '',
-      }));
-      return true;
-    }
+    case '/model':
+      // The command lives in its own module: a card, a scope check and two
+      // writers is more than a dispatch table should carry.
+      return handleModelCommand({ ...ctx, say, lang, profile: activeProfile });
     case '/profile': {
       // The GUI lets a person build a profile per kind of work; the same switch
       // belongs here, per topic. A new profile is a copy of a shipped template,
@@ -156,6 +139,10 @@ export async function handleViewCommands(ctx) {
         // and carry a marker row; they are an implementation detail, not a
         // place a person switches a topic to.
         .filter((entry) => !read(join(PROFILES, entry.name, 'cordis.patch.yml')).includes(OVERLAY_MARK))
+        // Per-topic routes are generated too, one per topic choice, and their
+        // names say so. Listing them would bury the profiles a person actually
+        // made under copies this bridge made for it.
+        .filter((entry) => !entry.name.includes('-route-'))
         .map((entry) => entry.name)
         .sort();
       const bound = state.profiles?.[key];

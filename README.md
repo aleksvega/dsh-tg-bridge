@@ -1,48 +1,63 @@
 # dsh-tg-bridge
 
-A Telegram bridge for [DeepSeek Harness](https://deepseek.com): drive the agent from a
-bot with text, voice and photos, without opening the desktop app.
+Drive [DeepSeek Harness](https://deepseek.com) from Telegram. It runs on the
+machine that already has the harness, and it answers in the chat where you asked.
 
-Each forum topic is a separate project with its own session and its own working
-directory. Replies arrive with progress, a "Stop" button and copyable code
-blocks.
+A forum topic is a project: its own session, working directory, model,
+permissions and language. Two topics share the install and nothing else.
 
-Never made a bot? [QUICKSTART.md](QUICKSTART.md) takes you from "no account" to
-a bot that answers, one step at a time.
+Never made a bot? [QUICKSTART.md](QUICKSTART.md) goes from "no account" to a bot
+that answers, one step at a time.
 
-## Features
+## What it does
 
-- **Text**: a regular task goes to the agent, the answer comes back in the same topic.
-- **Voice**: local faster-whisper, the transcript is shown before the answer.
-- **Photos**: the turn's own model reads them through `read_image`, text and UI
-  included; no second model is needed (a vision overlay stays opt-in).
-- **Project per topic**: `/cd my-app`, and all turns run from that directory — on
-  a permission-enabled profile the sandbox is narrowed to it too, so the agent
+- **A model per topic.** `/model` lists the routes the profile declares — provider
+  and model together — and a tap switches this topic only. `/model <route> all`
+  moves the default the other topics follow; `/model auto` hands the topic back.
+  A chat for thinking out loud and a chat for engineering no longer share one model.
+- **A topic is a project.** `/cd my-app`, and every turn runs from that directory —
+  on a permission-enabled profile the sandbox is narrowed to it too, so the agent
   cannot write outside the project.
-- **Goal and checklist per topic**: `/goal`, `/tasks`; both survive restarts and are prepended to every turn.
+- **One edited message per turn.** Steps, a timer and the cache hit rate, plus the
+  reasoning in a collapsed block you can tap open. A long turn adds a second
+  collapsed block with every tool call. `/stop` is a button on that message.
 - **`/diff` — review the turn, one hunk at a time.** The working tree is split into
   files and hunks; every hunk gets two buttons: explain it, or revert just that
   hunk. A button carries a hash of the hunk it was drawn from, so a press that
   arrives after the file moved on is refused instead of touching a line nobody was
   looking at. `/diff stat` is the file list alone.
-- **Live progress**: one edited message per turn — steps, a timer and the cache hit rate, plus
-  the model's reasoning in a collapsed block you can tap open. A long turn adds a second
-  collapsed block with every tool call, so the whole run stays in the chat as one message.
-- **No lost messages**: a journal with acknowledgement and replay.
-- **Knows how busy the computer is**: `/load` shows free space on the topic's disk,
+- **An endpoint from the chat.** `/endpoint add <id> <https://url/v1> <KEY_ENV>
+  [model,model]` writes the provider without an AI turn, and the key itself is
+  never typed — only the name of the variable that holds it. The new models appear
+  on `/model` as routes.
+- **Input: text, voice, photos.** Voice is local faster-whisper and the transcript
+  is shown before the answer. A photo is read by the turn's own model through
+  `read_image`, text and UI included; no second model is needed.
+- **Goal and checklist per topic.** `/goal`, `/tasks`; both survive restarts and
+  are prepended to every turn.
+- **Two scopes for every setting.** `/reasoning <mode> all` moves the default,
+  without `all` it moves this topic; language and pinning follow the same rule,
+  and `/crew use reviewer` gives one topic its own effort, permissions and agent
+  preset (four built-in sets, read-only, copyable).
+- **It says what it cost.** A turn reports tokens and the cache hit rate; `/cost`
+  says what the session has spent and `/prices` shows the rates it used.
+- **Out of quota is not a dead end.** When the quota runs out it switches to a
+  free model right away, and the answer says which route answered.
+- **No lost messages.** A journal with acknowledgement and replay.
+- **Knows how busy the computer is.** `/load` shows free space on the topic's disk,
   free RAM and average CPU, plus how many turns are running and waiting. `/load on`
   makes a prompt wait instead of starting while the machine is over a limit you set
   — kept, never refused, and one press sends it anyway.
-- **Settings per topic**: `/crew use reviewer` gives one topic its own model,
-  effort, permissions, agent preset and language while the others keep the profile;
-  `/crew off` returns it. Four built-in sets ship read-only and can be copied.
-- **Fail-fast**: when the quota runs out it switches to a free model right away.
-- **`dsh-tg check`**: diagnostics in one command, no changes to the system.
-- **Languages**: menus and service messages in `en`, `ru`, `zh`; `/lang` pins the topic language, and without it a new topic takes the language of the message itself (Cyrillic → `ru`, Han characters → `zh`), then the Telegram `language_code`, then `en`.
-- **"Stop"/"Retry" buttons, tool confirmations**: right in the message, no commands to type.
-- **`/report`**: one command turns "it broke" into a redacted document — version,
-  profile, preset, model, directory, the last failure and the log tail, with
-  tokens, keys and home paths removed before the file is written.
+- **Languages.** Menus and service messages in `en`, `ru`, `zh`; `/lang` pins the
+  topic language, and without it a new topic takes the language of the message
+  itself (Cyrillic → `ru`, Han characters → `zh`), then the Telegram
+  `language_code`, then `en`.
+- **"Stop" / "Retry" buttons and tool confirmations** sit in the message, so there
+  is no command to type to stop a run.
+- **`/report`.** One command turns "it broke" into a redacted document: version,
+  profile, preset, model, directory, the last failure and the log tail, with keys
+  and home paths removed before the file is written.
+- **`dsh-tg check`.** Diagnostics in one command, changing nothing on the system.
 
 ## Requirements
 
@@ -306,7 +321,7 @@ Work:         /cd · /new · /stop · /send · /seed · /diff
 Goals:        /goal (plan + checklist) · /goal reopen · /tasks (checklist only) · /tasks done|rm|edit <n>
 Sessions:     /status · /sessions · /sessions <id> · /rewind [n|undo|fork [n]|branches]
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
-Models:       /model · /model <id> · /prices
+Models:       /model · /model <route> · /model <route> all · /model auto · /endpoint · /prices
 Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
@@ -539,10 +554,17 @@ plugin set and model. The same switch works from a topic:
 
 A new profile is written by `dsh <name> --from-default-profile <template> --dump-config`, so
 nothing boots and no plugin is loaded at creation time; dependencies are installed by the
-profile's first turn. The binding is per topic: `/model` then edits that profile's model, and
-`/plugins` manages that profile's rows, and `/plugins search <word>` lists what the npm registry
+profile's first turn. The binding is per topic: `/plugins` manages that profile's rows, and
+`/plugins search <word>` lists what the npm registry
 has with the `dsh-plugin` keyword — the desktop app's plugin browser, from the chat. Each result
 carries a plus button that runs `/plugins add <name>`.
+
+`/model` is a step finer than the binding. A topic that never chose a model boots the profile
+it is bound to; `/model <route>` stores the route for that topic alone, and the next turn boots a
+copy of the profile with the `agent-default-model` row rewritten — provider, model and the other
+keys of that row, `reasoningEffort` included, carried over. The copy is rebuilt whenever the
+profile changes, so a provider added to the profile reaches the topics that had already chosen.
+`/model <route> all` writes the profile itself, and `/model auto` deletes the topic's route.
 
 ### The directory a topic writes in
 

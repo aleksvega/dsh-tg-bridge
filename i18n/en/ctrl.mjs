@@ -145,6 +145,7 @@ export default {
   'ctrl.session.none': '(none yet)',
   'ctrl.status.head': '📊 Bridge status',
   'ctrl.status.profile': 'Profile: {name} ({route})',
+  'ctrl.status.modelTopic': 'This topic: {route}',
   'ctrl.status.thread': 'Thread: {name}',
   'ctrl.status.threadDefault': 'general',
   'ctrl.status.session': 'Session: {id}',

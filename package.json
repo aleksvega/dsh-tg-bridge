@@ -1,7 +1,7 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.32.0",
-  "description": "Telegram bridge for [DSH]: text, voice, photos and project-per-topic sessions without opening the desktop app",
+  "version": "1.33.0",
+  "description": "Drive DeepSeek Harness from Telegram: one project, model and session per forum topic",
   "type": "module",
   "main": "plugin-bridge.mjs",
   "bin": {
@@ -79,6 +79,8 @@
     "control/sessions.mjs",
     "control/plugins.mjs",
     "control/models.mjs",
+    "control/topic-route.mjs",
+    "control/cmd-model.mjs",
     "machine.mjs",
     "load-card.mjs",
     "load-guard.mjs",

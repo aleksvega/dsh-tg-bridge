@@ -153,12 +153,17 @@ test('three languages, no raw keys', () => {
   }
 });
 
-test('a press switches the route, and the file says both halves', async () => {
+test('a press switches this topic, and the profile is left alone', async () => {
   const said = [];
   const redrawn = [];
+  const live = { route: {} };
+  const before = readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8');
   const claimed = await handleModelPress({
     data: 'md:unorouter:deepseek-v4.1-flash',
     profile: PROFILE,
+    key: '1:7',
+    state: live,
+    save: () => {},
     lang: 'en',
     t,
     say: async (text) => said.push(text),
@@ -166,24 +171,33 @@ test('a press switches the route, and the file says both halves', async () => {
     redraw: async (card) => redrawn.push(card),
   });
   assert.equal(claimed, true);
-  assert.deepEqual(modelOf(PROFILE), { provider: 'unorouter', model: 'deepseek-v4.1-flash' });
-  const patch = readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8');
-  // The provider changed with the model, and the route's other keys survived.
-  assert.match(patch, /provider: unorouter/);
-  assert.match(patch, /reasoningEffort: max/, 'the switch dropped a key it did not own');
+  assert.deepEqual(live.route['1:7'], { provider: 'unorouter', model: 'deepseek-v4.1-flash' });
+  // The whole point of the per-topic switch: the file every other topic boots is
+  // byte-for-byte what it was before the press.
+  assert.equal(readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8'), before);
+  assert.deepEqual(modelOf(PROFILE), { provider: 'wikivibe', model: 'deepseek-v4.1-flash' });
+  // The answer names both scopes, because "route → x" alone reads as a change
+  // to the whole install.
   assert.match(said[0], /unorouter\/deepseek-v4\.1-flash/);
+  assert.match(said[0], /wikivibe\/deepseek-v4\.1-flash/, 'the profile default is named too');
   assert.equal(redrawn.length, 1, 'the card is redrawn so the tick moves');
   const tick = redrawn[0].keyboard.flat().find((button) => button.text.startsWith('✓'));
   assert.equal(tick.data, 'md:unorouter:deepseek-v4.1-flash');
+  // And the tick is the topic's, not the profile's: one button is marked.
+  assert.equal(redrawn[0].keyboard.flat().filter((button) => button.text.startsWith('✓')).length, 1);
 });
 
 test('a press for a route the profile no longer has is refused, not written', async () => {
   const before = readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8');
   const said = [];
   const redrawn = [];
+  const live = { route: {} };
   const claimed = await handleModelPress({
     data: 'md:taynik:opus-5-5',
     profile: PROFILE,
+    key: '1:7',
+    state: live,
+    save: () => {},
     lang: 'en',
     t,
     say: async (text) => said.push(text),
@@ -192,6 +206,7 @@ test('a press for a route the profile no longer has is refused, not written', as
   });
   assert.equal(claimed, true, 'a known prefix is still this card’s press');
   assert.equal(readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8'), before);
+  assert.deepEqual(live.route, {}, 'a refused route is not stored either');
   assert.match(said[0], /taynik\/opus-5-5/);
   assert.match(said[0], /\/model/, 'the refusal points at the way to see what is real');
   assert.equal(redrawn.length, 1, 'and the card is redrawn from the truth');

@@ -7,6 +7,13 @@
 export default {
   'ctrl.model.pickTitle': '🎛 配置档 {profile} 的线路',
   'ctrl.model.pickNow': '当前：{route}',
+  'ctrl.model.pickNowTopic': '本话题：{route}',
+  'ctrl.model.pickNowDefault': '档案默认：{route} —— 未单独选择的话题',
+  'ctrl.model.pickFollow': '↩ 恢复跟随档案',
+  'ctrl.model.topicSet': '本话题现在走 {route}。其他话题仍为 {default}。',
+  'ctrl.model.topicCleared': '本话题恢复跟随档案：{route}。',
+  'ctrl.model.topicNone': '本话题本来就没有单独路线，一直跟随档案：{route}。',
+  'ctrl.model.topicKept': '保留自己路线的有 {n} 个话题。',
   'ctrl.model.pickUnknown': '当前：配置档 {profile} 没有默认模型行',
   'ctrl.model.pickGroup': '— {provider} —',
   'ctrl.model.pickHint': '点一条线路即可切换。提供方和模型会一起变：同一个模型名可能由多个端点提供。',

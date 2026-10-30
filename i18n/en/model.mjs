@@ -7,6 +7,13 @@
 export default {
   'ctrl.model.pickTitle': '🎛 Routes of profile {profile}',
   'ctrl.model.pickNow': 'Now: {route}',
+  'ctrl.model.pickNowTopic': 'This topic: {route}',
+  'ctrl.model.pickNowDefault': 'Profile default: {route} — every topic that did not choose',
+  'ctrl.model.pickFollow': '↩ Follow the profile again',
+  'ctrl.model.topicSet': 'This topic now answers on {route}. Other topics keep {default}.',
+  'ctrl.model.topicCleared': 'This topic follows the profile again: {route}.',
+  'ctrl.model.topicNone': 'This topic had no route of its own; it follows the profile: {route}.',
+  'ctrl.model.topicKept': '{n} topic(s) chose their own route and keep it.',
   'ctrl.model.pickUnknown': 'Now: profile {profile} has no default model line',
   'ctrl.model.pickGroup': '— {provider} —',
   'ctrl.model.pickHint': 'Tap a route to switch. The provider and the model change together, because the same model name can be served by several endpoints.',

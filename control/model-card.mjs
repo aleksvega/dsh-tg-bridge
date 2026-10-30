@@ -13,8 +13,10 @@
 // the card and the tap. Telegram caps callback data at 64 bytes, so a route too
 // long to name gets no button — a button that cannot say what it does is worse
 // than a line of text that can.
-import { routesOf, modelOf, setModel } from './models.mjs';
-import { profileOf } from '../turn.mjs';
+import { modelOf, routesOf } from './models.mjs';
+import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';
+import { baseProfileOf } from '../turn.mjs';
+import { saveState, state } from '../state.mjs';
 import { send, tg } from '../telegram.mjs';
 
 export const MODEL_PREFIX = 'md:';
@@ -40,12 +42,13 @@ export function routeData(provider, model) {
   return Buffer.byteLength(data, 'utf8') <= 64 ? data : '';
 }
 
-/** What a press asks for: the provider, the model, or null for anything else. */
+/** What a press asks for: the provider, the model, "follow the profile", or null. */
 export function modelPress(data) {
   const text = String(data || '');
   if (!text.startsWith(MODEL_PREFIX)) return null;
   const rest = text.slice(MODEL_PREFIX.length);
   if (rest === 'list') return { kind: 'list' };
+  if (rest === 'auto') return { kind: 'auto' };
   const cut = rest.indexOf(':');
   if (cut <= 0 || cut === rest.length - 1) return null;
   const provider = rest.slice(0, cut);
@@ -65,10 +68,11 @@ export function modelPress(data) {
  * provider prefix each is a wall, and a group heading stays readable when the
  * models have long names.
  */
-export function modelCard({ profile, routes, t, limit = 60 }) {
+export function modelCard({ profile, routes, current = null, topic = false, fallback = null, t, limit = 60 }) {
+  const now = current || (routes.find((route) => route.current) || null);
+  const isNow = (route) => Boolean(now && route.provider === now.provider && route.model === now.model);
   const known = routes.filter((route) => routeData(route.provider, route.model));
   const groups = routeGroups(known);
-  const current = routes.find((route) => route.current) || null;
   const rows = [];
   let hidden = 0;
   let drawn = 0;
@@ -90,7 +94,7 @@ export function modelCard({ profile, routes, t, limit = 60 }) {
         hidden += 1;
         continue;
       }
-      const mark = route.current ? '✓ ' : '';
+      const mark = isNow(route) ? '✓ ' : '';
       rows.push([
         {
           text: `${mark}${route.model}`,
@@ -101,10 +105,18 @@ export function modelCard({ profile, routes, t, limit = 60 }) {
     }
   }
   rows.push([{ text: t('ctrl.model.pickRefresh'), data: `${MODEL_PREFIX}list` }]);
+  // The way back to the profile, and only when there is something to go back
+  // from: a button that clears a choice nobody made is a button that does
+  // nothing and looks broken.
+  if (topic) rows.push([{ text: t('ctrl.model.pickFollow'), data: `${MODEL_PREFIX}auto` }]);
 
   const lines = [t('ctrl.model.pickTitle', { profile })];
-  if (current) lines.push(t('ctrl.model.pickNow', { route: `${current.provider}/${current.model}` }));
-  else lines.push(t('ctrl.model.pickUnknown', { profile }));
+  if (now) {
+    lines.push(t(topic ? 'ctrl.model.pickNowTopic' : 'ctrl.model.pickNow', { route: `${now.provider}/${now.model}` }));
+    if (topic && fallback) {
+      lines.push(t('ctrl.model.pickNowDefault', { route: `${fallback.provider}/${fallback.model}` }));
+    }
+  } else lines.push(t('ctrl.model.pickUnknown', { profile }));
   lines.push('');
   // Three different silences, and they are not the same fact: a profile with no
   // models at all, a profile whose every route is too long to be a button, and
@@ -132,34 +144,55 @@ export function modelCard({ profile, routes, t, limit = 60 }) {
  * switched and a bot that cannot answer. A press for a route that is gone says
  * so and redraws what is actually available, so the next tap is informed.
  */
-export async function handleModelPress({ data, profile, lang, t, say, answer, redraw }) {
+export async function handleModelPress({
+  data, profile, key = '', state: live = state, save = saveState, lang, t, say, answer, redraw,
+}) {
   const press = modelPress(data);
   if (!press) return false;
   const routes = routesOf(profile);
+  // Every card this handler draws is this topic's, so the tick and the two
+  // routes in the header come from one place — the same call the turn uses.
+  const draw = () => {
+    const route = topicRoute({ state: live, key });
+    return modelCard({
+      profile,
+      routes: routesOf(profile),
+      current: { provider: route.provider, model: route.model },
+      topic: route.source === 'topic',
+      fallback: route.source === 'topic' ? modelOf(profile) : null,
+      t: (k, v) => t(lang, k, v),
+    });
+  };
   if (press.kind === 'list') {
-    const card = modelCard({ profile, routes, t: (k, v) => t(lang, k, v) });
-    await redraw(card);
+    await redraw(draw());
     await answer(t(lang, 'ctrl.model.pickRefresh'));
+    return true;
+  }
+  if (press.kind === 'auto') {
+    clearTopicRoute(live, key);
+    save();
+    const route = topicRoute({ state: live, key });
+    await say(t(lang, 'ctrl.model.topicCleared', { route: `${route.provider}/${route.model}` }));
+    await redraw(draw());
     return true;
   }
   const wanted = `${press.provider}/${press.model}`;
   if (!routes.some((route) => route.provider === press.provider && route.model === press.model)) {
     await say(t(lang, 'ctrl.model.pickStale', { name: profile, route: wanted }));
-    const card = modelCard({ profile, routes, t: (k, v) => t(lang, k, v) });
-    await redraw(card);
+    await redraw(draw());
     return true;
   }
-  if (!setModel(profile, wanted)) {
-    await say(t(lang, 'ctrl.model.pickStale', { name: profile, route: wanted }));
-    return true;
-  }
-  // The answer names the route the patch carries now, never the one that was
-  // typed: the two are the same here, and that is the point of pressing a
-  // button that says both.
-  const now = modelOf(profile);
-  await say(t(lang, 'ctrl.model.pickSwitched', { name: profile, route: `${now.provider}/${now.model}` }));
-  const card = modelCard({ profile, routes: routesOf(profile), t: (k, v) => t(lang, k, v) });
-  await redraw(card);
+  setTopicRoute(live, key, press);
+  save();
+  // The answer names both scopes: the switch is this topic's, and saying only
+  // "route → x" would read as a change to the whole install.
+  const now = topicRoute({ state: live, key });
+  const head = modelOf(profile);
+  await say(t(lang, 'ctrl.model.topicSet', {
+    route: `${now.provider}/${now.model}`,
+    default: `${head.provider}/${head.model}`,
+  }));
+  await redraw(draw());
   return true;
 }
 
@@ -174,7 +207,8 @@ export function modelPressRouter({ chatId, threadId, messageId, key, lang, answe
   return (data) =>
     handleModelPress({
       data,
-      profile: profileOf(key),
+      profile: baseProfileOf(key),
+      key,
       lang,
       t,
       say: async (text) => send(chatId, text, threadId),

@@ -145,6 +145,7 @@ export default {
   'ctrl.session.none': '（还没有）',
   'ctrl.status.head': '📊 桥接状态',
   'ctrl.status.profile': '配置档：{name}（{route}）',
+  'ctrl.status.modelTopic': '本话题：{route}',
   'ctrl.status.thread': '话题：{name}',
   'ctrl.status.threadDefault': '公共',
   'ctrl.status.session': '会话：{id}',

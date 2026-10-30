@@ -61,6 +61,12 @@ const run = async (command, arg = '', overrides = {}) => {
 // tests that already stub the registry.
 const SLOW = new Set(['update', 'subscribe']);
 
+// `/diff` prints the working tree, so its text is code: a diff of a change that
+// adds `{route}` to a template literal is a diff with braces in it, and reading
+// those as an untranslated placeholder fails the suite on every such change.
+// The card is asserted in its own test; here only "it answered" is meaningful.
+const QUOTES_SOURCE = new Set(['diff']);
+
 test('every documented command claims its message in every language', async () => {
   for (const lang of LANGS) {
     for (const command of DOCUMENTED_COMMANDS) {
@@ -70,6 +76,7 @@ test('every documented command claims its message in every language', async () =
       // An empty answer is as bad as an unhandled command: the person typed
       // something and heard nothing back.
       assert.ok(text.trim().length > 0, `${lang} /${command} said nothing`);
+      if (QUOTES_SOURCE.has(command.replace(/^\//, ''))) continue;
       assert.doesNotMatch(text, /\{\w+\}/, `${lang} /${command} left a placeholder: ${text}`);
     }
   }

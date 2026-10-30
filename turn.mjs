@@ -14,6 +14,7 @@ import { tg } from './telegram.mjs';
 import { t } from './i18n.mjs';
 import { turnArgs } from './cli-args.mjs';
 import { turnOutcome } from './turn-outcome.mjs';
+import { routeProfile } from './control/topic-route.mjs';
 
 /** Turns currently running, keyed like sessions — `/stop` kills one. */
 export const activeTurns = new Map();
@@ -34,8 +35,28 @@ export const stoppedTurns = new Set();
 /**
  * Which profile runs this topic's turns. `/profile <name>` binds one topic to
  * its own plugin set and model; every other topic keeps the install default.
+ *
+ * A topic that picked its own model gets a profile built from this one with that
+ * model — the host has no per-turn model flag left, so the choice has to arrive
+ * as a profile. The choice itself is the topic's, not the profile's: moving the
+ * profile moves every topic that never chose, and leaves this one where it was.
  */
 export function profileOf(key) {
+  const base = baseProfileOf(key);
+  const own = state.route && state.route[key];
+  if (!own || !own.model) return base;
+  return routeProfile(base, own) || base;
+}
+
+/**
+ * The profile this topic edits, as opposed to the one it boots.
+ *
+ * A route profile is a copy with one row rewritten, and every command that
+ * changes a profile means the original: writing `/model` or `/endpoint` into a
+ * generated copy would look applied, then be overwritten the next time the copy
+ * is regenerated from the profile it came from.
+ */
+export function baseProfileOf(key) {
   return (state.profiles && state.profiles[key]) || config.profile || 'headless';
 }
 

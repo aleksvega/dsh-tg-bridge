@@ -1,5 +1,26 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.33.0
+
+- **A model per topic, and the profile is only the default.** One model for the
+  whole install meant the choice that suits an engineering chat slowed down a chat
+  for thinking out loud. `/model` now names the scope it changes — `This topic:`
+  or `Profile default:` — and a press stores the route in that topic alone, with
+  `↩ Follow the profile again` as the way back. The next turn boots a copy of the
+  topic's profile with the `agent-default-model` row rewritten; every other key of
+  that row survives, so a model switch cannot silently drop `reasoningEffort`, and
+  the copy is rebuilt whenever the profile changes. `/model <route> all` writes the
+  profile itself and says how many topics keep their own choice; `/model auto`
+  deletes the topic's route and reports it when there was none. Commands edit the
+  bound profile, never a generated copy, and `/profile` no longer lists those
+  copies among the profiles a person made.
+- **The description was rewritten around what the bridge does.** The README opened
+  with four lines of scene-setting and then twenty-four bullets of mixed weight;
+  it now opens with what a topic is, puts the model-per-topic rule in the first
+  bullet, and states the remaining features as claims with their scope attached
+  instead of adjectives. The npm description says the same thing in one line.
+- `/help` and the `/menu` panel name the new scope in every language.
+
 ## 1.32.0
 
 - **`/model` is a picker, not a list of names.** The old card printed bare model

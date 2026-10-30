@@ -21,7 +21,7 @@ import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card
 import { config, done, log, saveConfig, saveState, state } from './state.mjs';
 import { inlineKeyboard, send, sendFile, tg } from './telegram.mjs';
 import { sessionFile } from './thoughts.mjs';
-import { activeTurns, killTurn, profileOf } from './turn.mjs';
+import { activeTurns, baseProfileOf, killTurn, profileOf } from './turn.mjs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -429,7 +429,7 @@ export async function handleCardPress(query, ctx) {
     jobs: () => ({ active: [], queued: 0, max: maxParallel() }),
     api: tg,
     sendFile: () => Promise.resolve(0),
-    profile: profileOf(key),
+    profile: baseProfileOf(key),
     prices: () => Promise.resolve(''),
   }).catch((error) => {
     log(`settings press ${data} failed: ${error.message}`);
