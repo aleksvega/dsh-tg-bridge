@@ -1,6 +1,11 @@
 # CHANGELOG — DSH Telegram bridge
 
-## 1.30.1
+## 1.30.2
+
+- **1.30.1 was published and immediately superseded.** The first upload left the
+  version staged and the retry could not overwrite it, so the same code went out
+  again as 1.30.2. The two are identical apart from the version string; 1.30.1 is
+  deprecated and points here. Nothing to do if you installed either.
 
 - **A version earns its place by answering a turn, and a version that only ever
   throws is replaced by the last one that did.** 1.30.0 shipped a call to a
