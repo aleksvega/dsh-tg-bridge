@@ -152,7 +152,11 @@ Ordered by cost, cheapest first:
 
 1. **Rich message with folding and per-hunk buttons.** No hosting, no TLS, no NAT,
    works inside topics, survives going offline. This is 80% of the value for 5%
-   of the effort, and it is item 1 of the 80/20 list.
+   of the effort, and it is item 1 of the 80/20 list. **Shipped in 1.31.0 as
+   `/diff`** — with one deliberate difference from the plan: the buttons live
+   under the card rather than inside a fold, because a fold inside a message is
+   not tappable in Telegram, and twelve hunks with two buttons each fit in the
+   keyboard Telegram already draws.
 2. **A Mini App** for the cases a message cannot hold: a static page, `initData`
    validated by recomputing the HMAC with the bot token and comparing in constant
    time, `auth_date` freshness checked, the Telegram user id mapped to an allowed
@@ -211,7 +215,7 @@ that owns a background loop, holds a secret and spends money under a cap).
 
 Ordered. Effort and user cost as above.
 
-1. **Diff card with per-hunk buttons** — product, M, $0 extra.
+1. ~~**Diff card with per-hunk buttons** — product, M, $0 extra.~~ **Done, 1.31.0.**
 2. **Voice-first loop with a spoken confirmation** — product, M, $0–0.001 per note.
 3. **One-action test loop** — product, S, ~$0.02–0.05 per run.
 4. **`copy_text` everywhere** — product, S, $0.

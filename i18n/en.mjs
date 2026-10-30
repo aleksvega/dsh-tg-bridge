@@ -8,4 +8,5 @@ import sandbox from './en/sandbox.mjs';
 import core from './en/core.mjs';
 import fallback from './en/fallback.mjs';
 import release from './en/release.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release };
+import diff from './en/diff.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff };

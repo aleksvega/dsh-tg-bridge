@@ -1,5 +1,37 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.31.0
+
+- **`/diff`: the review loop, from a phone.** A turn that changes files used to end
+  with "done" and a `git diff` a person had to open on a desktop. `/diff` parses
+  the working tree into files and hunks and draws one card: the file list with
+  `+n -m` per file, the hunks that fit, and two buttons per hunk — **explain this
+  hunk** (which asks the agent about exactly that patch, not about "the diff") and
+  **revert this hunk**. Reverting one hunk is the case that matters: the change was
+  right except one piece, and undoing the whole turn to fix one piece is not an
+  option. `/diff stat` draws the file list alone, because on a phone that is often
+  the whole answer.
+- **A button is a hash of the hunk it was drawn from.** The id under each button is
+  a SHA-1 of the path, the hunk header and the hunk body. A press that arrives
+  after the file moved on — reverted, edited, committed — matches nothing and is
+  refused with "that hunk is not in the diff any more", instead of reverting
+  whatever now sits at that line number. This is the whole reason the feature is
+  safe to expose as a tap: a stale button cannot act.
+- **A revert is one patch, not a checkout.** `git apply -R --recount` replays the
+  single hunk with its own header, so the rest of the file keeps what the turn did.
+  The `index` line is dropped — it pins blob hashes that make a single-hunk revert
+  fail for a reason nobody can act on — and a hunk that no longer applies changes
+  nothing and says why.
+- **The card says what it left out.** A character budget, not a hunk count: one
+  lockfile hunk is bigger than twenty hunks of source. Whatever does not fit is
+  counted in the text ("…N more hunks", "…N more files"), and the keyboard is capped
+  at twelve rows for the same reason — a button that was not drawn is a button
+  nobody presses, and a card Telegram refuses is worse than a card that admits it
+  is partial.
+- **`/diff` is on the panel and in `/help`.** One row in the Work section, one line
+  in the help body, one sentence in `ctrl.help.about.diff`, in `en`, `ru` and `zh`
+  — the same day, in all three, as everything else here.
+
 ## 1.30.2
 
 - **1.30.1 was published and immediately superseded.** The first upload left the

@@ -15,7 +15,7 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
  * a panel that hides half the bot sends people back to typing.
  */
 const SECTIONS = {
-  work: ['cd', 'seed', 'send'],
+  work: ['cd', 'seed', 'send', 'diff'],
   session: ['sessions', 'rewind', 'profile', 'agents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
   talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'lang', 'fallback'],
@@ -57,6 +57,7 @@ export function isMenuPress(value) {
 /** The label a button carries: the command itself, with its argument if it needs one. */
 const LABELS = {
   cd: '/cd <project>',
+  diff: '/diff [stat]',
   seed: '/seed <text>',
   send: '/send <file>',
   stop: '/stop',

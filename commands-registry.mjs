@@ -12,7 +12,7 @@ export const CONTROL_COMMANDS = [
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'cost', 'help', 'doctor', 'logs', 'report', 'lang', 'reasoning', 'pin', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
-  'rewind', 'fork', 'branches', 'menu', 'fallback', 'load',
+  'rewind', 'fork', 'branches', 'menu', 'fallback', 'load', 'diff',
 ];
 
 /**
@@ -60,6 +60,6 @@ export const DOCUMENTED_COMMANDS = CONTROL_COMMANDS.filter((name) => !COMMAND_AL
  * the pair of names this list exists to avoid.
  */
 export const MENU_COMMANDS = [
-  'new', 'status', 'sessions', 'goal', 'tasks', 'model', 'plugins',
+  'new', 'status', 'diff', 'sessions', 'goal', 'tasks', 'model', 'plugins',
   'settings', 'menu', 'rewind', 'stop', 'help', 'update',
 ];

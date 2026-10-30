@@ -20,6 +20,11 @@ a bot that answers, one step at a time.
   a permission-enabled profile the sandbox is narrowed to it too, so the agent
   cannot write outside the project.
 - **Goal and checklist per topic**: `/goal`, `/tasks`; both survive restarts and are prepended to every turn.
+- **`/diff` — review the turn, one hunk at a time.** The working tree is split into
+  files and hunks; every hunk gets two buttons: explain it, or revert just that
+  hunk. A button carries a hash of the hunk it was drawn from, so a press that
+  arrives after the file moved on is refused instead of touching a line nobody was
+  looking at. `/diff stat` is the file list alone.
 - **Live progress**: one edited message per turn — steps, a timer and the cache hit rate, plus
   the model's reasoning in a collapsed block you can tap open. A long turn adds a second
   collapsed block with every tool call, so the whole run stays in the chat as one message.
@@ -290,13 +295,14 @@ Send the bot:
 | `/thoughts [file\|all\|off]` | the last turn's reasoning as a message; `file`/`all` send the full log as a Markdown document, `off` hides the block |
 | `/help` | commands grouped by category |
 | `/cd my-app` | topic bound to the project, and the sandbox narrowed to it |
+| `/diff [stat]` | what the turn changed, one hunk at a time: every hunk has "explain" and "revert this hunk"; a stale button is refused |
 | `/report` | a redacted bundle (version, profile, preset, model, cwd, last failure, log tail) sent to the owner as a document; in a group, the path only |
 | `/prices` | what the current model costs, and whose price that is: your provider's, the same model on another gateway, or "no public price" when nobody publishes one |
 
 ## Commands
 
 ```
-Work:         /cd · /new · /stop · /send · /seed
+Work:         /cd · /new · /stop · /send · /seed · /diff
 Goals:        /goal (plan + checklist) · /goal reopen · /tasks (checklist only) · /tasks done|rm|edit <n>
 Sessions:     /status · /sessions · /sessions <id> · /rewind [n|undo|fork [n]|branches]
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
