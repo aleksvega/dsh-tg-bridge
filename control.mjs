@@ -37,6 +37,7 @@ import { handleSessionCommands } from './control/cmd-session.mjs';
 import { handleSkillCommands } from './control/cmd-skills.mjs';
 import { handleTaskCommands } from './control/cmd-task.mjs';
 import { handleViewCommands } from './control/cmd-views.mjs';
+import { handleEndpointCommands } from './control/cmd-endpoint.mjs';
 import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from './paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './control/models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './control/plugins.mjs';
@@ -108,7 +109,7 @@ export async function handleControl(ctx) {
   // that is not its job. The order is alphabetical, not meaningful: no two
   // groups claim the same command, so a miss falls through to `default` below.
   const child = { ...ctx, effective, command, arg: effectiveArgText, send, reply, log, profile, state, key, config, lang };
-  for (const handler of [handleAgentCommands, handleBridgeCommands, handleDiffCommands, handleFallbackCommands, handleLoadCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleTaskCommands, handleViewCommands]) {
+  for (const handler of [handleAgentCommands, handleBridgeCommands, handleDiffCommands, handleFallbackCommands, handleLoadCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands]) {
     if (await handler(child)) return true;
   }
   // Nothing claimed it: the bridge answers an unknown `/` command itself, with

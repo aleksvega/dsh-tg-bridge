@@ -45,6 +45,16 @@ const PAGES = {
       command: '/reasoning {v}',
       labels: { card: 'settings.reasoning.card', chat: 'settings.reasoning.chat', off: 'settings.state.off' },
     },
+    // The same three answers, for every other topic at once. A separate row
+    // rather than a hidden modifier: "quiet everywhere, talkative here" is the
+    // shape people actually want, and it needs both halves visible side by side.
+    {
+      id: 'reasoningAll',
+      field: 'reasoningAll',
+      values: ['card', 'chat', 'off'],
+      command: '/reasoning {v} all',
+      labels: { card: 'settings.reasoning.card', chat: 'settings.reasoning.chat', off: 'settings.state.off' },
+    },
     { id: 'lang', field: 'lang', values: ['en', 'ru', 'zh'], on: 'auto', command: '/lang {v}', labels: {} },
     // The card that shows the numbers can hold the one pinned slot the chat has,
     // so getting back to it is a tap rather than a scroll back through a turn.
@@ -122,6 +132,7 @@ export function settingsButtons({ t, current = {}, updateMode = 'check' }) {
         if (data.length > MAX_PAYLOAD) throw new Error(`payload too long: ${data}`);
         let active = false;
         if (row.field === 'reasoning') active = current.reasoning === value;
+        else if (row.field === 'reasoningAll') active = current.reasoningAll === value;
         else if (row.field === 'lang') active = current.lang === value;
         else if (row.field === 'pin') active = current.pin === value;
         else if (row.id === 'u-late') active = value === 'on' ? updateMode !== 'off' : updateMode === 'off';
@@ -150,6 +161,9 @@ export function settingsButtons({ t, current = {}, updateMode = 'check' }) {
 export function settingsCurrent({ config = {}, state = {}, key = '' }) {
   return {
     reasoning: reasoningMode(state, config, key),
+    // The default, read by asking for a topic that cannot exist: the same
+    // function decides both, so the `●` on the global row is never a guess.
+    reasoningAll: reasoningMode(state, config, ''),
     lang: state.lang?.[key] || 'auto',
     pin: cardPin(state, config, key),
   };

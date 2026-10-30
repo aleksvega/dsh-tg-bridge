@@ -25,13 +25,15 @@ import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../upd
 import { isNewer, pluginInfo, rowLine, searchPlugins } from '../plugin-search.mjs';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
 import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from '../paths.mjs';
-import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './models.mjs';
+import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch, routesOf } from './models.mjs';
+import { modelCard } from './model-card.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { reasoningMode } from '../notes.mjs';
+import { saveConfig } from '../state.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 import { presetOf } from '../profile-view.mjs';
 import { costReport } from '../cost.mjs';
@@ -114,10 +116,13 @@ export async function handleViewCommands(ctx) {
     case '/model': {
       const [wanted = '', scope = ''] = (arg || '').split(/\s+/);
       if (!wanted) {
-        // One command, two states: bare `/model` lists what can be picked, and
-        // `/model <id>` picks it. A separate `/models` read as a second, near
-        // identical command (and did the same thing as `/model` with no id).
-        say(modelsReport(lang, activeProfile));
+        // One command, two states: bare `/model` offers the routes as buttons,
+        // and `/model <route>` picks one. The list is provider + model, not the
+        // ids alone: `deepseek-v4.1-flash` is declared by two providers, so a
+        // list of ids showed the same name twice and said nothing about where
+        // the answers would come from.
+        const card = modelCard({ profile: activeProfile, routes: routesOf(activeProfile), t: (k, v) => t(lang, k, v) });
+        say(card.text, { keyboard: card.keyboard });
         return true;
       }
       if (!setModel(activeProfile, wanted)) {
@@ -283,19 +288,38 @@ export async function handleViewCommands(ctx) {
       // One switch for "how much of the decision trail reaches me": off, the
       // progress card, or the chat itself. Anything else prints the current
       // state, so a bare /reasoning never guesses.
-      const wanted = String(arg || '').trim().toLowerCase();
+      //
+      // Two scopes, because the question has two answers: a topic you want to
+      // watch closely and every other topic that should stay quiet. `all` sets
+      // the default the other topics inherit; without it the change is this
+      // topic only, which is the smaller change and the safer default.
+      const words = String(arg || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const global = words.length > 1 && (words[1] === 'all' || words[1] === 'global');
+      const wanted = words[0] || '';
       const mode = reasoningMode(state, config, key);
       const next = { on: 'card', card: 'card', chat: 'chat', off: 'off' }[wanted];
       if (!next) {
-        say(t(lang, 'msg.reasoningState', { state: t(lang, `msg.reasoningMode.${mode}`) }));
+        say(t(lang, global ? 'msg.reasoningGlobalState' : 'msg.reasoningState', {
+          state: t(lang, `msg.reasoningMode.${mode}`),
+          all: t(lang, `msg.reasoningMode.${reasoningMode(state, config, '')}`),
+        }));
         return true;
       }
-      state.reasoning = state.reasoning || {};
-      // `on` is the old spelling of the card and stays accepted: it is the word
-      // the previous release printed, and a chat is full of those instructions.
-      state.reasoning[key] = next;
+      if (global) {
+        // The default lives in the config, not in state: it is what a topic with
+        // no opinion reads, and it has to survive a cleared state.json.
+        config.reasoning = next;
+        ctx.saveConfig?.() ?? saveConfig();
+      } else {
+        state.reasoning = state.reasoning || {};
+        // `on` is the old spelling of the card and stays accepted: it is the word
+        // the previous release printed, and a chat is full of those instructions.
+        state.reasoning[key] = next;
+      }
       ctx.saveState();
-      say(t(lang, next === 'off' ? 'msg.reasoningOff' : next === 'chat' ? 'msg.reasoningChat' : 'msg.reasoningOn'));
+      const suffix = global ? 'All' : next === 'off' ? 'Off' : next === 'chat' ? 'Chat' : 'On';
+      say(t(lang, `msg.reasoning${suffix}`));
+      if (global) say(t(lang, 'msg.reasoningTopicWins'));
       return true;
     }
     case '/pin': {

@@ -1,5 +1,33 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.32.0
+
+- **`/model` is a picker, not a list of names.** The old card printed bare model
+  ids, and the same id can be served by several providers — `deepseek-v4.1-flash`
+  appeared twice with nothing to tell the rows apart, and `/model
+  deepseek-v4.1-flash` quietly kept whichever provider the profile already had.
+  A bare `/model` now draws every **route** — provider and model together,
+  grouped under the provider, with `✓` on the one in force — and each route is a
+  button. A press names the full route, so it cannot mean "the fourth model" if
+  the profile changed between drawing and tapping; a route whose name will not
+  fit in Telegram's 64-byte payload gets no button at all rather than a wrong one.
+- **`/endpoint` adds a provider from the chat, without a model turn.** Adding one
+  is four facts typed once, so it is parsed and written directly:
+  `/endpoint add <id> <https://url/v1> <KEY_ENV> [model,model]`, `/endpoint list`,
+  `/endpoint rm <id>`. Only the *name* of the key variable is typed — a pasted
+  `sk-…` is refused and the profile is not touched. The URL must be https (http
+  only for localhost) because a key rides on every request. Re-adding an endpoint
+  adds models and never reorders or drops the ones already there, and a new model
+  shows up on `/model` as a button immediately.
+- **Working notes have two scopes.** `/reasoning` already followed the topic
+  first and the install second, but the install default could only be set by
+  editing `config.json`. `/reasoning off all` (or `card`/`chat`) now sets the
+  default every other topic reads, while a bare `/reasoning off` still changes
+  this topic only. The settings card shows both rows side by side. A topic with
+  its own choice keeps it, and the answer says so instead of claiming every topic
+  changed.
+- The `/help` models row and the `/menu` panel now name `/endpoint`.
+
 ## 1.31.1
 
 - **`/version` and `/update` can no longer disagree.** They are one card, but

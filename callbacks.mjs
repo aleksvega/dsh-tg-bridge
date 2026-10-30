@@ -15,6 +15,7 @@ import { approvals, enqueue, lastPrompt, maxParallel, redeliver, rewindUsed } fr
 import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { diffPressRouter } from './control/cmd-diff.mjs';
+import { handleModelPress, MODEL_PREFIX, modelPressRouter } from './control/model-card.mjs';
 import { runCommandFromButton } from './run-command.mjs';
 import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
 import { config, done, log, saveConfig, saveState, state } from './state.mjs';
@@ -288,13 +289,14 @@ export async function handleCallback(query) {
     return;
   }
 
+  // Two card presses, one rule each: what the card said is re-read from the
+  // thing it described before acting, never trusted from the button. The diff
+  // checks its hunk hash, the model card checks the route its profile declares.
   if (data.startsWith('df:')) {
-    // A diff card button. The diff is re-read inside the handler, not taken
-    // from the card: the hunk id is a hash of the hunk's own text, so a press
-    // that arrives after the file moved on matches nothing and is refused
-    // instead of reverting whatever now sits at that line number.
-    const press = diffPressRouter({ chatId, threadId, key, lang, config, state, answer, clearKeyboard, log, enqueue, handleMessage });
-    if (await press(data)) return;
+    if (await diffPressRouter({ chatId, threadId, key, lang, config, state, answer, clearKeyboard, log, enqueue, handleMessage })(data)) return;
+  }
+  if (data.startsWith(MODEL_PREFIX)) {
+    if (await modelPressRouter({ chatId, threadId, messageId, key, lang, answer, log })(data)) return;
   }
 
   if (data.startsWith('t:')) {

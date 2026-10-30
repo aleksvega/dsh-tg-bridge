@@ -58,6 +58,74 @@ export function modelOf(profile) {
 }
 
 /**
+ * Every route a profile can run, as provider + model pairs.
+ *
+ * `modelsOf` answers "which model ids exist", and that is the wrong question to
+ * put on a screen: the same id is declared by several providers — `deepseek-v4.1-flash`
+ * exists on wikivibe and on unorouter — so a list of ids shows the same name
+ * twice and neither row says where the answers would come from. Picking a model
+ * and picking a route is one decision, so the list is made of routes.
+ *
+ * The lookup is indentation-driven, like `windowOf`: provider rows sit at one
+ * depth under `providers:`, model rows two spaces deeper under their
+ * provider's `models:`. A profile with no provider block, or a model declared
+ * outside one, still yields a row with an empty provider rather than vanishing.
+ */
+export function routesOf(profile) {
+  const lines = read(patchPath(profile)).split(/\r?\n/);
+  const head = modelOf(profile);
+  const out = [];
+  let atProviders = -1;
+  let rowIndent = -1;
+  let provider = '';
+  let modelsIndent = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = (/^\s*/.exec(line) || [''])[0].length;
+    if (atProviders < 0) {
+      if (/^providers:\s*$/.test(trimmed)) atProviders = indent;
+      continue;
+    }
+    // The provider block ends at the first line shallower than a provider row.
+    if (rowIndent < 0) rowIndent = indent;
+    if (indent < rowIndent) {
+      atProviders = -1;
+      provider = '';
+      modelsIndent = -1;
+      continue;
+    }
+    if (indent === rowIndent) {
+      const row = /^([\w.-]+):\s*$/.exec(trimmed);
+      provider = row ? row[1] : '';
+      modelsIndent = -1;
+      continue;
+    }
+    if (!provider) continue;
+    if (/^models:\s*$/.test(trimmed)) {
+      modelsIndent = indent;
+      continue;
+    }
+    if (modelsIndent < 0) continue;
+    // Back at the model list's own depth: the list is over.
+    if (indent <= modelsIndent) {
+      modelsIndent = -1;
+      continue;
+    }
+    const id = /^-\s*id:\s*(\S+)/.exec(trimmed);
+    if (id) {
+      out.push({
+        provider,
+        model: id[1],
+        current: provider === head.provider && id[1] === head.model,
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * The context window this profile actually runs with.
  *
  * It lives in the profile's own patch — `defaultContextWindow`, and a

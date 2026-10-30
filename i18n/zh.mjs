@@ -9,4 +9,6 @@ import core from './zh/core.mjs';
 import fallback from './zh/fallback.mjs';
 import release from './zh/release.mjs';
 import diff from './zh/diff.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff };
+import model from './zh/model.mjs';
+import endpoint from './zh/endpoint.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint };
