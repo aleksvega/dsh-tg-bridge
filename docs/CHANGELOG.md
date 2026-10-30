@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.33.3
+
+- **Comments are back to the characters they were written with.** Five dashes in
+  `callbacks.mjs` had gone through a cp1251 round trip and shipped as `â€”`.
+  Behaviour never changed — it was a comment — which is exactly why nothing
+  caught it: no test reads the files. There is one now. `test/encoding.test.mjs`
+  reads every shipped module and fails on the shapes a cp1251 round trip leaves
+  behind, so the next edit that mangles text is caught before the release rather
+  than by a reader.
+
 ## 1.33.2
 
 - **The tabs of the settings card now change the page.** `commandFor` answered a

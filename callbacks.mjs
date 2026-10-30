@@ -122,7 +122,7 @@ export async function handleCallback(query) {
 
   // A search result's plus button. The name came from the registry and the
   // command is the one the hint under the list names, so a tap installs exactly
-  // what was read â€” no hidden second path into pnpm.
+  // what was read — no hidden second path into pnpm.
   if (data.startsWith('pl:i:')) {
     const wanted = data.slice(5);
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(wanted)) {
@@ -138,7 +138,7 @@ export async function handleCallback(query) {
 
   // The up arrow on the update card. Same shape as the plus of a search result:
   // the name was printed by the command that read the registry, and the tap runs
-  // `/plugin update <name>` â€” nothing else.
+  // `/plugin update <name>` — nothing else.
   if (data.startsWith('pl:u:')) {
     const wanted = data.slice(5);
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(wanted)) {
@@ -155,7 +155,7 @@ export async function handleCallback(query) {
   if (data.startsWith('fk:')) {
     // A branch button from /branches. It does what `/resume <id>` does, so the
     // topic moves onto that branch and the answer comes from the command
-    // itself â€” one implementation, one sentence.
+    // itself — one implementation, one sentence.
     const wanted = data.slice(3);
     if (!/^session-[0-9a-f-]{36}$/.test(wanted)) {
       await answer(t(lang, 'bridge.cb.unknown'));
@@ -184,7 +184,7 @@ export async function handleCallback(query) {
   }
 
   // A button on the failover card. Every press becomes the verb of `/fallback`,
-  // so a tap and a typed line land in the same code â€” and the command redraws the
+  // so a tap and a typed line land in the same code — and the command redraws the
   // card, which is why the old keyboard is trimmed only when the press leaves it.
   if (isFallbackPress(data)) {
     const target = pressTarget(data);
@@ -240,7 +240,7 @@ export async function handleCallback(query) {
     const name = target.kind === 'command' ? target.name : '';
     await clearKeyboard();
     // `/new` and `/stop` change something when typed alone, and a stray tap on
-    // them is a command nobody asked for â€” so they open their explanation.
+    // them is a command nobody asked for — so they open their explanation.
     const typed = runsUnasked(name) && CONTROL_COMMANDS.includes(name)
       ? commandForName(name, { t: (k, v) => t(lang, k, v) })
       : `/help ${name}`;
