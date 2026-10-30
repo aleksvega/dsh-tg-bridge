@@ -149,22 +149,30 @@ export async function handleBridgeCommands(ctx) {
         return true;
       }
       say(t(lang, 'ctrl.app.restarting', { pids: before.join(', '), exe: EXE }));
-      spawn('taskkill', ['/IM', 'DeepSeek Harness.exe', '/T', '/F'], { windowsHide: true, detached: true }).on('close', async () => {
-        const gone = await waitForExit(before, 12000);
-        if (!gone) {
-          say(t(lang, 'ctrl.app.stuck'));
-          return;
-        }
-        if (!existsSync(EXE)) {
-          say(t(lang, 'ctrl.app.noExe', { exe: EXE }));
-          return;
-        }
-        spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
-        const up = await waitForStart(15000);
-        say(up.length
-          ? t(lang, 'ctrl.app.restarted', { pids: up.join(', ') })
-          : t(lang, 'ctrl.app.notUp'));
+      // Kill the processes that were just named, one by one. An image-name kill
+      // takes down every program with that name — a second DSH opened for another
+      // profile, or an instance started after this list was read — and the message
+      // above promised the pids it lists, not every window on the machine.
+      const kill = (pid) => new Promise((resolve) => {
+        spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, detached: true })
+          .on('close', resolve)
+          .on('error', resolve);
       });
+      await Promise.all(before.map(kill));
+      const gone = await waitForExit(before, 12000);
+      if (!gone) {
+        say(t(lang, 'ctrl.app.stuck'));
+        return true;
+      }
+      if (!existsSync(EXE)) {
+        say(t(lang, 'ctrl.app.noExe', { exe: EXE }));
+        return true;
+      }
+      spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+      const up = await waitForStart(15000);
+      say(up.length
+        ? t(lang, 'ctrl.app.restarted', { pids: up.join(', ') })
+        : t(lang, 'ctrl.app.notUp'));
       return true;
     }
     case '/stop': {

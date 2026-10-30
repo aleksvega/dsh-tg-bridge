@@ -237,7 +237,6 @@ export async function runFallbackChain({
     tried.push(`${labelOf(entry)}: ${String(result.error).slice(0, 120)}`);
     log(`fallback to ${labelOf(entry)} for ${where} family=${family} after: ${String(result.error).slice(0, 120)}`);
     if (family === 'refused') refusals += 1;
-    telemetry.model = labelOf(entry);
     // The person sees every switch, not only the final give-up: a chain of five
     // companies that silently ends on the fifth reads like a hang.
     await send(chatId, t(lang, 'bridge.fallback.switched', {
@@ -246,7 +245,13 @@ export async function runFallbackChain({
       free: entry.free ? ' (free)' : '',
     }), threadId);
     result = await run(ensureProfile(entry.patch));
-    if (!result.error) break;
+    // Named only once it answers. Recording the attempt instead would make
+    // `/model` and the settings card claim a route that produced nothing.
+    if (!result.error) {
+      telemetry.model = labelOf(entry);
+      telemetry.switched = true;
+      break;
+    }
   }
 
   // Every model refused. Before saying "all models are unavailable", ask each
@@ -272,6 +277,12 @@ export async function runFallbackChain({
       const entry = entries.find((item) => item.model === live.model
         && (!live.provider || item.provider === live.provider));
       result = await run(entry ? ensureProfile(entry.patch) : turnProfile);
+      // A retry after the probe counts as a switch too: the route that answered
+      // is not the one the topic names, which is the whole point of the line.
+      if (!result.error) {
+        telemetry.model = labelOf(live);
+        telemetry.switched = true;
+      }
     } else {
       // Nothing answers, or the request itself is what is refused: the verdict
       // is the only useful part of the failure.

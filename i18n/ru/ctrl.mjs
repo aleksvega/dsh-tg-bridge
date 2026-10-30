@@ -195,6 +195,8 @@ export default {
   'ctrl.model.usage': 'Использование: /model <id> [both]  (/model — список)',
   'ctrl.model.failed': 'Не смог переключить {name} на «{model}»: в профиле нет строки agent-default-model. /model — список.',
   'ctrl.model.switched': 'Модель {name} → {model}{desktop}. Действует со следующего хода.',
+  'ctrl.model.answered': 'Последним отвечал: {model}',
+  'ctrl.model.answeredSwitched': 'Последним отвечал {model} — свой маршрут темы не ответил',
   'ctrl.model.withDesktop': ', desktop → {model}',
   'ctrl.sessions.empty': 'Сессий не нашёл.',
   'ctrl.sessions.title': '🗂 Последние сессии:',

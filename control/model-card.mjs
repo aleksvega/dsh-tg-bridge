@@ -68,7 +68,7 @@ export function modelPress(data) {
  * provider prefix each is a wall, and a group heading stays readable when the
  * models have long names.
  */
-export function modelCard({ profile, routes, current = null, topic = false, fallback = null, t, limit = 60 }) {
+export function modelCard({ profile, routes, current = null, topic = false, fallback = null, answered = null, t, limit = 60 }) {
   const now = current || (routes.find((route) => route.current) || null);
   const isNow = (route) => Boolean(now && route.provider === now.provider && route.model === now.model);
   const known = routes.filter((route) => routeData(route.provider, route.model));
@@ -117,6 +117,12 @@ export function modelCard({ profile, routes, current = null, topic = false, fall
       lines.push(t('ctrl.model.pickNowDefault', { route: `${fallback.provider}/${fallback.model}` }));
     }
   } else lines.push(t('ctrl.model.pickUnknown', { profile }));
+  // The route above is the one this topic is set to. After a fallback the turn
+  // ran somewhere else, and a card that only names the setting reads as "this is
+  // who answers" when it is not.
+  if (answered?.model) {
+    lines.push(t(answered.switched ? 'ctrl.model.answeredSwitched' : 'ctrl.model.answered', { model: answered.model }));
+  }
   lines.push('');
   // Three different silences, and they are not the same fact: a profile with no
   // models at all, a profile whose every route is too long to be a button, and

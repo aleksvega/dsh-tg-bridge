@@ -35,6 +35,11 @@ function frameStarts(buf) {
 /** Path of a session file, or '' when the id is unknown. */
 export function sessionFile(sessionsRoot, sessionId) {
   if (!sessionId) return '';
+  // The id reaches this file from the state file and from `/sessions <id>`, so it
+  // is text somebody typed. `join` happily walks up from `..`, and the id alone
+  // decides which directory is read: one safe shape, checked here, closes that.
+  const id = String(sessionId);
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(id) || id === '.' || id === '..' || id.includes('..')) return '';
   let dirs = [];
   try {
     dirs = readdirSync(sessionsRoot, { withFileTypes: true }).filter((e) => e.isDirectory());
@@ -42,7 +47,7 @@ export function sessionFile(sessionsRoot, sessionId) {
     return '';
   }
   for (const dir of dirs) {
-    const direct = join(sessionsRoot, dir.name, sessionId, 'session.v4.jsonl.zstd');
+    const direct = join(sessionsRoot, dir.name, id, 'session.v4.jsonl.zstd');
     if (existsSync(direct)) return direct;
   }
   return '';

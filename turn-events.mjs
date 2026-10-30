@@ -30,6 +30,26 @@ export function newTelemetry(model = '') {
     // state file and its model in a patch file, and a module that counts tool
     // calls has no business reading either.
     model,
+    // Set by the fallback chain when a route other than the topic's own answered.
+    // The model field alone cannot say that: it is also the configured model.
+    switched: false,
+  };
+}
+
+/**
+ * Remember who answered, per topic, for `/model` and the settings card.
+ *
+ * Both cards name the route the topic is *configured* with. After a fallback
+ * that is not the route that replied, and the difference is the one thing a
+ * person checking "why is this slow/vague" needs to see. Kept here because the
+ * telemetry is what knows, and the message handler is at its size ceiling.
+ */
+export function noteAnswered(state, key, telemetry = {}) {
+  state.answered = state.answered || {};
+  state.answered[key] = {
+    model: telemetry.model || '',
+    switched: Boolean(telemetry.switched),
+    at: Date.now(),
   };
 }
 

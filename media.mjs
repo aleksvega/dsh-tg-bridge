@@ -3,8 +3,9 @@
 // and the hand-over are one job with three failure modes of its own.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { basename, isAbsolute, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { DIR } from './paths.mjs';
 import { config, log } from './state.mjs';
 import { token } from './secrets.mjs';
@@ -13,17 +14,123 @@ import { downloadFile, send, tg } from './telegram.mjs';
 import { inlineText } from './media-text.mjs';
 import { ensureProfile } from './profiles.mjs';
 /**
- * Transcribe a local audio file with the speech backend from config.
+ * Which backend reads the audio: `voice.provider` when the config names one, and
+ * otherwise the shape of the config itself, so an install that only has the old
+ * keys keeps working across an update. Three shapes, chosen by the person:
  *
- * Two shapes are supported:
- *   - faster-whisper script: `voice.python` + `voice.script` + `voice.model`
- *     (the local setup: `~/.venv-whisper`, models from the HF cache);
- *   - any whisper.cpp-style CLI: `voice.command` + `voice.args`, with `{file}`.
- * Either way the transcript comes back on stdout, diagnostics on stderr.
+ *   - `script`  — a local faster-whisper script (`voice.python` + `voice.script`);
+ *   - `command` — any whisper.cpp-style CLI (`voice.command` + `voice.args`);
+ *   - `openai`  — any OpenAI-compatible `/audio/transcriptions` endpoint:
+ *     OpenAI, Groq, DeepInfra, a local vLLM or `whisper.cpp` server, and whatever
+ *     else speaks the same request. `voice.baseUrl` + `voice.model` + a key.
+ *
+ * The point of `openai` is that nobody is married to the model this repo happened
+ * to install: the endpoint and the model name are fields, not code.
  */
-export function transcribe(file, voice) {
-  const useScript = Boolean(voice.python && voice.script);
+export function voiceProvider(voice = {}) {
+  const named = String(voice.provider || '').toLowerCase();
+  if (named === 'script' || named === 'command' || named === 'openai') return named;
+  if (voice.python && voice.script) return 'script';
+  if (voice.baseUrl && voice.model) return 'openai';
+  if (voice.command) return 'command';
+  return '';
+}
+
+/** Whether this config can read audio at all — used before offering to. */
+export function voiceConfigured(voice = {}) {
+  const provider = voiceProvider(voice);
+  if (provider === 'openai') {
+    // The name of the variable is not the key: a config that only sets
+    // `apiKeyEnv` is still missing the value, and pretending otherwise turns
+    // "not set up" into a failed request.
+    return Boolean(voice.model && (voice.apiKey || (voice.apiKeyEnv && process.env[voice.apiKeyEnv])));
+  }
+  if (provider === 'script') return Boolean(voice.python && voice.script);
+  if (provider === 'command') return Boolean(voice.command);
+  return false;
+}
+
+export function transcribe(file, voice = {}) {
+  const provider = voiceProvider(voice);
+  if (provider === 'openai') return transcribeHttp(file, voice);
+  if (provider === 'script' || provider === 'command') return transcribeLocal(file, voice, provider === 'script');
+  return Promise.resolve({ text: '', error: 'no speech backend: set voice.provider to script, command or openai' });
+}
+
+/**
+ * A hosted or self-hosted endpoint that answers the OpenAI transcription request.
+ * The body is assembled here instead of in a dependency: it is one multipart form.
+ */
+async function transcribeHttp(file, voice) {
+  const base = String(voice.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const key = voice.apiKey || process.env[voice.apiKeyEnv || ''] || '';
+  // The message goes into the chat, so it names the setting, never the value.
+  if (!key) return { text: '', error: `no key for ${base}: set voice.apiKey or voice.apiKeyEnv` };
+  let audio;
+  try {
+    audio = readFileSync(file);
+  } catch (error) {
+    return { text: '', error: `cannot read the audio: ${error.code || error.message}` };
+  }
+  const form = new FormData();
+  form.set('file', new Blob([audio]), basename(file));
+  form.set('model', voice.model);
+  if (voice.language && voice.language !== 'auto') form.set('language', voice.language);
+  let res;
+  try {
+    res = await fetch(`${base}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}` },
+      body: form,
+      signal: AbortSignal.timeout(voice.timeoutMs || 120000),
+    });
+  } catch (error) {
+    log(`voice http: ${base} ${error.name || error.message}`);
+    return { text: '', error: error.name === 'TimeoutError' ? 'the speech endpoint timed out' : 'the speech endpoint did not answer' };
+  }
+  const raw = await res.text();
+  if (!res.ok) {
+    // Some providers put a readable reason in the body ("model not found", "bad
+    // key"); keep it short and log it without the key or the audio.
+    log(`voice http ${res.status} from ${base}: ${raw.slice(0, 200)}`);
+    return { text: '', error: `the speech endpoint answered ${res.status}` };
+  }
+  let text = '';
+  try {
+    text = String(JSON.parse(raw).text || '');
+  } catch {
+    // `response_format=text` and a few servers answer with the transcript itself.
+    text = raw;
+  }
+  return { text: text.trim(), error: '' };
+}
+
+/** The local shapes: spawn an interpreter with our script, or a whisper CLI. */
+function transcribeLocal(file, voice, useScript) {
   const command = useScript ? voice.python : voice.command;
+  // The interpreter and the script are named by absolute path or not at all. A
+  // bare `python` is looked up on PATH *and* in the working directory, so a file
+  // dropped next to the install could answer for the interpreter; the same field
+  // hand-edited in `config.json` would point transcription at any program. A
+  // whisper.cpp-style `command` stays exempt: `whisper-cli` on PATH is the normal
+  // way to install it, and it is not an interpreter that will run our script.
+  if (useScript && (!isAbsolute(command) || !isAbsolute(voice.script))) {
+    log(`voice: python=${command} script=${voice.script} — both must be absolute`);
+    return Promise.resolve({ text: '', error: 'voice.python and voice.script must be absolute paths' });
+  }
+  const cwd = voice.cwd || DIR;
+  // A cwd that does not exist is a typo, and a spawn error names the file rather
+  // than the setting that is actually wrong.
+  if (voice.cwd && !(existsSync(cwd) && statSync(cwd).isDirectory())) {
+    log(`voice: cwd=${cwd} is not a directory`);
+    return Promise.resolve({ text: '', error: 'voice.cwd is not a directory' });
+  }
+  // `{out}` is a temp path the engine may write to: whisper.cpp is not the only
+  // program people run — Vosk, WhisperX, GigaAM wrappers and plain ffmpeg chains
+  // all exist, and most of them either print the text or write it to a file given
+  // on the command line. Both shapes fit in a template, so the config stays data.
+  const out = join(tmpdir(), `dsh-voice-${Date.now()}-${process.pid}`);
+  const fill = (value) => String(value).replaceAll('{file}', file).replaceAll('{out}', out);
   const args = useScript
     ? [
         voice.script,
@@ -33,7 +140,7 @@ export function transcribe(file, voice) {
         '--beam', String(voice.beam ?? 1),
         '--threads', String(voice.threads ?? 0),
       ]
-    : (voice.args ?? []).map((arg) => String(arg).replaceAll('{file}', file));
+    : (voice.args ?? []).map(fill);
   if (!useScript && !(voice.args ?? []).some((arg) => String(arg).includes('{file}'))) args.push(file);
   return new Promise((resolve) => {
     const child = spawn(command, args, {
@@ -53,15 +160,38 @@ export function transcribe(file, voice) {
     child.stderr.on('data', (buf) => { stderr += buf; });
     child.on('error', (err) => resolve({ text: '', error: `${command}: ${err.message}` }));
     child.on('close', (code) => {
-      // whisper.cpp writes timestamps and `[BLANK_AUDIO]` markers; keep only speech.
-      const text = stdout
-        .split(/\r?\n/)
-        .map((line) => line.replace(/^\s*\[[\d:.,\s>-]+\]\s*/, '').replace(/\[BLANK_AUDIO\]/gi, '').trim())
-        .filter(Boolean)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      resolve({ text, error: code === 0 ? '' : `${voice.command} exit ${code}: ${stderr.trim().slice(-300)}` });
+      let text = '';
+      if (!useScript && voice.output === 'file') {
+        // The engine wrote the transcript where the template said; the file is
+        // removed with the temp path afterwards, so the person's inbox stays clean.
+        const target = fill(voice.outputFile || '{out}');
+        try {
+          text = readFileSync(target, 'utf8').trim();
+        } catch (error) {
+          resolve({ text: '', error: `${basename(command)} wrote no transcript to ${basename(target)}: ${error.code || error.message}` });
+          return;
+        }
+        try { unlinkSync(target); } catch {}
+      } else if (!useScript && voice.output === 'json') {
+        // {"text": "…"} is the common shape; Vosk answers {"result": [{text}…]}.
+        try {
+          const data = JSON.parse(stdout);
+          text = String(data.text ?? (Array.isArray(data.result) ? data.result.map((r) => r.text || '').join(' ') : ''));
+        } catch {
+          text = '';
+        }
+        if (!text) text = stdout.trim();
+      } else {
+        // whisper.cpp writes timestamps and `[BLANK_AUDIO]` markers; keep only speech.
+        text = stdout
+          .split(/\r?\n/)
+          .map((line) => line.replace(/^\s*\[[\d:.,\s>-]+\]\s*/, '').replace(/\[BLANK_AUDIO\]/gi, '').trim())
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+      resolve({ text: text.replace(/\s+/g, ' ').trim(), error: code === 0 ? '' : `${voice.command} exit ${code}: ${stderr.trim().slice(-300)}` });
     });
   });
 }
@@ -166,19 +296,28 @@ export function voicePromptText(heard, lang) {
  */
 export async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   const list = Array.isArray(msgs) ? msgs : [msgs];
-  const voiceReady = Boolean(config.voice?.python && config.voice?.script) || Boolean(config.voice?.command);
-  const voiceOn = Boolean(config.voice?.enabled) && voiceReady;
+  // `enabled` is the master switch; `voiceConfigured` knows every backend shape,
+  // so a key-only (hosted) setup is not mistaken for a missing one.
+  const voiceOn = Boolean(config.voice?.enabled) && voiceConfigured(config.voice);
   const parts = [];
   let extraArgs = [];
   /** Profile the turn must run on (only an opt-in photo overlay overrides it). */
   let profile = '';
   let caption = '';
   let photo = false;
+  // A voice note with no backend used to be dropped without a word: the person
+  // saw the bot ignore them, and nothing said the engine was missing. Once per
+  // batch is enough — an album of clips must not repeat the same line.
+  let voiceTold = false;
   for (const msg of list) {
     if (!caption && (msg.caption || '').trim()) caption = msg.caption.trim();
     if (msg.voice || msg.audio) {
       if (!voiceOn) {
         log('audio ignored: voice transcription is off or misconfigured');
+        if (!voiceTold) {
+          voiceTold = true;
+          await send(chatId, t(lang, 'msg.voiceOff'), threadId);
+        }
         continue;
       }
       const heard = await readVoiceIntoText(msg, chatId, threadId, lang);

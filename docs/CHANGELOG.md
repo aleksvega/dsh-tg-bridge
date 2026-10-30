@@ -1,5 +1,38 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.34.0
+
+- **Speech is a choice, not a vendor.** `voice.provider` picks the backend, and the
+  bridge stops assuming the model it happened to install: `script` runs a local
+  Python transcriber, `command` runs any program that prints or writes the
+  transcript, and `openai` posts to any OpenAI-compatible `/audio/transcriptions`
+  endpoint — OpenAI, Groq, or a local server. A `command` engine may answer as
+  plain text, as JSON (`{"text": …}` or Vosk's `{"result": […]}`), or into a file
+  named by `{out}` in the argument template. The old keys still work: with no
+  `provider` the shape is guessed from them, in that order. `docs/VOICE.md` has a
+  ready-made block for each. `test/voice-providers.test.mjs` runs a real HTTP
+  server and real child processes, because the request body and the three output
+  shapes are the whole feature.
+- **A voice note with no backend is no longer silence.** The audio was dropped
+  with a log line and nothing in the chat — the person was ignored and had no way
+  to learn it was a setting. The bridge now answers once per batch with what is
+  missing and the three ways to fill it in, in the topic's language.
+- **Both cards name the model that answered.** The settings card and `/model`
+  describe the route a topic is *configured* with; after a fallback that is not
+  the route that replied. A successful turn records `{ model, switched }` per
+  topic and the card adds `Ответила deepseek-v3.2 (fallback)` — once the primary
+  answers again the line goes back to naming it without the caveat.
+  `test/answered-model.test.mjs`.
+- **Four ways a string reached outside the directory the bridge owns.** `/app
+  restart` killed every `DeepSeek Harness.exe` by image name instead of the pids
+  it had just listed; a session id from `/sessions <id>` was joined into a path
+  unchecked; `/skills <name>` could be walked out of `skills/` with `../..`; and
+  the voice backend accepted a relative interpreter (looked up on `PATH` *and* in
+  the working directory) and any `cwd` at all. Each is closed at the point the
+  string arrives, `test/guards.test.mjs` pins the first three, and the update
+  root, `/soul` rewrite and derived-profile prune already had their containment
+  checks — they are named in the same audit and stay.
+
 ## 1.33.3
 
 - **Comments are back to the characters they were written with.** Five dashes in

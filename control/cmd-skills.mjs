@@ -5,7 +5,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join, basename } from 'node:path';
+import { basename, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from '../i18n.mjs';
 import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from '../goals.mjs';
@@ -46,7 +46,17 @@ export async function handleSkillCommands(ctx) {
       const rows = skillsOf();
       const want = (arg || '').trim();
       if (want) {
-        const dir = join(DSH_HOME, 'skills', want);
+        // A skill is one directory under `skills/`, and the name here is whatever
+        // was typed: `join` walks out of the root for `../..`, so the resolved
+        // path is checked to still be inside before anything is read. The old
+        // code could be pointed at any `SKILL.md` on the disk.
+        const root = join(DSH_HOME, 'skills');
+        const dir = join(root, want);
+        const inside = relative(root, dir);
+        if (!inside || inside.startsWith('..') || isAbsolute(inside)) {
+          say(t(lang, 'ctrl.skills.none', { name: want }));
+          return true;
+        }
         const body = read(join(dir, 'SKILL.md'));
         say(body
           ? t(lang, 'ctrl.skills.body', { name: want, body: body.slice(0, 3000) })

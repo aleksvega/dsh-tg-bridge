@@ -166,6 +166,10 @@ export function settingsCurrent({ config = {}, state = {}, key = '' }) {
     reasoningAll: reasoningMode(state, config, ''),
     lang: state.lang?.[key] || 'auto',
     pin: cardPin(state, config, key),
+    // Who answered the last turn that finished: the topic's route is what this
+    // card configures, but after a fallback the honest answer is the model that
+    // actually replied — and the card is where a person looks to check.
+    answered: state.answered?.[key] || null,
   };
 }
 
@@ -223,6 +227,15 @@ export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode
     lines.push(t('settings.agent.permission', {
       preset: current.permissions.preset || t('settings.notSet'),
       profile: current.permissions.profile || '',
+    }));
+  }
+  // Who actually answered last, and whether that was the chain rather than this
+  // topic's own route. The card names the route it configures a few rows above,
+  // so without this line a topic running on a fallback looks like it is running
+  // on the route printed there.
+  if (page === 'agent' && current.answered?.model) {
+    lines.push(t(current.answered.switched ? 'model.answeredSwitched' : 'model.answered', {
+      model: current.answered.model,
     }));
   }
   if (page === 'reply' && bound) lines.push('', t('settings.reply.setBound', { name: bound.name || bound.id }));

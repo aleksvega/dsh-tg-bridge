@@ -30,9 +30,10 @@ that answers, one step at a time.
   [model,model]` writes the provider without an AI turn, and the key itself is
   never typed — only the name of the variable that holds it. The new models appear
   on `/model` as routes.
-- **Input: text, voice, photos.** Voice is local faster-whisper and the transcript
-  is shown before the answer. A photo is read by the turn's own model through
-  `read_image`, text and UI included; no second model is needed.
+- **Input: text, voice, photos.** Any speech engine plugs in — a local script, any
+  command-line tool, or an OpenAI-compatible API (see [`docs/VOICE.md`](docs/VOICE.md))
+  — and the transcript is shown before the answer. A photo is read by the turn's own
+  model through `read_image`, text and UI included; no second model is needed.
 - **Goal and checklist per topic.** `/goal`, `/tasks`; both survive restarts and
   are prepended to every turn.
 - **Two scopes for every setting.** `/reasoning <mode> all` moves the default,
@@ -423,16 +424,18 @@ What each kind of attachment becomes inside a running turn:
 
 | Sent | Inside the turn | Needs |
 |---|---|---|
-| voice note, audio file, audio sent as a document | transcript, echoed as `🎤 …` before the steer | `faster-whisper` on `PATH`, enabled with `init --voice`; **off by default** |
+| voice note, audio file, audio sent as a document | transcript, echoed as `🎤 …` before the steer | any engine you point `voice` at: `script`, `command` or an OpenAI-compatible `openai` endpoint; **off by default** |
 | small text file (`.md`, `.json`, `.csv`, `.py`, `.log`, … up to 60 KB) | the content itself between `<file>` markers — no tool call needed | nothing |
 | PDF, archive, binary, anything bigger | its local path under `~/.dsh/tg-bridge/inbox/` | nothing; the agent opens it with its own tools |
 | video, video note, animation | its path; the agent can pull frames or sound out with ffmpeg | ffmpeg, only if frames or audio are needed |
 | photo | its path plus one honest line; the turn reads it with `read_image`, and says so in one line if it cannot | a model that accepts images |
 
-Voice is the one row with a hidden prerequisite. Without `faster-whisper`
-installed, a voice note still arrives — as a path the agent cannot read — so the
-bridge says transcription is off instead of pretending it heard something. Run
-`dsh-tg init --voice` after installing the transcriber; nothing else changes.
+Voice is the one row with a hidden prerequisite: something has to turn audio into
+text. Faster-whisper is what `init --voice` writes, but it is not the only answer —
+`voice.provider` also takes `command` (whisper.cpp, Vosk, a wrapper of your own) or
+`openai` (OpenAI, Groq, a local server; anything that speaks
+`/audio/transcriptions`). With no backend configured, a voice note is not swallowed:
+the bridge says what is missing and points at [`docs/VOICE.md`](docs/VOICE.md).
 
 A caption does not turn the attachment into a text-only message: it is folded into the same
 hand-over, so "why did this fail" plus a `.log` file arrives as one steer.

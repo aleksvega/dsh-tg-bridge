@@ -195,6 +195,8 @@ export default {
   'ctrl.model.usage': '用法：/model <id> [both]  （/model 查看列表）',
   'ctrl.model.failed': '无法把 {name} 切换到「{model}」：配置档中没有 agent-default-model 行。/model 查看列表。',
   'ctrl.model.switched': '模型 {name} → {model}{desktop}。下一轮生效。',
+  'ctrl.model.answered': '上次回答来自：{model}',
+  'ctrl.model.answeredSwitched': '上次回答来自 {model} — 本主题自己的路由没有回应',
   'ctrl.model.withDesktop': '，desktop → {model}',
   'ctrl.sessions.empty': '没有找到会话。',
   'ctrl.sessions.title': '🗂 最近的会话：',

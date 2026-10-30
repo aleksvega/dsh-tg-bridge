@@ -195,6 +195,8 @@ export default {
   'ctrl.model.usage': 'Usage: /model <id> [both]  (/model — list)',
   'ctrl.model.failed': 'Could not switch {name} to "{model}": the profile has no agent-default-model line. /model — list.',
   'ctrl.model.switched': 'Model {name} → {model}{desktop}. Applies from the next turn.',
+  'ctrl.model.answered': 'Last answer came from: {model}',
+  'ctrl.model.answeredSwitched': 'Last answer came from {model} — the route of this topic did not answer',
   'ctrl.model.withDesktop': ', desktop → {model}',
   'ctrl.sessions.empty': 'No sessions found.',
   'ctrl.sessions.title': '🗂 Recent sessions:',

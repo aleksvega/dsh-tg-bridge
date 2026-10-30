@@ -30,6 +30,7 @@ export async function handleModelCommand(ctx) {
       current: routes.length ? { provider: topic.provider, model: topic.model } : null,
       topic: topic.source === 'topic',
       fallback: topic.source === 'topic' ? modelOf(activeProfile) : null,
+      answered: state.answered?.[key] || null,
       t: (k, v) => t(lang, k, v),
     });
     say(card.text, { keyboard: card.keyboard });

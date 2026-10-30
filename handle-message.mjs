@@ -25,7 +25,7 @@ import { settingsChipOf, turnPlan } from './profile-view.mjs';
 import { startProgress } from './progress.mjs';
 import { reportRefusals } from './sandbox-note.mjs';
 import { noteTurn } from './stability.mjs';
-import { makeTurnEvents, newTelemetry } from './turn-events.mjs';
+import { makeTurnEvents, newTelemetry, noteAnswered } from './turn-events.mjs';
 import { lastPrompt, maxParallel, queues } from './queue.mjs';
 import { token } from './secrets.mjs';
 import { config, done, log, saveConfig, saveState, state } from './state.mjs';
@@ -462,11 +462,8 @@ ${t(lang, 'help.body')}`,
     return;
   }
   if (result.error) {
-    // The card already carries the failure, so only the log gets the detail — a
-    // second ⚠️ message would duplicate it. The release record decides whether a
-    // code fault means the version on disk cannot be trusted, and does the
-    // rollback itself: a turn that throws is the only evidence a static check
-    // cannot produce.
+    // The card carries the failure; the log gets the detail. `noteTurn` decides
+    // whether a code fault means the version on disk cannot be trusted.
     log(`turn failed ${where} ${seconds}s ${summary} :: ${result.error.slice(0, 400)}`);
     await noteTurn(state, {
       key, error: result.error, model: telemetry.model, tools: telemetry.toolNames, cwd, seconds,
@@ -476,6 +473,9 @@ ${t(lang, 'help.body')}`,
     return;
   }
   log(`turn ok ${where} ${seconds}s session=${result.sessionId} ${summary}`);
+  // Who answered, for `/model` and the settings card: the card configures the
+  // topic's route, and after a fallback that route is not the one that replied.
+  noteAnswered(state, key, telemetry);
   // An answered turn proves this release works, and makes it the version a later
   // rollback returns to.
   await noteTurn(state, { saveState });
