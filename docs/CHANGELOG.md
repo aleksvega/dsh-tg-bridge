@@ -1,5 +1,14 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.34.1
+
+- **The docs are in the package.** `docs/VOICE.md` was written for 1.34.0, linked
+  from the README and quoted by the bot's own "voice is not set up" answer — and
+  then left out of `files[]`, so every npm install got a dead pointer. Eight other
+  pages were missing the same way: the list named five documents by hand and had
+  drifted. `files[]` now ships the folder, and `test/package-files.test.mjs` fails
+  if a page under `docs/` stops shipping.
+
 ## 1.34.0
 
 - **Speech is a choice, not a vendor.** `voice.provider` picks the backend, and the

@@ -1,6 +1,6 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.34.0",
+  "version": "1.34.1",
   "description": "Drive DeepSeek Harness from Telegram: one project, model and session per forum topic",
   "type": "module",
   "main": "plugin-bridge.mjs",
@@ -113,7 +113,6 @@
     "restart-after-send.mjs",
     "transcribe.py",
     "cli.mjs",
-    "README.md",
     "QUICKSTART.md",
     "LICENSE",
     "config.example.json",
@@ -150,7 +149,6 @@
     "i18n/en.mjs",
     "i18n/ru.mjs",
     "i18n/zh.mjs",
-    "docs/REFACTORING.md",
     "control/cmd-agents.mjs",
     "control/cmd-bridge.mjs",
     "control/cmd-fallback.mjs",
@@ -172,8 +170,8 @@
     "jobs-cap.mjs",
     "job-loops.mjs",
     "report.mjs",
-    "docs/SUPPORT.md",
-    "docs/MOBILE-FIRST.md"
+    "docs/",
+    "README.md"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {

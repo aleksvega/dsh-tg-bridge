@@ -13,6 +13,19 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const files = pkg.files || [];
 
+// Docs are part of the product, not decoration: the chat answers "see
+// docs/VOICE.md" and the README links them. A page that exists in the checkout
+// but not in the tarball leaves that pointer dead for every npm user, and
+// nothing else in the suite reads `docs/`.
+test('every page under docs/ ships', () => {
+  const covered = (name) => files.includes(name) || files.includes('docs/');
+  const missing = readdirSync(join(root, 'docs'))
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => `docs/${name}`)
+    .filter((name) => !covered(name));
+  assert.deepEqual(missing, [], 'add these to package.json files[]');
+});
+
 /** `files[]` entries that name one module (a directory entry covers its tree). */
 function shippedModules() {
   const named = new Set(files.filter((entry) => entry.endsWith('.mjs')).map((entry) => entry.replace(/^\.\//, '')));
