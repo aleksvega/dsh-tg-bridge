@@ -75,6 +75,7 @@ export default {
   'settings.reply.setBound': '本话题使用组合 {name}：模型、力度、权限、预设都来自它。',
   'settings.card.changed': '✓ {label}：{value}',
   'settings.card.stale': '这个按钮来自旧版卡片。请重新打开 /settings。',
+  'settings.card.same': '已经是这样',
   'btn.stop': '停止',
   'btn.logs': '日志',
   'btn.retry': '重试',

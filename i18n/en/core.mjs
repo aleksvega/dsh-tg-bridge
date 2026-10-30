@@ -75,6 +75,7 @@ export default {
   'settings.reply.setBound': 'This topic uses set {name}: model, effort, permissions and preset come from it.',
   'settings.card.changed': '✓ {label}: {value}',
   'settings.card.stale': 'That button is from an older version of the card. Open /settings again.',
+  'settings.card.same': 'Already set',
   'btn.stop': 'Stop',
   'btn.logs': 'Logs',
   'btn.retry': 'Retry',

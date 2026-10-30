@@ -76,7 +76,7 @@ export async function handleCallback(query) {
     // The settings card. Its own answer path, because a tap that redraws or
     // flips one setting must not go through the defaults below (`clearKeyboard`
     // would strip the tabs it is about to draw again).
-    await handleCardPress(query, { chatId, messageId, threadId, key, lang, answer, mark: () => guard.mark() });
+    await handleCardPress(query, { chatId, messageId, threadId, key, lang, answer });
     return;
   }
 

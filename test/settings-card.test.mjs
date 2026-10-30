@@ -70,7 +70,7 @@ test('every switch points at the command that owns it', () => {
   for (const [data, command] of Object.entries(expected)) {
     assert.equal(commandFor({ t: tt, current }, data)?.command, command, data);
   }
-  assert.deepEqual(commandFor({ t: tt, current }, 'm:agent'), { tab: 'agent' });
+  assert.deepEqual(commandFor({ t: tt, current }, 'm:agent'), { tab: 'agent', page: 'agent' });
   // A button from an older card changes nothing.
   assert.equal(commandFor({ t: tt, current }, 'm:gone:on'), null);
   assert.equal(commandFor({ t: tt, current }, 'm:reasoning:sideways'), null);
@@ -113,7 +113,10 @@ test('a switch is not a tab, and a tab is not a switch', () => {
   assert.equal(switchPress.tab, undefined, 'a switch must not look like a tab');
   assert.equal(switchPress.command, '/reasoning chat');
   const tabPress = commandFor({ t: tt, current }, 'm:agent');
-  assert.deepEqual(tabPress, { tab: 'agent' });
+  // The page is part of the answer. Without it the caller redrew the default page
+  // instead of the one that was pressed — the exact shape of "the button does
+  // nothing", and the reason this assertion names both fields now.
+  assert.deepEqual(tabPress, { tab: 'agent', page: 'agent' });
   assert.equal(tabPress.command, undefined, 'a tab must not look like a command');
 });
 

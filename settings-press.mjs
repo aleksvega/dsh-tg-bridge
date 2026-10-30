@@ -9,9 +9,9 @@
 // Two rules hold for every path below, and they are the reason the code is
 // shaped like this rather than shorter:
 //
-// - A press says something. `mark()` reports the output to the guard that the
-//   router created, so a press that fails, hangs or finds a stale button is
-//   never mistaken for a dead menu.
+// - A press says something. Every path ends in `answer(...)`, and that call is
+//   what reports the output to the guard the router created — a press that
+//   fails, hangs or finds a stale button is never mistaken for a dead menu.
 // - A press is fast. Every call here is `tgFast`: a card lives inside a tap, and
 //   the person watching it will not wait the three minutes `tg` allows.
 import { AgentsetStore } from './agentsets.mjs';
@@ -37,7 +37,6 @@ export async function handleCardPress(query, ctx) {
   const answer =
     ctx.answer ??
     ((text, show = false) => tgFast('answerCallbackQuery', { callback_query_id: query.id, text, show_alert: show }).catch(() => false));
-  const mark = ctx.mark ?? (() => {});
 
   if (!wanted) {
     log(`settings press ${data}: stale button, the card no longer has it`);
@@ -47,7 +46,6 @@ export async function handleCardPress(query, ctx) {
 
   if (wanted.done) {
     await tgFast('deleteMessage', { chat_id: chatId, message_id: messageId }).catch((error) => log(`settings card delete failed: ${error.message}`));
-    mark();
     await answer('');
     return;
   }
@@ -62,7 +60,7 @@ export async function handleCardPress(query, ctx) {
       bound: boundSetOf(key),
       note,
     });
-    mark();
+    let same = false;
     await tgFast('editMessageText', {
       chat_id: chatId,
       message_id: messageId,
@@ -71,14 +69,18 @@ export async function handleCardPress(query, ctx) {
       ...(threadId > 0 ? { message_thread_id: threadId } : {}),
     }).catch((error) => {
       const why = String(error.message || '');
-      // Tapping the tab you are already on is not a failure: Telegram refuses an
+      // Tapping the value already in force is not a failure: Telegram refuses an
       // edit that changes nothing, and the card is already what the press asked
-      // for. It is still worth a line, because the other half of this catch —
-      // a real failure — used to look exactly the same in the log.
-      if (/message is not modified/i.test(why)) log(`settings card ${page}: already showed that`);
-      else log(`settings card redraw failed: ${why}`);
+      // for. It is still worth a word, because the person pressed a live button
+      // and silence is what a broken card looks like.
+      if (/message is not modified/i.test(why)) {
+        same = true;
+        log(`settings card ${page}: already showed that`);
+      } else {
+        log(`settings card redraw failed: ${why}`);
+      }
     });
-    await answer('');
+    await answer(same ? t(lang, 'settings.card.same') : '');
   };
 
   if (wanted.tab) {

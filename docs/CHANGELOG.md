@@ -1,5 +1,19 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.33.2
+
+- **The tabs of the settings card now change the page.** `commandFor` answered a
+  tab press with `{ tab: 'agent' }` and no page, so the press redrew the default
+  page — `reply` — whatever tab was tapped. Telegram refused the edit as
+  "message is not modified" and the press looked dead: the fourth tab of a card
+  that had been "broken" for weeks was one missing field, and the log from 1.33.1
+  named it in one line. A tab answer carries its own page now, and the invariant
+  is a test: pressing `agent`, `updates` or `health` must produce a message that
+  differs from the one on screen.
+- **Pressing the value already in force says so.** The redraw is refused in that
+  case, which used to be silence; the toast is `Уже так и стоит` in the presser's
+  language.
+
 ## 1.33.1
 
 - **A press always answers.** Three paths could leave a button with no reaction

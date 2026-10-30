@@ -271,7 +271,11 @@ export function commandFor({ t, current = {}, updateMode = 'check' }, data) {
   // The way out is not a setting: it removes the card, which is the one action
   // the buttons could not do while a press turned the card into a line.
   if (row === 'done' && !value) return { done: true };
-  if (SETTINGS_PAGES.includes(row) && !value) return { tab: row };
+  // A tab carries its own page. It did not, and the press asked the renderer for
+  // `undefined`, which fell back to `reply`: every tab redrew the page already on
+  // screen, Telegram answered "message is not modified", and the only symptom was
+  // a menu that did nothing. The page belongs in the answer, not in the caller.
+  if (SETTINGS_PAGES.includes(row) && !value) return { tab: row, page: row };
   const button = settingsButtons({ t, current, updateMode }).find((b) => b.id === row && (b.value || '') === value);
   if (!button || !button.command) return null;
   return {

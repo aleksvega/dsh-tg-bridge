@@ -75,6 +75,7 @@ export default {
   'settings.reply.setBound': 'Тема использует набор {name}: модель, усилие, права и пресет берутся из него.',
   'settings.card.changed': '✓ {label}: {value}',
   'settings.card.stale': 'Эта кнопка из старой версии карточки. Открой /settings заново.',
+  'settings.card.same': 'Уже так и стоит',
   'btn.stop': 'Стоп',
   'btn.logs': 'Логи',
   'btn.retry': 'Повторить',
