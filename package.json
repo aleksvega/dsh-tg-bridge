@@ -163,7 +163,8 @@
     "jobs-cap.mjs",
     "job-loops.mjs",
     "report.mjs",
-    "docs/SUPPORT.md"
+    "docs/SUPPORT.md",
+    "docs/MOBILE-FIRST.md"
   ],
   "homepage": "https://github.com/aleksvega/dsh-tg-bridge#readme",
   "bugs": {
