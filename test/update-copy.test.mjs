@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './sandbox-home.mjs';
-import { copyRelease } from '../control.mjs';
+import { copyRelease } from '../chat/control.mjs';
 
 function release() {
   const dir = mkdtempSync(join(tmpdir(), 'release-'));

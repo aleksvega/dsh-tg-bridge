@@ -3,7 +3,7 @@
 // command, so a tap runs `/plugin add <name>` and nothing else.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rowLine, searchPlugins } from '../plugin-search.mjs';
+import { rowLine, searchPlugins } from '../chat/plugin-search.mjs';
 
 const answer = (body, ok = true, status = 200) => async () => ({
   ok,

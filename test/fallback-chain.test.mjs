@@ -10,7 +10,7 @@ import { join } from "node:path";
 import {
   CHANNEL_DOWN, FALLBACK_TRIGGERS, QUOTA_LIKE, REFUSAL_BUDGET, ROUTE_REJECTS,
   exhausted, failureFamily, labelOf, liveChain,
-} from "../fallback.mjs";
+} from "../model/fallback.mjs";
 
 test("a busy provider and a dead balance both start the chain", () => {
   for (const error of [

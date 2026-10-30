@@ -6,7 +6,7 @@
 // re-enter a key that works, while the route was merely throttled.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classify, describeVerdicts } from "../model-probe.mjs";
+import { classify, describeVerdicts } from "../model/model-probe.mjs";
 
 const LIMIT_403 = '{"error":{"message":"This model is at its provider\'s per minute limit right now. '
   + 'Nothing is wrong with the model itself."}}';

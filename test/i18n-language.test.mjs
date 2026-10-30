@@ -2,7 +2,7 @@
 // words, Chinese with Latin sentences nobody translated.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LANGS, keysOf, t } from "../i18n.mjs";
+import { LANGS, keysOf, t } from "../core/i18n.mjs";
 
 const cyrillic = /[\u0400-\u04FF]/;
 const han = /[\u4e00-\u9fff]/;

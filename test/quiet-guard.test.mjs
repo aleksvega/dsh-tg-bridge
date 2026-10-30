@@ -5,7 +5,7 @@
 // the guard says it for them — once, and never twice.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { QUIET_MS, quietGuard } from '../quiet-guard.mjs';
+import { QUIET_MS, quietGuard } from '../chat/quiet-guard.mjs';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './sandbox-home.mjs';
-import { COMMAND_ALIASES, handleControl } from '../control.mjs';
+import { COMMAND_ALIASES, handleControl } from '../chat/control.mjs';
 
 function harness(tasks) {
   const out = [];

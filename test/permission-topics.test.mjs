@@ -53,9 +53,9 @@ writeFileSync(join(HOME, 'state.json'), JSON.stringify({ offset: 0, sessions: {}
 writeFileSync(join(DIR, 'state.json'), JSON.stringify({ offset: 0, sessions: {} }), 'utf8');
 process.env.DSH_HOME = HOME;
 
-const { state } = await import('../state.mjs');
-const { AgentsetStore } = await import('../agentsets.mjs');
-const { turnPlan, presetOf, settingsChipOf } = await import('../profile-view.mjs');
+const { state } = await import('../core/state.mjs');
+const { AgentsetStore } = await import('../profile/agentsets.mjs');
+const { turnPlan, presetOf, settingsChipOf } = await import('../profile/profile-view.mjs');
 
 /** Two topics on two sets, each asking for a different preset. */
 function twoTopics() {
@@ -98,7 +98,7 @@ test('the chip names the set and follows the topic, not the neighbour', () => {
 
 test('the chat refuses an `ask` preset instead of writing it', async () => {
   twoTopics();
-  const { handleControl } = await import('../control.mjs');
+  const { handleControl } = await import('../chat/control.mjs');
   const out = [];
   const before = patchOf('headless');
   const ctx = {

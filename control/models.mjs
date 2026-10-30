@@ -4,9 +4,9 @@
 // follow call these, and none of them needs the dispatcher to do it.
 import { copyFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { t } from '../i18n.mjs';
-import { providerRows } from '../model-probe.mjs';
-import { PROFILES } from '../paths.mjs';
+import { t } from '../core/i18n.mjs';
+import { providerRows } from '../model/model-probe.mjs';
+import { PROFILES } from '../core/paths.mjs';
 
 export const read = (path) => {
   try {

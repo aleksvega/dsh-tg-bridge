@@ -19,9 +19,9 @@ const HOME = mkdtempSync(join(tmpdir(), 'dsh-bridge-press-'));
 process.env.DSH_HOME = HOME;
 writeFileSync(join(HOME, 'state.json'), JSON.stringify({ allowedUserIds: [42], lang: 'ru' }), 'utf8');
 
-const { handleCardPress } = await import('../settings-press.mjs');
-const { boundSetOf } = await import('../settings-press.mjs');
-const { commandFor, renderSettingsCard } = await import('../settings-card.mjs');
+const { handleCardPress } = await import('../profile/settings-press.mjs');
+const { boundSetOf } = await import('../profile/settings-press.mjs');
+const { commandFor, renderSettingsCard } = await import('../profile/settings-card.mjs');
 
 const ctx = (over = {}) => {
   const seen = [];

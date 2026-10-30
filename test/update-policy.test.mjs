@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UPDATE_MODES, compareVersions, checkIntervalMs, describeUpdate, dueForCheck, modeChange, updateState } from '../update-policy.mjs';
+import { UPDATE_MODES, compareVersions, checkIntervalMs, describeUpdate, dueForCheck, modeChange, updateState } from '../core/update-policy.mjs';
 
 test('versions compare numerically, not as text', () => {
   assert.equal(compareVersions('1.13.2', '1.9.0'), 1); // string compare would say otherwise

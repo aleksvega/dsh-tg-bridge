@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LANGS, keysOf, t } from '../i18n.mjs';
-import { handleControl, CONTROL_COMMANDS } from '../control.mjs';
-import { lastTurnReasoning } from '../thoughts.mjs';
+import { LANGS, keysOf, t } from '../core/i18n.mjs';
+import { handleControl, CONTROL_COMMANDS } from '../chat/control.mjs';
+import { lastTurnReasoning } from '../chat/thoughts.mjs';
 
 test('every language defines the same keys', () => {
   const base = new Set(keysOf(LANGS[0]));

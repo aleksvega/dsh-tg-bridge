@@ -3,8 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import "./sandbox-home.mjs";
-import { handleControl } from "../control.mjs";
-import { addTask, goalOf, setGoal } from "../goals.mjs";
+import { handleControl } from "../chat/control.mjs";
+import { addTask, goalOf, setGoal } from "../work/goals.mjs";
 
 function context(arg) {
   const said = [];

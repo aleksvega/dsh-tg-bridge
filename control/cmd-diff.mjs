@@ -9,9 +9,9 @@
 // text into a card, and everything that touches a repository is one function
 // below. One group of the `/` surface — `control.mjs` owns the dispatch.
 import { execFileSync } from 'node:child_process';
-import { normalizeLang, t } from '../i18n.mjs';
-import { sendWithMarkup } from '../telegram.mjs';
-import { diffPress, findHunk, hunkPatch, parseDiff, renderDiffCard } from '../diff.mjs';
+import { normalizeLang, t } from '../core/i18n.mjs';
+import { sendWithMarkup } from '../chat/telegram.mjs';
+import { diffPress, findHunk, hunkPatch, parseDiff, renderDiffCard } from '../work/diff.mjs';
 
 /** How many hunks get buttons before the rest are only counted. */
 const HUNK_BUTTONS = 12;

@@ -5,9 +5,9 @@
 import test from "node:test";
 import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
-import { CONTROL_COMMANDS, handleControl } from "../control.mjs";
-import { commandForName, menuCommands, runsUnasked } from "../menu-card.mjs";
-import { t } from "../i18n.mjs";
+import { CONTROL_COMMANDS, handleControl } from "../chat/control.mjs";
+import { commandForName, menuCommands, runsUnasked } from "../chat/menu-card.mjs";
+import { t } from "../core/i18n.mjs";
 
 const tr = (lang) => (key, vars) => t(lang, key, vars);
 

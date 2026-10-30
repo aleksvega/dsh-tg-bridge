@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-const { sessionFile } = await import('../thoughts.mjs');
-const { transcribe } = await import('../media.mjs');
+const { sessionFile } = await import('../chat/thoughts.mjs');
+const { transcribe } = await import('../chat/media.mjs');
 
 test('a session id cannot walk out of the sessions root', () => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-sessions-'));

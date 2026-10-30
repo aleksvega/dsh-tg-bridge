@@ -4,8 +4,8 @@
 // follow call these, and none of them needs the dispatcher to do it.
 import { copyFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseModelSelection, parseSubagentFleet, parseSubagentRows } from '../agents.mjs';
-import { DSH_HOME } from '../paths.mjs';
+import { parseModelSelection, parseSubagentFleet, parseSubagentRows } from '../profile/agents.mjs';
+import { DSH_HOME } from '../core/paths.mjs';
 
 import { read, readJson, patchPath } from './models.mjs';
 import { bareId } from './sessions.mjs';

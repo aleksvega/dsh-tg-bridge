@@ -57,7 +57,7 @@ writeFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), PATCH, 'utf8'
 
 const { routesOf, modelOf } = await import('../control/models.mjs');
 const { modelCard, modelPress, routeData, handleModelPress, MODEL_PREFIX } = await import('../control/model-card.mjs');
-const { t } = await import('../i18n.mjs');
+const { t } = await import('../core/i18n.mjs');
 const tr = (lang) => (k, v) => t(lang, k, v);
 
 test('a route carries its provider, and the same model under two providers is two routes', () => {

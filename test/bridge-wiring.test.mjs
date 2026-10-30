@@ -7,7 +7,8 @@
 // dangling call site that `node --check` accepts but the runtime does not.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { shippedModules } from './module-size.test.mjs';
 
 const source = readFileSync(new URL('../bridge.mjs', import.meta.url), 'utf8');
 
@@ -17,9 +18,9 @@ const source = readFileSync(new URL('../bridge.mjs', import.meta.url), 'utf8');
  * `steer.mjs` for the steer notices — so the scan must cover the layer too, or
  * a key that only moved is reported as missing.
  */
-const layer = readdirSync(new URL('../', import.meta.url))
-  .filter((name) => name.endsWith('.mjs') && name !== 'bridge.mjs' && name !== 'scan-secrets.mjs')
-  .map((name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8'))
+const layer = shippedModules()
+  .filter((rel) => rel !== 'bridge.mjs' && rel !== 'scan-secrets.mjs')
+  .map((rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'))
   .join('\n');
 
 /** Words that look like a call because the next token is a paren. */
@@ -82,7 +83,7 @@ test('every function called in bridge.mjs is defined or imported', () => {
 });
 
 test('every i18n key used by the bridge exists in every language', async () => {
-  const { t } = await import('../i18n.mjs');
+  const { t } = await import('../core/i18n.mjs');
   const body = code(source);
   // `t()` is often called with a template argument, so read the keys straight
   // from the source with the strings intact.

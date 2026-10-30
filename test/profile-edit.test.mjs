@@ -7,8 +7,8 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseSubagentRows } from '../agents.mjs';
-import { setRowConfig, unsetRowConfig } from '../profile-edit.mjs';
+import { parseSubagentRows } from '../profile/agents.mjs';
+import { setRowConfig, unsetRowConfig } from '../profile/profile-edit.mjs';
 
 const PATCH = `# A profile patch with the shapes the bridge edits.
 - id: agent-default-model

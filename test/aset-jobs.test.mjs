@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { drainAsetJobs, asetJobDir } from '../aset-jobs.mjs';
-import { callbackData, cardKeyboard, parseCallback } from '../aset-schema.mjs';
+import { drainAsetJobs, asetJobDir } from '../turn/aset-jobs.mjs';
+import { callbackData, cardKeyboard, parseCallback } from '../profile/aset-schema.mjs';
 
 test('a job is applied once, then moves to done', () => {
   const dir = mkdtempSync(join(tmpdir(), 'asetjobs-'));

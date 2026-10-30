@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SANDBOX_HOME } from './sandbox-home.mjs';
-import { handleControl, filterLogLines } from '../control.mjs';
+import { handleControl, filterLogLines } from '../chat/control.mjs';
 
 // `/logs file` stats the bridge log. Point it at a file this test owns: on a
 // machine that has run the bridge the real log exists and hides the branch that

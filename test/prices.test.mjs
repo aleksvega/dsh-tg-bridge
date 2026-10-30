@@ -7,7 +7,7 @@
 // that number and says in words that it is a reference, not the invoice.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WORDS, describeCurrent, findModel, parseOpenRouter } from '../prices.mjs';
+import { WORDS, describeCurrent, findModel, parseOpenRouter } from '../model/prices.mjs';
 
 // The shape OpenRouter returns, trimmed to what /prices reads. Prices are
 // dollars per token as strings.

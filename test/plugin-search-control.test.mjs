@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import "./sandbox-home.mjs";
-import { handleControl } from "../control.mjs";
+import { handleControl } from "../chat/control.mjs";
 
 function context(arg, body, ok = true) {
   const said = [];

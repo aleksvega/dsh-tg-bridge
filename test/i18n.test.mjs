@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { LANGS, detectLang, keysOf, t, resolveLang } from '../i18n.mjs';
+import { LANGS, detectLang, keysOf, t, resolveLang } from '../core/i18n.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 

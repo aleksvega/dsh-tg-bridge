@@ -4,7 +4,7 @@
 // would mean a slow answer, a paraphrase of a URL that has to be exact, and a
 // token spent on what a text edit does — so the command parses and writes the
 // patch itself, and says in the chat what it changed.
-import { t } from '../i18n.mjs';
+import { t } from '../core/i18n.mjs';
 import { endpointRows, parseEndpointArgs, applyEndpoint } from './endpoint.mjs';
 import { routesOf, modelOf } from './models.mjs';
 

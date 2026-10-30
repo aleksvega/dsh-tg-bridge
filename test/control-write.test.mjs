@@ -57,7 +57,7 @@ writeFileSync(join(DIR, 'package.json'), JSON.stringify({
 
 process.env.DSH_HOME = HOME;
 
-const { handleControl } = await import('../control.mjs');
+const { handleControl } = await import('../chat/control.mjs');
 
 const patch = () => readFileSync(join(DIR, 'cordis.patch.yml'), 'utf8');
 

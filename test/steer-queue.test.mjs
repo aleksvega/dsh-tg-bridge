@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { writeSteerJob } from '../steer-queue.mjs';
+import { writeSteerJob } from '../turn/steer-queue.mjs';
 
 test('writes one json job and leaves no temp file behind', () => {
   const dir = mkdtempSync(join(tmpdir(), 'steer-'));

@@ -2,7 +2,7 @@
 // person, and a chain that gave each dead channel a full minute.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { probeHint } from "../model-probe.mjs";
+import { probeHint } from "../model/model-probe.mjs";
 
 test("the probe hint is a sentence the person can act on", () => {
   for (const kind of ["balance", "busy", "auth", "network"]) {

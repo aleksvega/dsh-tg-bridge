@@ -3,8 +3,8 @@
 // stopping the chain early must not mean stopping the report.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { describeVerdicts, probeHint } from "../model-probe.mjs";
-import { exhausted } from "../fallback.mjs";
+import { describeVerdicts, probeHint } from "../model/model-probe.mjs";
+import { exhausted } from "../model/fallback.mjs";
 
 /** The condition in fallback.mjs that decides to speak up, named as it reads. */
 function saysAllDown(tried, probeKind, chainLength) {

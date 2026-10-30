@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, utimesSync } from "node:fs";
-import { allTurns, applyFork, frameOffsets, planFork } from "../rewind.mjs";
+import { allTurns, applyFork, frameOffsets, planFork } from "../work/rewind.mjs";
 import { writeSession } from "./rewind-fixture.mjs";
 import { zstdDecompressSync } from "node:zlib";
 

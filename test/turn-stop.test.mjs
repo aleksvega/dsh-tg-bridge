@@ -8,8 +8,8 @@
 // failure, and a card that says so teaches people to distrust the stop button.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnOutcome } from '../turn-outcome.mjs';
-import { t } from '../i18n.mjs';
+import { turnOutcome } from '../turn/turn-outcome.mjs';
+import { t } from '../core/i18n.mjs';
 
 test('a stop is not a failure, and leaves no error text behind', () => {
   const out = turnOutcome({ code: null, stopped: true, stderr: 'Error: killed', stdout: '', lang: 'ru' });

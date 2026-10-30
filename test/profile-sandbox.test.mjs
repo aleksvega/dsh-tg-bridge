@@ -11,7 +11,7 @@ test("no test imports control.mjs without a throwaway DSH_HOME", () => {
   for (const name of FILES) {
     const src = readFileSync(`test/${name}`, "utf8");
     if (name === "profile-sandbox.test.mjs") continue;
-    if (!src.includes('from "../control.mjs"') && !src.includes('import("../control.mjs")')) continue;
+    if (!src.includes('from "../chat/control.mjs"') && !src.includes('import("../chat/control.mjs")')) continue;
     const sandboxed = /import "\.\/sandbox-home\.mjs"/.test(src) || /process\.env\.DSH_HOME\s*=/.test(src);
     if (!sandboxed) offenders.push(name);
   }

@@ -24,7 +24,7 @@ test('a synced runtime contains every module the package ships, and boots', () =
   assert.equal(existsSync(join(target, 'i18n', 'en.mjs')), true, 'a nested module is imported by path');
   assert.ok(JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')).version, '/version reads this');
 
-  return import(pathToFileURL(join(target, 'i18n.mjs')).href).then((m) => {
+  return import(pathToFileURL(join(target, 'core', 'i18n.mjs')).href).then((m) => {
     assert.match(m.t('en', 'task.listTitle', { done: 1, total: 2 }), /1\/2/);
   });
 });

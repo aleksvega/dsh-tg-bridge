@@ -12,7 +12,7 @@
 // "the bot is broken" rather than "the line you typed has a typo". Every check
 // below exists because that class of silent breakage is expensive to trace.
 import { read, writePatch, patchPath } from './models.mjs';
-import { providerRows } from '../model-probe.mjs';
+import { providerRows } from '../model/model-probe.mjs';
 
 /** A provider id the patch can carry and a button can name. */
 const ID = /^[a-z][a-z0-9-]{1,30}$/;

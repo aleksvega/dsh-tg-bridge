@@ -8,8 +8,8 @@ import { join } from 'node:path';
 // whole file gets its own scratch directory before the module is imported.
 const home = mkdtempSync(join(tmpdir(), 'agentset-cmd-'));
 process.env.DSH_TG_HOME = home;
-const { handleControl } = await import('../control.mjs');
-const { AgentsetStore } = await import('../agentsets.mjs');
+const { handleControl } = await import('../chat/control.mjs');
+const { AgentsetStore } = await import('../profile/agentsets.mjs');
 
 function context(overrides = {}) {
   const out = [];

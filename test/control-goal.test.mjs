@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleControl } from '../control.mjs';
+import { handleControl } from '../chat/control.mjs';
 
 const KEY = '1:2';
 

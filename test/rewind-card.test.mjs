@@ -2,10 +2,10 @@
 // much: a press while a turn is running, and a second press of the same button.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { allTurns } from '../rewind.mjs';
-import { answerRewindPress, cutSession, isRewindPress } from '../rewind-buttons.mjs';
-import { renderRewindCard, renderRewindUsage } from '../rewind-card.mjs';
-import { t } from '../i18n.mjs';
+import { allTurns } from '../work/rewind.mjs';
+import { answerRewindPress, cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
+import { renderRewindCard, renderRewindUsage } from '../work/rewind-card.mjs';
+import { t } from '../core/i18n.mjs';
 import { writeSession } from './rewind-fixture.mjs';
 
 const THREE = [
@@ -36,7 +36,7 @@ function rig(lang = 'en') {
 }
 
 // Imported lazily so the rig above reads as what the button sees.
-const rewindApi = await import('../rewind.mjs');
+const rewindApi = await import('../work/rewind.mjs');
 const { planRewind } = rewindApi;
 function requirePlan(file, steps) {
   const plan = planRewind(file, steps);

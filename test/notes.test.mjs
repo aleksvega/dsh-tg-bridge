@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readNotes, recentThoughts, reasoningMode, thoughtRows } from '../notes.mjs';
+import { readNotes, recentThoughts, reasoningMode, thoughtRows } from '../chat/notes.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'dsh-notes-'));
 

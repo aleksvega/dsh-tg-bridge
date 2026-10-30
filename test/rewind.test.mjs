@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { zstdDecompressSync } from 'node:zlib';
-import { allTurns, applyRewind, frameOffsets, newestBackup, planRewind, recentTurns, restoreBackup } from '../rewind.mjs';
+import { allTurns, applyRewind, frameOffsets, newestBackup, planRewind, recentTurns, restoreBackup } from '../work/rewind.mjs';
 import { writeSession } from './rewind-fixture.mjs';
 
 const THREE = [{ user: 'first question', answer: 'first answer' }, { user: 'second question', answer: 'second answer' }, { user: 'third question', answer: 'third answer' }];

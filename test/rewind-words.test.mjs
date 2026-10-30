@@ -3,8 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { REFUSAL_REASONS } from '../rewind.mjs';
-import { t } from '../i18n.mjs';
+import { REFUSAL_REASONS } from '../work/rewind.mjs';
+import { t } from '../core/i18n.mjs';
 
 // Chinese says the same thing in fewer characters, so the length that makes an
 // English sentence here would reject a perfectly good Chinese one.
@@ -25,7 +25,7 @@ test('every refusal the planner can return has words in every language', () => {
 test('the planner only ever returns reasons from that list', () => {
   // Every `reason: 'x'` in the module must be a known refusal, so a new one
   // cannot be added without words.
-  const source = readFileSync(new URL('../rewind.mjs', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../work/rewind.mjs', import.meta.url), 'utf8');
   const found = new Set([...source.matchAll(/reason: '([a-z-]+)'/g)].map((match) => match[1]));
   assert.ok(found.size >= 6, 'the scan found nothing, which means it is broken');
   for (const reason of found) assert.ok(REFUSAL_REASONS.includes(reason), `"${reason}" has no words`);

@@ -4,8 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import "./sandbox-home.mjs";
-import { handleControl } from "../control.mjs";
-import { resolveLang } from "../i18n.mjs";
+import { handleControl } from "../chat/control.mjs";
+import { resolveLang } from "../core/i18n.mjs";
 
 const cyrillic = /[\u0400-\u04FF]/;
 

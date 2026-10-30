@@ -2,10 +2,10 @@
 //
 // One group of the `/` surface. `control.mjs` owns the dispatch and this file
 // owns the command.
-import { normalizeLang, t } from '../i18n.mjs';
-import { guardOf, sampleMachine } from '../machine.mjs';
-import { loadPress, renderLoadCard } from '../load-card.mjs';
-import { saveConfig } from '../state.mjs';
+import { normalizeLang, t } from '../core/i18n.mjs';
+import { guardOf, sampleMachine } from '../core/machine.mjs';
+import { loadPress, renderLoadCard } from '../work/load-card.mjs';
+import { saveConfig } from '../core/state.mjs';
 
 /** The card, drawn once and reused by every verb that ends in "show me". */
 async function drawLoad({ ctx, lang, guard }) {

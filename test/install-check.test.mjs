@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, parse } from 'node:path';
-import { checkInstall, isBridgeRoot, restoreBackup, safeUpdateRoot } from '../install-check.mjs';
+import { checkInstall, isBridgeRoot, restoreBackup, safeUpdateRoot } from '../core/install-check.mjs';
 
 /** A minimal but honest install: entry point, a control module, a locale. */
 function install(overrides = {}) {

@@ -7,27 +7,27 @@ import { cpSync, existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync,
 import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { t, LANGS, normalizeLang } from '../i18n.mjs';
-import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from '../goals.mjs';
-import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from '../thoughts.mjs';
-import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from '../agents.mjs';
-import { setRowConfig, unsetRowConfig } from '../profile-edit.mjs';
-import { parseReminder, stampAt, upcoming } from '../reminders.mjs';
-import { AgentsetStore, emptySet, slugId } from '../agentsets.mjs';
-import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../settings-card.mjs';
-import { applyFork, planFork, planRewind } from '../rewind.mjs';
-import { cutSession, isRewindPress } from '../rewind-buttons.mjs';
-import { renderRewindCard, renderRewindUsage } from '../rewind-card.mjs';
-import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from '../menu-card.mjs';
-import { chainSummary } from '../fallback-card.mjs';
-import { driveOf, sampleDisk } from '../machine.mjs';
-import { describeLaunch, dshLaunch } from '../dsh-launch.mjs';
-import { explainCommand } from '../help-explain.mjs';
-import { profileValues, resolveSettings } from '../settings.mjs';
-import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../update-policy.mjs';
-import { isNewer, pluginInfo, rowLine, searchPlugins } from '../plugin-search.mjs';
-import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
-import { APP, CLI_JS, DSH_CMD, DSH_HOME, DIR, EXE, HOME, LOG, PROFILES, RESTART_NOTICE, THOUGHT_DIR } from '../paths.mjs';
+import { t, LANGS, normalizeLang } from '../core/i18n.mjs';
+import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from '../work/goals.mjs';
+import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from '../chat/thoughts.mjs';
+import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from '../profile/agents.mjs';
+import { setRowConfig, unsetRowConfig } from '../profile/profile-edit.mjs';
+import { parseReminder, stampAt, upcoming } from '../work/reminders.mjs';
+import { AgentsetStore, emptySet, slugId } from '../profile/agentsets.mjs';
+import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
+import { applyFork, planFork, planRewind } from '../work/rewind.mjs';
+import { cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
+import { renderRewindCard, renderRewindUsage } from '../work/rewind-card.mjs';
+import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from '../chat/menu-card.mjs';
+import { chainSummary } from '../model/fallback-card.mjs';
+import { driveOf, sampleDisk } from '../core/machine.mjs';
+import { describeLaunch, dshLaunch } from '../core/dsh-launch.mjs';
+import { explainCommand } from '../chat/help-explain.mjs';
+import { profileValues, resolveSettings } from '../profile/settings.mjs';
+import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../core/update-policy.mjs';
+import { isNewer, pluginInfo, rowLine, searchPlugins } from '../chat/plugin-search.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../chat/commands-registry.mjs';
+import { APP, CLI_JS, DSH_CMD, DSH_HOME, DIR, EXE, HOME, LOG, PROFILES, RESTART_NOTICE, THOUGHT_DIR } from '../core/paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
@@ -35,9 +35,9 @@ import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
-import { applyRollback, releaseFacts } from '../stability.mjs';
-import { buildReport, tailOf, writeReport } from '../report.mjs';
-import { effectivePreset } from '../permission-rows.mjs';
+import { applyRollback, releaseFacts } from '../core/stability.mjs';
+import { buildReport, tailOf, writeReport } from '../work/report.mjs';
+import { effectivePreset } from '../profile/permission-rows.mjs';
 
 /**
  * Which bridge is running, which one npm has, and whether this install can
@@ -91,7 +91,7 @@ export async function handleBridgeCommands(ctx) {
         return true;
       }
       say(t(lang, 'cmd.restart.started'));
-      const bridge = fileURLToPath(new URL('./bridge.mjs', import.meta.url));
+      const bridge = fileURLToPath(new URL('../bridge.mjs', import.meta.url));
       // Tell the replacement process where to confirm, so the chat does not go
       // silent after "Перезапускаю мост…" (it did, twice on 2026-10-24).
       //

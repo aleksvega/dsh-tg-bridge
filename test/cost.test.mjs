@@ -16,10 +16,10 @@ import { join } from 'node:path';
 const HOME = mkdtempSync(join(tmpdir(), 'dsh-cost-test-'));
 process.env.DSH_HOME = HOME;
 
-const { usageCost, usd, priceOf, costReport } = await import('../cost.mjs');
-const { loadPrices, savePrices, PRICE_CACHE } = await import('../price-cache.mjs');
-const { t } = await import('../i18n.mjs');
-const { handleControl } = await import('../control.mjs');
+const { usageCost, usd, priceOf, costReport } = await import('../model/cost.mjs');
+const { loadPrices, savePrices, PRICE_CACHE } = await import('../model/price-cache.mjs');
+const { t } = await import('../core/i18n.mjs');
+const { handleControl } = await import('../chat/control.mjs');
 
 const LANGS = ['en', 'ru', 'zh'];
 

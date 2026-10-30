@@ -6,11 +6,11 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { LANGS, keysOf, t } from "../i18n.mjs";
-import { MENU_GROUPS, renderPanel } from "../menu-card.mjs";
-import { renderSettingsCard } from "../settings-card.mjs";
+import { LANGS, keysOf, t } from "../core/i18n.mjs";
+import { MENU_GROUPS, renderPanel } from "../chat/menu-card.mjs";
+import { renderSettingsCard } from "../profile/settings-card.mjs";
 import "./sandbox-home.mjs";
-import { handleControl } from "../control.mjs";
+import { handleControl } from "../chat/control.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cyrillic = /[\u0400-\u04FF]/;

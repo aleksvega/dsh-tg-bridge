@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { voicePromptText } from '../media.mjs';
+import { voicePromptText } from '../chat/media.mjs';
 
 const here = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -37,7 +37,7 @@ test('an empty transcript does not leave a dangling note', () => {
 });
 
 test('both voice paths in the prompt go through the note', () => {
-  const source = readFileSync(join(here, 'media.mjs'), 'utf8');
+  const source = readFileSync(join(here, 'chat', 'media.mjs'), 'utf8');
   const calls = source.match(/parts\.push\(voicePromptText\(heard, lang\)\)/g) || [];
   assert.equal(calls.length, 2, 'a voice note and an audio document are both transcripts');
   assert.doesNotMatch(source, /parts\.push\(heard\)/);

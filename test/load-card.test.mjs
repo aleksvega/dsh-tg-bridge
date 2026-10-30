@@ -7,10 +7,10 @@
 // later" to a person who asked for work is a bot that lost the work.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { breaches, driveOf, guardOf, held, hold, round1, takeHeld } from '../machine.mjs';
-import { bar, loadPress, renderLoadCard } from '../load-card.mjs';
-import { holdIfLoaded } from '../load-guard.mjs';
-import { t } from '../i18n.mjs';
+import { breaches, driveOf, guardOf, held, hold, round1, takeHeld } from '../core/machine.mjs';
+import { bar, loadPress, renderLoadCard } from '../work/load-card.mjs';
+import { holdIfLoaded } from '../work/load-guard.mjs';
+import { t } from '../core/i18n.mjs';
 
 const tr = (key, vars) => t('en', key, vars);
 

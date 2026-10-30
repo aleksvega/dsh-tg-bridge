@@ -29,20 +29,28 @@ test('every page under docs/ ships', () => {
 /** `files[]` entries that name one module (a directory entry covers its tree). */
 function shippedModules() {
   const named = new Set(files.filter((entry) => entry.endsWith('.mjs')).map((entry) => entry.replace(/^\.\//, '')));
-  for (const entry of files.filter((e) => e.endsWith('/'))) {
-    for (const name of readdirSync(join(root, entry), { withFileTypes: true })) {
-      if (name.isFile() && name.name.endsWith('.mjs')) named.add(`${entry}${name.name}`);
+  const walk = (rel) => {
+    for (const entry of readdirSync(join(root, rel), { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(`${rel}${entry.name}/`);
+      else if (entry.name.endsWith('.mjs')) named.add(`${rel}${entry.name}`);
     }
-  }
+  };
+  for (const entry of files.filter((e) => e.endsWith('/'))) walk(entry);
   return named;
 }
 
 test('every module in the repo is published, or is not code', () => {
   const named = shippedModules();
-  const missing = readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mjs'))
-    .map((entry) => entry.name)
-    .filter((name) => !named.has(name));
+  const missing = [];
+  const skip = new Set(['node_modules', '.git', 'test', 'openspec', 'docs', 'tools']);
+  const walk = (rel) => {
+    for (const entry of readdirSync(join(root, rel), { withFileTypes: true })) {
+      if (skip.has(entry.name)) continue;
+      if (entry.isDirectory()) walk(`${rel}${entry.name}/`);
+      else if (entry.name.endsWith('.mjs') && !named.has(`${rel}${entry.name}`)) missing.push(`${rel}${entry.name}`);
+    }
+  };
+  walk('');
   assert.deepEqual(missing, [], 'add these to package.json files[]');
 });
 

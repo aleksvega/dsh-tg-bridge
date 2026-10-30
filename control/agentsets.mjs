@@ -3,12 +3,12 @@
 // Split out of `control.mjs` by the 500-line plan: the command handlers that
 // follow call these, and none of them needs the dispatcher to do it.
 import { join } from 'node:path';
-import { t } from '../i18n.mjs';
-import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from '../agents.mjs';
-import { AgentsetStore } from '../agentsets.mjs';
-import { profileValues, resolveSettings } from '../settings.mjs';
-import { DSH_HOME } from '../paths.mjs';
-import { cardKeyboard } from '../aset-schema.mjs';
+import { t } from '../core/i18n.mjs';
+import { parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from '../profile/agents.mjs';
+import { AgentsetStore } from '../profile/agentsets.mjs';
+import { profileValues, resolveSettings } from '../profile/settings.mjs';
+import { DSH_HOME } from '../core/paths.mjs';
+import { cardKeyboard } from '../profile/aset-schema.mjs';
 
 import { read, patchPath, modelsOf, modelOf } from './models.mjs';
 export const fmt = (rows) => rows.map((row) => `  ${row}`).join('\n');

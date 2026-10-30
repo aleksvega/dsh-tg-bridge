@@ -35,7 +35,7 @@ const patch = [
 mkdirSync(join(home, "profiles", "headless"), { recursive: true });
 writeFileSync(join(home, "profiles", "headless", "cordis.patch.yml"), patch);
 
-const { providerFor, providerRows } = await import("../model-probe.mjs");
+const { providerFor, providerRows } = await import("../model/model-probe.mjs");
 
 test("the providers block splits into rows and stops at the next key", () => {
   const rows = providerRows(patch);

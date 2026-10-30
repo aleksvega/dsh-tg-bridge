@@ -6,7 +6,7 @@ import test from 'node:test';
 import {
   addTask, applyGoalJob, clearGoal, doneTask, drainGoalJobs, finishGoal,
   goalOf, MAX_TASKS, progressOf, removeTask, renderPromptBlock, setGoal,
-} from '../goals.mjs';
+} from '../work/goals.mjs';
 
 const KEY = '42:7';
 

@@ -1,5 +1,35 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.35.0
+
+- **The checkout has a shape.** Seventy-seven modules left the repository root for
+  six folders named after the question they answer — `core/` (paths, state, keys,
+  the dictionary), `chat/` (one message, arrival to card), `turn/` (queue,
+  progress, steer, failures), `model/` (routing, prices, cost), `profile/` (the
+  person, the agent, their settings), `work/` (diffs, forks, schedules, reports).
+  The root keeps eleven entry points and nothing else. 566 import specifiers were
+  rewritten across 153 files; no behaviour changed. `docs/LAYOUT.md` is the table.
+- **Entry points stayed put on purpose.** `README.md`, `QUICKSTART.md` and the
+  progress protocol every agent turn uses say
+  `node ~/.dsh/tg-bridge/say.mjs --thought "…"`. A library may move; a path a
+  person types may not.
+- **Two path bugs the move made visible.** `control/cmd-bridge.mjs` built its
+  `/restart confirm` target as `./bridge.mjs` next to itself — a file that has
+  never existed — so a restart that reached that line spawned nothing and the chat
+  went quiet; it now resolves `../bridge.mjs`. And `cli.mjs` derived its copy list
+  by keeping the `files[]` entries that end in `.mjs`; now that `files[]` names
+  folders, that filter would have mirrored eleven modules and none of the code they
+  import, so `expand()` walks the folders first. `test/sync-runtime.test.mjs` runs
+  the real script into a temp directory and boots the result.
+- **Coverage tests had to follow the files.** `test/bridge-wiring.test.mjs`,
+  `test/engines.test.mjs` and `test/package-files.test.mjs` scanned the root with
+  `readdirSync`; after the move that would have checked eleven files and passed.
+  They now read `files[]` (which expands folders) or recurse the tree.
+  `test/cli-sync.test.mjs` asks whether a module is *covered by* a listed folder
+  instead of whether it is named literally.
+- **Two stray documents came in from the cold.** `INJECTION-AND-REPLIES.md` and
+  `ONBOARDING-PLAN.md` moved under `docs/`, which already ships whole.
+
 ## 1.34.1
 
 - **The docs are in the package.** `docs/VOICE.md` was written for 1.34.0, linked

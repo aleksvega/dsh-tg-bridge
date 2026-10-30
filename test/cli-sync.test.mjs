@@ -24,7 +24,12 @@ test('the runtime copy list comes from package.json, not from a hand-kept array'
 });
 
 test('every file the bridge imports is published', () => {
-  const missing = ['format.mjs', 'goals.mjs', 'goal.mjs', 'aset-schema.mjs'].filter((name) => !pkg.files.includes(name));
+  // `files[]` ships folders now, so the question is coverage: a module is
+  // published when a listed directory holds it.
+  const dirs = pkg.files.filter((entry) => entry.endsWith('/'));
+  const shipped = (name) => pkg.files.includes(name)
+    || dirs.some((entry) => existsSync(new URL(`${entry}${name}`, dir)));
+  const missing = ['format.mjs', 'goals.mjs', 'goal.mjs', 'aset-schema.mjs'].filter((name) => !shipped(name));
   assert.deepEqual(missing, []);
   for (const name of pkg.files.filter((entry) => entry.endsWith('.mjs'))) {
     assert.ok(existsSync(new URL(name, dir)), `${name} is listed but not shipped`);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { due, parseReminder, stampAt, upcoming } from '../reminders.mjs';
+import { due, parseReminder, stampAt, upcoming } from '../work/reminders.mjs';
 
 // A fixed local noon, so `nextClock` has no DST edge to argue about.
 const NOON = new Date(2026, 9, 25, 12, 0, 0, 0).getTime();

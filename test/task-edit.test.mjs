@@ -2,7 +2,7 @@
 // put, the words change, and a closed line stays closed.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addTask, editTask, goalOf, progressOf, removeTask, setGoal, doneTask } from "../goals.mjs";
+import { addTask, editTask, goalOf, progressOf, removeTask, setGoal, doneTask } from "../work/goals.mjs";
 
 const fresh = () => {
   const state = {};

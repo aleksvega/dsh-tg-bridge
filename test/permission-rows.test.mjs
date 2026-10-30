@@ -17,7 +17,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parsePermissionPresets } from '../agents.mjs';
+import { parsePermissionPresets } from '../profile/agents.mjs';
 import {
   checkPermission,
   effectivePreset,
@@ -25,7 +25,7 @@ import {
   sandboxModeOf,
   sandboxRow,
   setPermission,
-} from '../permission-rows.mjs';
+} from '../profile/permission-rows.mjs';
 
 const TABLE = `# A profile that restates the permission table whole, as DSH requires.
 - id: permission

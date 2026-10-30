@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-bridge-reasoning-'));
 
-const { reasoningMode } = await import('../notes.mjs');
+const { reasoningMode } = await import('../chat/notes.mjs');
 
 const context = ({ state, config, lang = 'en', key = '1:7' }) => {
   const said = [];

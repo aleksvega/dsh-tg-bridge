@@ -15,9 +15,9 @@
 // than a line of text that can.
 import { modelOf, routesOf } from './models.mjs';
 import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';
-import { baseProfileOf } from '../turn.mjs';
-import { saveState, state } from '../state.mjs';
-import { send, tg, tgFast } from '../telegram.mjs';
+import { baseProfileOf } from '../turn/turn.mjs';
+import { saveState, state } from '../core/state.mjs';
+import { send, tg, tgFast } from '../chat/telegram.mjs';
 
 export const MODEL_PREFIX = 'md:';
 

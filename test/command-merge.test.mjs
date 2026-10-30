@@ -27,11 +27,11 @@ const old = new Date(Date.now() - 10 * 60 * 1000);
 utimesSync(file, old, old);
 
 process.env.DSH_HOME = HOME;
-const { handleControl } = await import('../control.mjs');
-const { DOCUMENTED_COMMANDS, MENU_COMMANDS } = await import('../commands-registry.mjs');
-const { menuCommands } = await import('../menu-card.mjs');
-const { explainCommand } = await import('../help-explain.mjs');
-const { t } = await import('../i18n.mjs');
+const { handleControl } = await import('../chat/control.mjs');
+const { DOCUMENTED_COMMANDS, MENU_COMMANDS } = await import('../chat/commands-registry.mjs');
+const { menuCommands } = await import('../chat/menu-card.mjs');
+const { explainCommand } = await import('../chat/help-explain.mjs');
+const { t } = await import('../core/i18n.mjs');
 
 function context(overrides = {}) {
   const out = [];

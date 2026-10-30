@@ -5,8 +5,8 @@ import test from "node:test";
 import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from "../control.mjs";
-import { LANGS, t } from "../i18n.mjs";
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from "../chat/control.mjs";
+import { LANGS, t } from "../core/i18n.mjs";
 
 const names = (text) => [...new Set([...text.matchAll(/\/([a-z][a-z-]{1,20})\b/g)].map((m) => m[1]))];
 

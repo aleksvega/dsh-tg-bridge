@@ -9,7 +9,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { appendFileSync, readFileSync, utimesSync } from "node:fs";
-import { allTurns, applyRewind, planRewind } from "../rewind.mjs";
+import { allTurns, applyRewind, planRewind } from "../work/rewind.mjs";
 import { writeSession } from "./rewind-fixture.mjs";
 
 const THREE = [

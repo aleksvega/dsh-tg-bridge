@@ -2,9 +2,9 @@
 //
 // Split out of `control.mjs` by the 500-line plan: the command handlers that
 // follow call these, and none of them needs the dispatcher to do it.
-import { t } from '../i18n.mjs';
-import { progressOf } from '../goals.mjs';
-import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../commands-registry.mjs';
+import { t } from '../core/i18n.mjs';
+import { progressOf } from '../work/goals.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../chat/commands-registry.mjs';
 
 import { read } from './models.mjs';
 /**

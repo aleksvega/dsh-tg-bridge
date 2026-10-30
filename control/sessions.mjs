@@ -4,8 +4,8 @@
 // follow call these, and none of them needs the dispatcher to do it.
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { t } from '../i18n.mjs';
-import { DSH_HOME } from '../paths.mjs';
+import { t } from '../core/i18n.mjs';
+import { DSH_HOME } from '../core/paths.mjs';
 
 import { read, readJson } from './models.mjs';
 /** DSH's on-disk folder name for a workspace: `--C-Users-me-work--`. */

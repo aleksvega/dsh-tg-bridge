@@ -24,7 +24,7 @@ process.env.DSH_HOME = HOME;
 const {
   FAULT_LIMIT, ROLLBACK_COOLDOWN_MS, applyRollback, isCodeFault, noteOutcome, noteTurn, recordFailure, releaseFacts, releasesOf,
   startupRollback,
-} = await import('../stability.mjs');
+} = await import('../core/stability.mjs');
 
 const fresh = () => ({ sessions: {} });
 

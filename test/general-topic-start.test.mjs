@@ -10,11 +10,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { topicTitleFrom } from '../topics.mjs';
+import { topicTitleFrom } from '../chat/topics.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, '..', 'handle-message.mjs'), 'utf8');
-const topics = readFileSync(join(here, '..', 'topics.mjs'), 'utf8');
+const source = readFileSync(join(here, '..', 'chat', 'handle-message.mjs'), 'utf8');
+const topics = readFileSync(join(here, '..', 'chat', 'topics.mjs'), 'utf8');
 
 test('a topic title is the first few words, not the whole prompt', () => {
   assert.equal(topicTitleFrom('починить стоимость в счёте'), 'починить стоимость в счёте');

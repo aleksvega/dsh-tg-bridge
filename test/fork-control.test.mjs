@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { allTurns } from "../rewind.mjs";
+import { allTurns } from "../work/rewind.mjs";
 import { writeSession } from "./rewind-fixture.mjs";
 
 const HOME = mkdtempSync(join(tmpdir(), "dsh-bridge-fork-"));
@@ -30,7 +30,7 @@ const old = new Date(Date.now() - 10 * 60 * 1000);
 utimesSync(file, old, old);
 
 process.env.DSH_HOME = HOME;
-const { handleControl } = await import("../control.mjs");
+const { handleControl } = await import("../chat/control.mjs");
 
 function context(overrides = {}) {
   const out = [];

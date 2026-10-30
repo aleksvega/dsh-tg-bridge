@@ -9,9 +9,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { handleControl } from '../control.mjs';
-import { dshLaunch } from '../dsh-launch.mjs';
-import { t } from '../i18n.mjs';
+import { handleControl } from '../chat/control.mjs';
+import { dshLaunch } from '../core/dsh-launch.mjs';
+import { t } from '../core/i18n.mjs';
 
 function context(overrides = {}) {
   const out = [];

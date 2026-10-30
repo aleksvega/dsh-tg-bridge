@@ -2,7 +2,7 @@
 // before app options, or the app sees `--patch` and refuses to boot.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnArgs } from '../cli-args.mjs';
+import { turnArgs } from '../core/cli-args.mjs';
 
 const base = { cli: 'cli.js', profile: 'headless', task: 'do the thing' };
 

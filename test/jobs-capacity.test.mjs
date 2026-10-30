@@ -6,8 +6,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import './sandbox-home.mjs';
-import { handleControl } from '../control.mjs';
-import { inlineKeyboard } from '../telegram.mjs';
+import { handleControl } from '../chat/control.mjs';
+import { inlineKeyboard } from '../chat/telegram.mjs';
 
 /** The smallest context `/jobs` needs, with the config write recorded. */
 function context({ arg = '', max = 3, write = true } = {}) {

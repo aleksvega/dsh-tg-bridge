@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { AgentsetStore, builtinSets, emptySet, slugId } from '../agentsets.mjs';
+import { AgentsetStore, builtinSets, emptySet, slugId } from '../profile/agentsets.mjs';
 
 function scratch() {
   const dir = mkdtempSync(join(tmpdir(), 'aset-'));

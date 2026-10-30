@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMMAND_ALIASES, DOCUMENTED_COMMANDS, MENU_COMMANDS } from '../commands-registry.mjs';
-import { LANGS, t } from '../i18n.mjs';
+import { COMMAND_ALIASES, DOCUMENTED_COMMANDS, MENU_COMMANDS } from '../chat/commands-registry.mjs';
+import { LANGS, t } from '../core/i18n.mjs';
 
 const here = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,7 +54,7 @@ test('every row has a real description in every language', () => {
 
 test('the published menu is built from the registry, not from a second list', () => {
   const source = readFileSync(join(here, 'bot-menu.mjs'), 'utf8');
-  assert.match(source, /import \{ MENU_COMMANDS \} from '\.\/commands-registry\.mjs'/, 'bot-menu must read MENU_COMMANDS');
+  assert.match(source, /import \{ MENU_COMMANDS \} from '\.\/(?:chat\/)?commands-registry\.mjs'/, 'bot-menu must read MENU_COMMANDS');
   // A hardcoded row array here is how `/task` outlived its alias.
   assert.doesNotMatch(source, /\{\s*command:\s*'/, 'no command rows may be written by hand in bot-menu.mjs');
 });

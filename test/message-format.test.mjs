@@ -5,7 +5,7 @@
 // the fix: cut the markdown, never the HTML, and strip markup on the way out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { markdownParts, toPlainText, toTelegramHtml } from '../format.mjs';
+import { markdownParts, toPlainText, toTelegramHtml } from '../core/format.mjs';
 
 const fenceCount = (text) => (text.match(/^```/gm) ?? []).length;
 const count = (text, needle) => text.split(needle).length - 1;

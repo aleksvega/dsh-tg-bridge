@@ -7,10 +7,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-const { renderSettingsCard, settingsCurrent } = await import('../settings-card.mjs');
+const { renderSettingsCard, settingsCurrent } = await import('../profile/settings-card.mjs');
 const { modelCard } = await import('../control/model-card.mjs');
-const { newTelemetry } = await import('../turn-events.mjs');
-const { t } = await import('../i18n.mjs');
+const { newTelemetry } = await import('../turn/turn-events.mjs');
+const { t } = await import('../core/i18n.mjs');
 
 const words = (lang) => (key, vars) => t(lang, key, vars);
 const base = {

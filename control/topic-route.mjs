@@ -11,8 +11,8 @@
 // `lang`, `pin` and `cwd` already use — and the route becomes a profile only
 // when a turn is about to boot (`profileOf`).
 import { modelOf, patchPath, read, routesOf } from './models.mjs';
-import { providerRows } from '../model-probe.mjs';
-import { ensureRouteProfile } from '../profiles.mjs';
+import { providerRows } from '../model/model-probe.mjs';
+import { ensureRouteProfile } from '../profile/profiles.mjs';
 
 /** The route this topic runs, and where the answer came from. */
 export function topicRoute({ state = {}, config = {}, key = '' } = {}) {

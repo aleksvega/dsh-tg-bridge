@@ -8,7 +8,7 @@
 // of a translated string, only at whether the key existed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LANGS, keysOf, t } from '../i18n.mjs';
+import { LANGS, keysOf, t } from '../core/i18n.mjs';
 
 /** Every key, in every language, as the bridge would render it. */
 function allStrings() {

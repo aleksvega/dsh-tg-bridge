@@ -41,7 +41,7 @@ function fakeHome() {
 }
 
 test('a set that changes nothing produces no profile at all', async () => {
-  const { materialiseProfile } = await import('../aset-profile.mjs');
+  const { materialiseProfile } = await import('../profile/aset-profile.mjs');
   const home = fakeHome();
   const profiles = join(home, 'profiles');
   assert.equal(materialiseProfile({ id: 'same', model: 'base-model' }, 'headless', { profiles }), '');
@@ -50,7 +50,7 @@ test('a set that changes nothing produces no profile at all', async () => {
 });
 
 test('a model set rewrites the row DSH reads, and nothing else changes', async () => {
-  const { materialiseProfile } = await import('../aset-profile.mjs');
+  const { materialiseProfile } = await import('../profile/aset-profile.mjs');
   const home = fakeHome();
   const profiles = join(home, 'profiles');
   const name = materialiseProfile({ id: 'reviewer', name: 'Reviewer', model: 'big-model' }, 'headless', { profiles });
@@ -70,7 +70,7 @@ test('a model set rewrites the row DSH reads, and nothing else changes', async (
 });
 
 test('permissions and the agent preset land on their own rows', async () => {
-  const { materialiseProfile } = await import('../aset-profile.mjs');
+  const { materialiseProfile } = await import('../profile/aset-profile.mjs');
   const home = fakeHome();
   const profiles = join(home, 'profiles');
   const name = materialiseProfile(
@@ -85,14 +85,14 @@ test('permissions and the agent preset land on their own rows', async () => {
 });
 
 test('a preset the base starts with is not a delta on its own', async () => {
-  const { materialiseProfile } = await import('../aset-profile.mjs');
+  const { materialiseProfile } = await import('../profile/aset-profile.mjs');
   const home = fakeHome();
   const profiles = join(home, 'profiles');
   assert.equal(materialiseProfile({ id: 'x', dshPreset: 'standard' }, 'headless', { profiles }), '');
 });
 
 test('a bound workspace becomes the profile\'s own sandbox root', async () => {
-  const { materialiseProfile } = await import('../aset-profile.mjs');
+  const { materialiseProfile } = await import('../profile/aset-profile.mjs');
   const home = fakeHome();
   const profiles = join(home, 'profiles');
   // The base has no sandbox row at all, so the derived profile has to state one:
@@ -120,7 +120,7 @@ test('a bound workspace becomes the profile\'s own sandbox root', async () => {
 });
 
 test('a sweep removes stale generated profiles and keeps the ones in use', async () => {
-  const { materialiseProfile, pruneDerived } = await import('../aset-profile.mjs');
+  const { materialiseProfile, pruneDerived } = await import('../profile/aset-profile.mjs');
   const home = fakeHome();
   const profiles = join(home, 'profiles');
   const keep = materialiseProfile({ id: 'a', model: 'one' }, 'headless', { profiles });

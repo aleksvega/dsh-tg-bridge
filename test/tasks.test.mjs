@@ -2,7 +2,7 @@
 // goal must stay closed; a stray press may never reopen finished work.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addTask, finishGoal, goalOf, progressOf, setGoal, toggleTask } from '../goals.mjs';
+import { addTask, finishGoal, goalOf, progressOf, setGoal, toggleTask } from '../work/goals.mjs';
 
 const KEY = '111:222';
 

@@ -43,7 +43,7 @@ writeFileSync(join(HOME, 'profiles', 'headless', 'cordis.patch.yml'), PATCH, 'ut
 const { modelOf } = await import('../control/models.mjs');
 const { topicRoute, setTopicRoute, clearTopicRoute, routeExists, routeProfile } = await import('../control/topic-route.mjs');
 const { handleModelCommand } = await import('../control/cmd-model.mjs');
-const { t } = await import('../i18n.mjs');
+const { t } = await import('../core/i18n.mjs');
 
 const run = async (arg, { state = {}, config = { profile: 'headless', lang: 'en' }, key = '1:7', lang = 'en' } = {}) => {
   const said = [];

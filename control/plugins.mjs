@@ -5,8 +5,8 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROFILES } from '../paths.mjs';
-import { dshLaunch } from '../dsh-launch.mjs';
+import { PROFILES } from '../core/paths.mjs';
+import { dshLaunch } from '../core/dsh-launch.mjs';
 
 import { read, readJson, pkgPath, disabledIds } from './models.mjs';
 /** Live DSH app PIDs (empty when the app is not running). */

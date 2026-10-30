@@ -7,9 +7,9 @@
 // denominator is worse than silence, because it reads as a measurement.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { contextFill, contextRow, contextUsed, shortTokens, WARN_PCT, FULL_PCT } from '../context-meter.mjs';
-import { progressPanel } from '../panel.mjs';
-import { t } from '../i18n.mjs';
+import { contextFill, contextRow, contextUsed, shortTokens, WARN_PCT, FULL_PCT } from '../turn/context-meter.mjs';
+import { progressPanel } from '../chat/panel.mjs';
+import { t } from '../core/i18n.mjs';
 
 test('a fill is a fraction of the window, with a level', () => {
   assert.deepEqual(contextFill({ used: 500_000, limit: 1_000_000 }), {

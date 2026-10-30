@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './sandbox-home.mjs';
-import { allowedSender } from '../allowlist.mjs';
+import { allowedSender } from '../core/allowlist.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

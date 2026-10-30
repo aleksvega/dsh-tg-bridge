@@ -5,12 +5,12 @@
 // from it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../control.mjs';
+import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../chat/control.mjs';
 import {
   MENU_GROUPS, MENU_PREFIX, commandForName, isMenuPress, keyboardCommand, menuCommands,
   menuTarget, renderPanel, replyKeyboard, unlistedCommands,
-} from '../menu-card.mjs';
-import { t } from '../i18n.mjs';
+} from '../chat/menu-card.mjs';
+import { t } from '../core/i18n.mjs';
 
 const tr = (lang) => (key, vars) => t(lang, key, vars);
 const allButtons = (card) => card.keyboard.flat();

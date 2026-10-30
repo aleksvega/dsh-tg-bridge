@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { clipNote, readNotes, thoughtRows } from '../notes.mjs';
+import { clipNote, readNotes, thoughtRows } from '../chat/notes.mjs';
 
 test('a short line is returned untouched', () => {
   assert.equal(clipNote('Проверяю откат на стабильную версию'), 'Проверяю откат на стабильную версию');

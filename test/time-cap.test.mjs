@@ -2,8 +2,8 @@
 // request" makes the person redo finished work, and the session is on disk.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { t } from "../i18n.mjs";
-import { explainFailure } from "../failures.mjs";
+import { t } from "../core/i18n.mjs";
+import { explainFailure } from "../turn/failures.mjs";
 
 const capLines = [
   "turn exceeded 75 min",

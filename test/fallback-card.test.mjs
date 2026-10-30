@@ -12,9 +12,9 @@ import { join } from 'node:path';
 import {
   FALLBACK_PREFIX, chainLine, chainSummary, describeChain, fallbackKeyboard, isFallbackPress,
   isUsable, pressTarget, removeKeyboard, renderFallbackCard, renderProbe,
-} from '../fallback-card.mjs';
+} from '../model/fallback-card.mjs';
 import { handleFallbackCommands, overlayName, overlayText, splitRoute } from '../control/cmd-fallback.mjs';
-import { t } from '../i18n.mjs';
+import { t } from '../core/i18n.mjs';
 
 const tr = (key, vars) => t('en', key, vars);
 const trRu = (key, vars) => t('ru', key, vars);

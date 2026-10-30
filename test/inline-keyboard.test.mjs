@@ -13,10 +13,10 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LANGS, t } from '../i18n.mjs';
-import { renderPanel, MENU_GROUPS } from '../menu-card.mjs';
-import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../settings-card.mjs';
-import { inlineKeyboard } from '../telegram.mjs';
+import { LANGS, t } from '../core/i18n.mjs';
+import { renderPanel, MENU_GROUPS } from '../chat/menu-card.mjs';
+import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
+import { inlineKeyboard } from '../chat/telegram.mjs';
 
 const tr = (lang) => (key, vars) => t(lang, key, vars);
 const flat = (rows) => (Array.isArray(rows) ? rows.flat() : []);

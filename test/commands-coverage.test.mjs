@@ -18,9 +18,9 @@ import { join } from 'node:path';
 
 const HOME = mkdtempSync(join(tmpdir(), 'commands-'));
 process.env.DSH_HOME = HOME;
-const { handleControl } = await import('../control.mjs');
-const { DOCUMENTED_COMMANDS } = await import('../commands-registry.mjs');
-const { t } = await import('../i18n.mjs');
+const { handleControl } = await import('../chat/control.mjs');
+const { DOCUMENTED_COMMANDS } = await import('../chat/commands-registry.mjs');
+const { t } = await import('../core/i18n.mjs');
 
 const LANGS = ['en', 'ru', 'zh'];
 

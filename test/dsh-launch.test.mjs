@@ -7,7 +7,7 @@
 // branch in three files: one place decides, and every caller asks it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dshLaunch } from '../dsh-launch.mjs';
+import { dshLaunch } from '../core/dsh-launch.mjs';
 
 // The app binary, whatever it is called on this platform: an `.exe`, not the
 // `dsh` command. The product name is not asserted — a rename is not a bug, and

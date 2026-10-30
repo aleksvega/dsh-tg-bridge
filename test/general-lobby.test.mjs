@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 // The guard moved with `handleMessage` into `handle-message.mjs`; the list it
 // consults lives in `commands.mjs`. Each half is asserted where it now lives.
-const source = readFileSync(join(here, '..', 'handle-message.mjs'), 'utf8');
-const commands = readFileSync(join(here, '..', 'commands.mjs'), 'utf8');
+const source = readFileSync(join(here, '..', 'chat', 'handle-message.mjs'), 'utf8');
+const commands = readFileSync(join(here, '..', 'chat', 'commands.mjs'), 'utf8');
 
 test('a state-changing command typed in General is refused, not redirected', () => {
   assert.match(source, /const recoveredTopic = typedInGeneral && threadId > 0 \? threadId : 0;/);

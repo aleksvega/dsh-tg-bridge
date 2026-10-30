@@ -10,11 +10,11 @@
 // the command.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { normalizeLang, t } from '../i18n.mjs';
-import { DIR } from '../paths.mjs';
-import { removeKeyboard, renderFallbackCard, renderProbe } from '../fallback-card.mjs';
-import { labelOf } from '../fallback.mjs';
-import { probeModel, providerRows } from '../model-probe.mjs';
+import { normalizeLang, t } from '../core/i18n.mjs';
+import { DIR } from '../core/paths.mjs';
+import { removeKeyboard, renderFallbackCard, renderProbe } from '../model/fallback-card.mjs';
+import { labelOf } from '../model/fallback.mjs';
+import { probeModel, providerRows } from '../model/model-probe.mjs';
 import { modelOf, patchPath, read } from './models.mjs';
 
 /** Provider ids as the profile spells them: a route on an unknown one cannot boot. */

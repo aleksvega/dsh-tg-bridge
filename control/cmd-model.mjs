@@ -7,7 +7,7 @@
 //
 // Extracted from `cmd-views.mjs` by the 500-line ceiling, and it holds together
 // on its own: one card, one command, one idea of scope.
-import { t } from '../i18n.mjs';
+import { t } from '../core/i18n.mjs';
 import { modelOf, routesOf, setModel } from './models.mjs';
 import { modelCard } from './model-card.mjs';
 import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';

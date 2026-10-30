@@ -54,8 +54,8 @@ writeFileSync(join(HOME, 'config.json'), JSON.stringify({ profile: 'headless', l
 writeFileSync(join(HOME, 'state.json'), JSON.stringify({ offset: 0, sessions: {} }), 'utf8');
 process.env.DSH_HOME = HOME;
 
-const { state } = await import('../state.mjs');
-const { turnPlan, workspaceOf } = await import('../profile-view.mjs');
+const { state } = await import('../core/state.mjs');
+const { turnPlan, workspaceOf } = await import('../profile/profile-view.mjs');
 
 /** A clean topic: no directory, no set, no wide flag, the default profile. */
 function reset() {

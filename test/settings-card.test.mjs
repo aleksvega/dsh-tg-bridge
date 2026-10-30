@@ -9,10 +9,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LANGS, t } from '../i18n.mjs';
-import { SETTINGS_PAGES, commandFor, renderSettingsCard, settingsButtons, settingsCurrent } from '../settings-card.mjs';
+import { LANGS, t } from '../core/i18n.mjs';
+import { SETTINGS_PAGES, commandFor, renderSettingsCard, settingsButtons, settingsCurrent } from '../profile/settings-card.mjs';
 
-const card = readFileSync(new URL('../settings-card.mjs', import.meta.url), 'utf8');
+const card = readFileSync(new URL('../profile/settings-card.mjs', import.meta.url), 'utf8');
 const ids = [...new Set([...card.matchAll(/id: '([a-z0-9-]+)'/g)].map((m) => m[1]))];
 const inEachLanguage = (key) => LANGS.every((lang) => typeof t(lang, key) === 'string' && t(lang, key) !== key);
 

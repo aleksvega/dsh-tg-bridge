@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-const { transcribe, voiceConfigured, voiceProvider } = await import('../media.mjs');
+const { transcribe, voiceConfigured, voiceProvider } = await import('../chat/media.mjs');
 
 const audio = join(mkdtempSync(join(tmpdir(), 'dsh-voice-test-')), 'note.ogg');
 writeFileSync(audio, Buffer.from('OggS'));

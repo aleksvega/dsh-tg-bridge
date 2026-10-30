@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { inlineText } from '../media-text.mjs';
+import { inlineText } from '../chat/media-text.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'media-text-'));
 const file = (name, body) => {

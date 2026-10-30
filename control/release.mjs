@@ -6,10 +6,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DSH_HOME } from '../paths.mjs';
+import { DSH_HOME } from '../core/paths.mjs';
 
-import { UPDATE_DEFAULTS } from '../update-policy.mjs';
-import { checkInstall, isBridgeRoot, restoreBackup, safeUpdateRoot } from '../install-check.mjs';
+import { UPDATE_DEFAULTS } from '../core/update-policy.mjs';
+import { checkInstall, isBridgeRoot, restoreBackup, safeUpdateRoot } from '../core/install-check.mjs';
 import { read } from './models.mjs';
 import { stamp } from './sessions.mjs';
 /**

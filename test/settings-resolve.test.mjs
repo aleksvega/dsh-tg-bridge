@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveSettings, profileValues, settingsChip, touchesProfile } from '../settings.mjs';
+import { resolveSettings, profileValues, settingsChip, touchesProfile } from '../profile/settings.mjs';
 
 const profile = profileValues({
   model: { model: 'deepseek-v4.1-flash', provider: 'example-provider' },

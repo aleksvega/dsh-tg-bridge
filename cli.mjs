@@ -25,7 +25,18 @@ const RUNTIME = join(DSH_HOME, 'tg-bridge');
 // Whatever the package ships. This was a hand-kept list until it silently fell
 // behind the code: a file it did not name was not copied, and the bridge then
 // started from a directory that could not import what it needed.
-const RUNTIME_FILES = (pkg.files || []).filter((entry) => !entry.endsWith('/'));
+//
+// `files[]` names folders now (`core/`, `chat/`), so the list is expanded, not
+// filtered: copying only the entries that end in `.mjs` would leave the runtime
+// with eleven entry modules and no code for them to import.
+const expand = (entry) => {
+  const full = join(DIR, entry);
+  if (!existsSync(full)) return [];
+  if (!entry.endsWith('/')) return [entry];
+  return readdirSync(full, { withFileTypes: true })
+    .flatMap((item) => expand(`${entry}${item.name}${item.isDirectory() ? '/' : ''}`));
+};
+const RUNTIME_FILES = (pkg.files || []).flatMap(expand);
 
 /**
  * Mirror this checkout into the runtime directory.

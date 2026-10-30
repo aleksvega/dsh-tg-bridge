@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { progressPanel, stepLine, addStep } from '../panel.mjs';
+import { progressPanel, stepLine, addStep } from '../chat/panel.mjs';
 
 test('a quiet turn is a single status line with no empty block', () => {
   const { html, plain } = progressPanel({ lang: 'ru', seconds: 7 });

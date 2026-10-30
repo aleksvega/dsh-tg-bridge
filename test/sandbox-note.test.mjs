@@ -8,8 +8,8 @@
 // language and the "nothing to say" case are tested.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sandboxMarker, sandboxNote, sandboxRefusals, turnSandboxNote, reportRefusals } from '../sandbox-note.mjs';
-import { t } from '../i18n.mjs';
+import { sandboxMarker, sandboxNote, sandboxRefusals, turnSandboxNote, reportRefusals } from '../profile/sandbox-note.mjs';
+import { t } from '../core/i18n.mjs';
 
 const LANGS = ['en', 'ru', 'zh'];
 

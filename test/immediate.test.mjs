@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { immediateKind } from '../immediate.mjs';
-import { CONTROL_COMMANDS } from '../control.mjs';
+import { immediateKind } from '../turn/immediate.mjs';
+import { CONTROL_COMMANDS } from '../chat/control.mjs';
 
 test('reports answer while a turn is working', () => {
   for (const name of [

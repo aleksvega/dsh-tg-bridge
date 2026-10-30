@@ -11,9 +11,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { diffPress, findHunk, hunkId, hunkPatch, parseDiff, renderDiffCard } from '../diff.mjs';
+import { diffPress, findHunk, hunkId, hunkPatch, parseDiff, renderDiffCard } from '../work/diff.mjs';
 import { diffCard, isRepo, readDiff } from '../control/cmd-diff.mjs';
-import { LANGS, t } from '../i18n.mjs';
+import { LANGS, t } from '../core/i18n.mjs';
 
 const MOD = [
   'diff --git a/src/app.mjs b/src/app.mjs',

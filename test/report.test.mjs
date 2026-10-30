@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { MAX_CHARS, TAIL_LINES, buildReport, redact, tailOf, writeReport } from '../report.mjs';
+import { MAX_CHARS, TAIL_LINES, buildReport, redact, tailOf, writeReport } from '../work/report.mjs';
 import { scanText } from '../scan-secrets.mjs';
 
 const HOME = ['C:', 'Users', 'tester'].join('\\');

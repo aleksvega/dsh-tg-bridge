@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pruneDerived } from '../aset-profile.mjs';
+import { pruneDerived } from '../profile/aset-profile.mjs';
 
 /** A throwaway home directory, cleaned up by the OS temp dir policy. */
 function home() {

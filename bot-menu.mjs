@@ -15,8 +15,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { MENU_COMMANDS } from './commands-registry.mjs';
-import { LANGS, t } from './i18n.mjs';
+import { MENU_COMMANDS } from './chat/commands-registry.mjs';
+import { LANGS, t } from './core/i18n.mjs';
 
 const args = new Set(process.argv.slice(2));
 

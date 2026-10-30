@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { looksLikeReasoning } from '../panel.mjs';
+import { looksLikeReasoning } from '../chat/panel.mjs';
 
 const here = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -48,7 +48,7 @@ test('empty input on either side is not an echo', () => {
 });
 
 test('the turn path checks the answer against the panel reasoning', () => {
-  const source = readFileSync(join(here, 'handle-message.mjs'), 'utf8');
+  const source = readFileSync(join(here, 'chat', 'handle-message.mjs'), 'utf8');
   assert.match(source, /looksLikeReasoning\(result\.text, progress\.reasoning\(\)\)/);
   assert.match(source, /bridge\.progress\.reasoningOnly/);
 });

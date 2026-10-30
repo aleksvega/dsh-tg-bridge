@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseSubagentRows, parseModelSelection, parseSubagentFleet, parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from '../agents.mjs';
+import { parseSubagentRows, parseModelSelection, parseSubagentFleet, parseAgentPresets, parsePermissionPresets, parseReasoningEfforts } from '../profile/agents.mjs';
 
 const patch = `# a profile patch
 - id: tool-subagent

@@ -162,7 +162,7 @@ function readState() {
 async function maybeRollback(evidence) {
   let target = '';
   try {
-    const { startupRollback, applyRollback } = await import('./stability.mjs');
+    const { startupRollback, applyRollback } = await import('./core/stability.mjs');
     const state = readState();
     const { bridgeVersion } = await import('./control/release.mjs');
     const installed = bridgeVersion();
@@ -178,7 +178,7 @@ async function maybeRollback(evidence) {
     // The state file is the record the next tick reads: write it even when the
     // restore failed, so a repeated failure is visible instead of retried blind.
     try {
-      const { writeAtomic } = await import('./state.mjs');
+      const { writeAtomic } = await import('./core/state.mjs');
       writeAtomic(STATE_FILE, JSON.stringify(state, null, 2));
     } catch {}
     log(`rollback to ${target}: ${result.ok ? `ok via ${result.via}` : `failed (${(result.problems || []).join(' | ').slice(0, 200)})`}`);

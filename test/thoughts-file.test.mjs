@@ -13,8 +13,8 @@ const home = mkdtempSync(join(tmpdir(), 'dsh-thoughts-'));
 process.env.DSH_HOME = home;
 process.env.DSH_TELEGRAM_BOT_TOKEN = 'test-token';
 
-const { lastTurnReasoningSteps, reasoningMarkdown, sessionReasoningSteps } = await import('../thoughts.mjs');
-const { handleControl } = await import('../control.mjs');
+const { lastTurnReasoningSteps, reasoningMarkdown, sessionReasoningSteps } = await import('../chat/thoughts.mjs');
+const { handleControl } = await import('../chat/control.mjs');
 
 /** A session log the way the CLI writes it: one zstd frame per appended batch. */
 function writeSession(records) {
