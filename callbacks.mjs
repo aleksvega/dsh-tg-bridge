@@ -1,8 +1,7 @@
 // Every button press: the router, the settings card, the rewind ticket, the
 // task card. One place, because a press may mean a control command, a card
 // update or an approval, and only one handler may claim it.
-import { AgentsetStore } from './agentsets.mjs';
-import { CONTROL_COMMANDS, handleControl } from './control.mjs';
+import { CONTROL_COMMANDS } from './control.mjs';
 import { isFallbackPress, pressTarget } from './fallback-card.mjs';
 import { progressOf, toggleTask } from './goals.mjs';
 import { handleMessage } from './handle-message.mjs';
@@ -10,18 +9,19 @@ import { resolveLang, t } from './i18n.mjs';
 import { handleLoadPress } from './load-guard.mjs';
 import { sessionKey } from './keys.mjs';
 import { commandForName, isMenuPress, menuTarget, renderPanel, runsUnasked } from './menu-card.mjs';
-import { DIR, DSH_HOME, LOG } from './paths.mjs';
-import { approvals, enqueue, lastPrompt, maxParallel, redeliver, rewindUsed } from './queue.mjs';
+import { DSH_HOME, LOG } from './paths.mjs';
+import { approvals, enqueue, lastPrompt, redeliver, rewindUsed } from './queue.mjs';
 import { answerRewindPress, cutSession, isRewindPress } from './rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from './rewind.mjs';
 import { diffPressRouter } from './control/cmd-diff.mjs';
 import { handleModelPress, MODEL_PREFIX, modelPressRouter } from './control/model-card.mjs';
 import { runCommandFromButton } from './run-command.mjs';
-import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
-import { config, done, log, saveConfig, saveState, state } from './state.mjs';
-import { inlineKeyboard, send, sendFile, tg } from './telegram.mjs';
+import { handleCardPress } from './settings-press.mjs';
+import { config, done, log, saveState, state } from './state.mjs';
+import { inlineKeyboard, send, sendFile, tg, tgFast } from './telegram.mjs';
 import { sessionFile } from './thoughts.mjs';
-import { activeTurns, baseProfileOf, killTurn, profileOf } from './turn.mjs';
+import { activeTurns, killTurn, profileOf } from './turn.mjs';
+import { QUIET_MS, quietGuard } from './quiet-guard.mjs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -33,8 +33,23 @@ export async function handleCallback(query) {
   const threadId = query.message?.message_thread_id ?? 0;
   const key = sessionKey(chatId, threadId);
   const lang = resolveLang(state, key, null, config);
-  const answer = (text, show = false) =>
-    tg('answerCallbackQuery', { callback_query_id: query.id, text, show_alert: show }).catch(() => {});
+  const answerRaw = (text, show = false) =>
+    tgFast('answerCallbackQuery', { callback_query_id: query.id, text, show_alert: show }).catch(() => false);
+
+  // A press must end in something. Silence is the one outcome a person cannot
+  // tell from a broken bot, and it was the one outcome the code could produce
+  // without a trace: a handler that returned without saying anything left the
+  // spinner turning for a few seconds and no line in the log at all. The guard
+  // turns that case into one honest line, once, whether the handler is still
+  // running or already gone.
+  const guard = quietGuard({
+    onSlow: () => {
+      log(`callback ${data} from ${query.from?.id} in ${chatId}/${threadId}: nothing answered in ${QUIET_MS / 1000}s`);
+      void tgFast('answerCallbackQuery', { callback_query_id: query.id, text: t(lang, 'bridge.cb.slow') }).catch(() => {});
+      void send(chatId, t(lang, 'bridge.cb.slowLine', { sec: QUIET_MS / 1000 }), threadId).catch(() => {});
+    },
+  });
+  const answer = guard.wrap(answerRaw);
 
   // A button is a message without a sender the rest of the code can check, and
   // the chat itself may be a group. Anything that changes configuration must
@@ -46,17 +61,22 @@ export async function handleCallback(query) {
     await answer(t(lang, 'bridge.cb.unknown'));
     return;
   }
+  // Every accepted press is named in the log before it is handled: a button that
+  // answers nothing was indistinguishable from a button that never arrived.
+  log(`callback ${data} from ${presser} in ${chatId}/${threadId}`);
 
   // Trim the buttons of the pressed message first: a button that already did
   // its job must not be pressable a second time.
-  const clearKeyboard = () =>
-    tg('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  const clearKeyboard = () => {
+    guard.mark();
+    return tgFast('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  };
 
   if (data.startsWith('m:')) {
     // The settings card. Its own answer path, because a tap that redraws or
     // flips one setting must not go through the defaults below (`clearKeyboard`
     // would strip the tabs it is about to draw again).
-    await handleCardPress(query, { chatId, messageId, threadId, key, lang });
+    await handleCardPress(query, { chatId, messageId, threadId, key, lang, answer, mark: () => guard.mark() });
     return;
   }
 
@@ -102,7 +122,7 @@ export async function handleCallback(query) {
 
   // A search result's plus button. The name came from the registry and the
   // command is the one the hint under the list names, so a tap installs exactly
-  // what was read — no hidden second path into pnpm.
+  // what was read â€” no hidden second path into pnpm.
   if (data.startsWith('pl:i:')) {
     const wanted = data.slice(5);
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(wanted)) {
@@ -118,7 +138,7 @@ export async function handleCallback(query) {
 
   // The up arrow on the update card. Same shape as the plus of a search result:
   // the name was printed by the command that read the registry, and the tap runs
-  // `/plugin update <name>` — nothing else.
+  // `/plugin update <name>` â€” nothing else.
   if (data.startsWith('pl:u:')) {
     const wanted = data.slice(5);
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(wanted)) {
@@ -135,7 +155,7 @@ export async function handleCallback(query) {
   if (data.startsWith('fk:')) {
     // A branch button from /branches. It does what `/resume <id>` does, so the
     // topic moves onto that branch and the answer comes from the command
-    // itself — one implementation, one sentence.
+    // itself â€” one implementation, one sentence.
     const wanted = data.slice(3);
     if (!/^session-[0-9a-f-]{36}$/.test(wanted)) {
       await answer(t(lang, 'bridge.cb.unknown'));
@@ -164,7 +184,7 @@ export async function handleCallback(query) {
   }
 
   // A button on the failover card. Every press becomes the verb of `/fallback`,
-  // so a tap and a typed line land in the same code — and the command redraws the
+  // so a tap and a typed line land in the same code â€” and the command redraws the
   // card, which is why the old keyboard is trimmed only when the press leaves it.
   if (isFallbackPress(data)) {
     const target = pressTarget(data);
@@ -220,7 +240,7 @@ export async function handleCallback(query) {
     const name = target.kind === 'command' ? target.name : '';
     await clearKeyboard();
     // `/new` and `/stop` change something when typed alone, and a stray tap on
-    // them is a command nobody asked for — so they open their explanation.
+    // them is a command nobody asked for â€” so they open their explanation.
     const typed = runsUnasked(name) && CONTROL_COMMANDS.includes(name)
       ? commandForName(name, { t: (k, v) => t(lang, k, v) })
       : `/help ${name}`;
@@ -301,7 +321,7 @@ export async function handleCallback(query) {
 
   if (data.startsWith('t:')) {
     // A task card. The whole message is redrawn from state, so a double tap or
-    // two people pressing converge on one truth instead of stacking ✅ marks.
+    // two people pressing converge on one truth instead of stacking âœ… marks.
     const n = Number(data.slice(2));
     const goal = toggleTask(state, key, n);
     if (!goal) {
@@ -343,136 +363,20 @@ export async function handleCallback(query) {
   await answer(t(lang, 'bridge.cb.unknown'));
 }
 
-export async function handleCardPress(query, ctx) {
-  const { chatId, messageId, threadId, key, lang } = ctx;
-  const data = String(query.data || '');
-  const tt = (k, vars) => t(lang, k, vars);
-  const updateMode = state.update?.mode || 'check';
-  const current = settingsCurrent({ config, state, key });
-  const wanted = commandFor({ t: tt, current, updateMode }, data);
-
-  if (!wanted) {
-    await tg('answerCallbackQuery', { callback_query_id: query.id, text: t(lang, 'settings.card.stale') }).catch(() => {});
-    return;
-  }
-
-  if (wanted.done) {
-    await tg('deleteMessage', { chat_id: chatId, message_id: messageId }).catch((error) => log(`settings card delete failed: ${error.message}`));
-    await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
-    return;
-  }
-
-  /** Redraw the card in place: the same message, the new values, the buttons kept. */
-  const redraw = async (page, note = '') => {
-    const card = renderSettingsCard({
-      page,
-      t: tt,
-      current: settingsCurrent({ config, state, key }),
-      updateMode,
-      bound: boundSetOf(key),
-      note,
-    });
-    await tg('editMessageText', {
-      chat_id: chatId,
-      message_id: messageId,
-      text: card.text,
-      reply_markup: { inline_keyboard: inlineKeyboard(card.keyboard) },
-      ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-    }).catch((error) => {
-      const why = String(error.message || '');
-      // Tapping the tab you are already on is not a failure: Telegram refuses an
-      // edit that changes nothing, and the card is already what the press asked
-      // for. Logging it as a failure made a working tap look broken.
-      if (!/message is not modified/i.test(why)) log(`settings card redraw failed: ${why}`);
-    });
-    await tg('answerCallbackQuery', { callback_query_id: query.id }).catch(() => {});
-  };
-
-  if (wanted.tab) {
-    await redraw(wanted.page);
-    return;
-  }
-
-  // Run the command. Whatever it answers goes in the log and, by default, not
-  // in the chat: the one line below is the chat's share of this press. Only a
-  // command that failed says more than that.
-  const replies = [];
-  // A press that fails has to say so: the card is redrawn either way, and a
-  // redraw alone looks exactly like success. The old path hid failures behind a
-  // line the person read as a confirmation.
-  let failed = '';
-  const [head, ...rest] = wanted.command.split(/\s+/);
-  const handled = await handleControl({
-    command: head,
-    arg: rest.join(' '),
-    text: wanted.command,
-    lang,
-    chatId,
-    threadId,
-    key,
-    state,
-    config,
-    activeTurns,
-    saveState,
-    // `/fallback` writes config.json; without this the press would look applied
-    // and vanish on restart, which is the worst of both answers.
-    saveConfig,
-    log,
-    send: (text) => {
-      replies.push(String(text ?? ''));
-      return Promise.resolve(0);
-    },
-    reply: (text) => {
-      replies.push(String(text ?? ''));
-      return Promise.resolve(0);
-    },
-    jobs: () => ({ active: [], queued: 0, max: maxParallel() }),
-    api: tg,
-    sendFile: () => Promise.resolve(0),
-    profile: baseProfileOf(key),
-    prices: () => Promise.resolve(''),
-  }).catch((error) => {
-    log(`settings press ${data} failed: ${error.message}`);
-    failed = error.message;
-    replies.push(error.message);
-    return true;
-  });
-
-  const changed = Boolean(wanted.value);
-
-  // The card stays where it is, redrawn with the new value. A press that turned
-  // it into one line took the menu away from the person who wanted the next tap,
-  // and the line said less than the card did; keeping it costs no message,
-  // because this is an edit of the one already in the chat. The way out is the
-  // card's own button, so removing it is a decision, not a side effect.
-  await redraw(
-    wanted.page,
-    failed ? `⚠️ ${failed}` : changed ? t(lang, 'settings.card.changed', { label: wanted.label, value: wanted.value }) : '',
-  );
-
-  // A door that opened to nothing (an unknown set id, a command that is not
-  // allowed here) still has something to say; it goes under the card, once. A
-  // switch says nothing here: the card above it already named the new value, and
-  // a failure is on the card too, so it is not repeated below it.
-  if (!handled) log(`settings press ${data}: no handler answered`);
-  const notLine = replies.filter(Boolean).filter((r) => r !== wanted.command);
-  if (notLine.length > 0 && !changed && !failed) {
-    await send(chatId, notLine[0], threadId).catch(() => {});
-  }
-}
 
 /**
- * The set bound to this topic, for the card that names it. Read through the
- * agentset store the commands use, so the card never keeps a second copy.
+ * A press that failed before it could answer.
+ *
+ * Without this the throw reached the poll loop, which logged it and moved on:
+ * the log knew, the person did not. The toast is the same shape as every other
+ * answer, so a broken button and a stale one look different, and both look
+ * different from a button that never arrived.
  */
-export function boundSetOf(key) {
-  const id = state.agentsets?.[key];
-  if (!id) return null;
-  try {
-    return new AgentsetStore(join(DIR, 'agentsets.json')).load().get(id) || null;
-  } catch {
-    return null;
-  }
+export async function answerPressFailed(query) {
+  const chatId = query?.message?.chat?.id;
+  const threadId = query?.message?.message_thread_id ?? 0;
+  const lang = resolveLang(state, sessionKey(chatId, threadId), null, config);
+  await tgFast('answerCallbackQuery', { callback_query_id: query?.id, text: t(lang, 'bridge.cb.failed') }).catch(() => {});
 }
 
 /**
@@ -483,7 +387,7 @@ export function boundSetOf(key) {
 export function renderTaskCard(goal, lang) {
   const { done, total } = progressOf(goal);
   const lines = [t(lang, 'goal.set', { text: goal.text })];
-  goal.tasks.forEach((task, i) => lines.push(`${task.done ? '✅' : '⬜'} ${i + 1}. ${task.text}`));
+  goal.tasks.forEach((task, i) => lines.push(`${task.done ? 'âœ…' : 'â¬œ'} ${i + 1}. ${task.text}`));
   lines.push(t(lang, 'goal.progress', { done, total }), '', t(lang, 'task.tapHint'));
   return lines.join('\n');
 }
@@ -492,7 +396,7 @@ export function taskRows(goal) {
   if (!goal || goal.done) return [];
   const rows = [];
   for (let i = 0; i < Math.min(goal.tasks.length, 90); i += 3) {
-    rows.push(goal.tasks.slice(i, i + 3).map((task, k) => ({ text: `${task.done ? '✅' : '⬜'} ${i + k + 1}`, data: `t:${i + k + 1}` })));
+    rows.push(goal.tasks.slice(i, i + 3).map((task, k) => ({ text: `${task.done ? 'âœ…' : 'â¬œ'} ${i + k + 1}`, data: `t:${i + k + 1}` })));
   }
   return rows;
 }

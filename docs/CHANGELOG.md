@@ -1,5 +1,27 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.33.1
+
+- **A press always answers.** Three paths could leave a button with no reaction
+  and no line in the log: a payload from an older card, a handler that threw
+  before answering, and a card that redrew itself into an identical message. All
+  three now answer — the stale one with an alert that stays on screen, the failed
+  one with `/logs errors` pointed at — and every accepted press is named in the
+  log the moment it arrives, so "the menu does nothing" can be told apart from
+  "the press never reached the bridge".
+- **Silence has a deadline.** `quietGuard` watches the press and the command that
+  follow it: if nothing visible is produced within 45 seconds the guard says so
+  once, in the chat, whether the handler is still running or already returned.
+  This is the case that had no answer before — not a crash, just a wait with no
+  end visible from the phone.
+- **Card calls are fast now.** `tg` allows 60 seconds and three attempts, so a
+  single tap on a card could sit on a spinner for three minutes while the flaky
+  route retried underneath. `tgFast` gives every press-path call 8 seconds and two
+  attempts; the fast path stays fast and the retry still covers the bad route.
+- `handleCardPress` and `boundSetOf` moved from `callbacks.mjs` into
+  `settings-press.mjs`, and `/stop`'s inline turn kill now uses the `killTurn` it
+  duplicated. The router stays a router, and both files fit the ceiling.
+
 ## 1.33.0
 
 - **A model per topic, and the profile is only the default.** One model for the

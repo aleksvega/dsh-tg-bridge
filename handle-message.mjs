@@ -18,6 +18,7 @@ import { guardOf } from './machine.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
 import { looksLikeReasoning } from './panel.mjs';
+import { QUIET_MS, quietGuard } from './quiet-guard.mjs';
 import { DIR, GOAL_CMD, THOUGHT_DIR } from './paths.mjs';
 import { renderPrices } from './prices.mjs';
 import { settingsChipOf, turnPlan } from './profile-view.mjs';
@@ -232,6 +233,14 @@ ${t(lang, 'help.body')}`,
   }
 
   if (effective) {
+    // A command that says nothing is a menu that looks dead. The guard speaks
+    // once if the window passes with no output, and falls silent on the first.
+    const guard = quietGuard({
+      onSlow: () => {
+        log(`command ${effective}: nothing answered in ${QUIET_MS / 1000}s`);
+        void send(chatId, t(lang, 'bridge.cmd.slow', { cmd: effective, sec: QUIET_MS / 1000 }), threadId).catch(() => {});
+      },
+    });
     const handled = await handleControl({
       command: effective,
       lang,
@@ -246,7 +255,7 @@ ${t(lang, 'help.body')}`,
       saveState,
       saveConfig,
       log,
-      send,
+      send: guard.wrap(send),
       // What `/jobs` shows: the turns holding a slot, and the keys without an
       // active turn waiting behind them.
       jobs: () => ({
@@ -269,20 +278,13 @@ ${t(lang, 'help.body')}`,
           lang,
         });
       },
-      reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
-      stopTurn: (k) => {
-        const child = activeTurns.get(k);
-        if (!child) return false;
-        try {
-          child.kill();
-          activeTurns.delete(k);
-          return true;
-        } catch {
-          return false;
-        }
-      },
+      reply: guard.wrap((out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra)),
+      // `killTurn` already knows a stop that was asked from a crash.
+      stopTurn: (k) => killTurn(k),
     });
     if (handled) return;
+    // Not a command: the turn has its own progress panel and its own watchdog.
+    guard.cancel();
   }
 
   // Remember this prompt so the «Повторить» button after a failure has

@@ -48,6 +48,17 @@ export async function tg(method, body, timeoutMs = 60000, attempts = 3) {
 }
 
 /**
+ * A press has someone watching a spinner, so its calls must fail in seconds.
+ *
+ * `tg` waits 60 s and tries three times: that is up to three minutes for one
+ * press, and the person sees a spinner that never stops. Nobody waits that long;
+ * they press again, which starts a second copy of the same wait, and the chat
+ * fills with cards that answer out of order. Two short attempts keep the tap
+ * fast and still ride out the flaky route the retries exist for.
+ */
+export const tgFast = (method, body) => tg(method, body, 8000, 2);
+
+/**
  * Upload a local file to the chat: archives, PDFs, screenshots, builds.
  */
 export async function sendFile(chatId, threadId, filePath, caption = '') {

@@ -256,6 +256,12 @@ export default {
   'bridge.cb.allowed': 'Allowed',
   'bridge.cb.denied': 'Denied',
   'bridge.cb.unknown': 'Unknown button',
+  'bridge.cb.slow': 'Still working — no answer in {sec}s',
+  'bridge.cb.failed': 'The button failed — /logs errors has the reason',
+  'bridge.cb.slowLine':
+    '⚠️ That press answered nothing in {sec}s. It is still running — if it never finishes, /logs errors has the reason.',
+  'bridge.cmd.slow':
+    '⚠️ {cmd} has not answered for {sec}s. It is still running — if it fails, /logs errors will say why.',
   'prompt.taskHint': '[Plan] This topic has no goal yet. When the request is more than one step, set one first: `node "{goal}" --key {key} set "<one line: what done looks like>"`, then add each step with `add "<step>"` and close it with `done <n>` as you finish. The person sees the list and can tap items; a tap closes them too, so never re-add what is already there.',
   'bridge.cb.done': "Done",
   'bridge.cb.taskDone': 'Done',

@@ -17,7 +17,7 @@ import { modelOf, routesOf } from './models.mjs';
 import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';
 import { baseProfileOf } from '../turn.mjs';
 import { saveState, state } from '../state.mjs';
-import { send, tg } from '../telegram.mjs';
+import { send, tg, tgFast } from '../telegram.mjs';
 
 export const MODEL_PREFIX = 'md:';
 
@@ -214,7 +214,7 @@ export function modelPressRouter({ chatId, threadId, messageId, key, lang, answe
       say: async (text) => send(chatId, text, threadId),
       answer,
       redraw: (card) =>
-        tg('editMessageText', {
+        tgFast('editMessageText', {
           chat_id: chatId,
           message_id: messageId,
           text: card.text,

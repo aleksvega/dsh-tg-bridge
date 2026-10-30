@@ -256,6 +256,12 @@ export default {
   'bridge.cb.allowed': '已允许',
   'bridge.cb.denied': '已拒绝',
   'bridge.cb.unknown': '未知按钮',
+  'bridge.cb.slow': '仍在处理 — {sec} 秒内没有回应',
+  'bridge.cb.failed': '按钮执行失败 — 原因在 /logs errors 里',
+  'bridge.cb.slowLine':
+    '⚠️ 这次点击 {sec} 秒内没有任何回应。它仍在执行 — 若一直不结束，原因会在 /logs errors 里。',
+  'bridge.cmd.slow':
+    '⚠️ {cmd} 已 {sec} 秒没有回应。仍在执行 — 若失败，原因会在 /logs errors 里。',
   'prompt.taskHint': '[计划] 本话题还没有目标。若请求超过一步，先设定目标：`node "{goal}" --key {key} set "<用一行说明完成是什么样>"`，再用 `add "<步骤>"` 添加步骤，完成后用 `done <n>` 关闭。用户能看到列表并可点击关闭，不要把已在列表中的项目重复添加。',
   'bridge.cb.done': "完成",
   'bridge.cb.taskDone': '已完成',

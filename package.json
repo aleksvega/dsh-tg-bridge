@@ -1,6 +1,6 @@
 {
   "name": "dsh-tg-bridge",
-  "version": "1.33.0",
+  "version": "1.33.1",
   "description": "Drive DeepSeek Harness from Telegram: one project, model and session per forum topic",
   "type": "module",
   "main": "plugin-bridge.mjs",
@@ -54,6 +54,8 @@
     "keys.mjs",
     "keyboards.mjs",
     "progress.mjs",
+    "quiet-guard.mjs",
+    "settings-press.mjs",
     "notes.mjs",
     "turn.mjs",
     "turn-outcome.mjs",

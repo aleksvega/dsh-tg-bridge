@@ -35,7 +35,8 @@ import { busyNotices, clearBusyNotice, steerAvailable, steerMediaMessage, steerR
 import { MAX_PARALLEL, approvals, bufferAlbum, enqueue, lastPrompt, queues, redeliver, rewindUsed, setMessageHandler } from './queue.mjs';
 import { applyAsetJob, settingsChipOf, turnProfileOf } from './profile-view.mjs';
 import { handleMessage } from './handle-message.mjs';
-import { boundSetOf, handleCallback, handleCardPress, renderTaskCard, taskRows } from './callbacks.mjs';
+import { answerPressFailed, handleCallback, renderTaskCard, taskRows } from './callbacks.mjs';
+import { boundSetOf, handleCardPress } from './settings-press.mjs';
 import { runCommandFromButton } from './run-command.mjs';
 import { startJobLoops } from './job-loops.mjs';
 import { ensureProfile } from './profiles.mjs';
@@ -441,6 +442,7 @@ async function main() {
             await handleCallback(update.callback_query);
           } catch (error) {
             log(`callback error: ${error.message}`);
+            await answerPressFailed(update.callback_query);
           }
           continue;
         }
