@@ -10,6 +10,7 @@
 //   node goal.mjs --key <chat:thread> --remove 2
 //   node goal.mjs --key <chat:thread> --set "new goal"
 //   node goal.mjs --key <chat:thread> --finish
+//   A --key that disagrees with the turn this runs in is refused unless --force.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -29,7 +30,17 @@ function arg(name) {
 // to know its own chat and thread. Guessing from state.json means "whichever
 // topic was written last", which is how one topic's task list landed in
 // another. A wrong topic is worse than a refusal.
-const key = arg('key') || (process.env.DSH_TG_KEY || '').trim();
+const asked = (arg('key') || '').trim();
+const inside = (process.env.DSH_TG_KEY || '').trim();
+// A turn knows exactly one topic: the one it is running in. A `--key` that
+// disagrees is how a goal about Germany ended up on a topic about Latvia -- the
+// write looked successful, and the card showed the right goal for the wrong
+// topic for days. Inside a turn, overriding that takes an explicit --force.
+if (inside && asked && asked !== inside && !process.argv.includes('--force')) {
+  console.error(`refusing to write topic ${asked} from a turn in ${inside}: pass --force if that is really the target`);
+  process.exit(2);
+}
+const key = asked || inside;
 if (!key || !/^-?\d+(:-?\d+)?$/.test(key)) {
   console.error('no topic: pass --key <chat:thread>, or run inside a turn whose DSH_TG_KEY is set');
   process.exit(3);
