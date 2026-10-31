@@ -11,6 +11,13 @@ import { t } from '../core/i18n.mjs';
  */
 export function explainFailure(text, lang = 'ru') {
   const raw = String(text);
+  // Our own one-line code, never the vendor's page: the raw text behind a
+  // provider timeout is a wall of advice about other clients, and echoing it is
+  // exactly what made this failure unreadable. See `provider-banner.mjs`.
+  const timeout = /^PROVIDER_TIMEOUT(?::\s*(\d+))?/i.exec(raw.trim());
+  if (timeout) {
+    return `PROVIDER_TIMEOUT: ${t(lang, 'bridge.fail.providerTimeout', { seconds: timeout[1] || '?' })}`;
+  }
   // The regular expressions match the CLI's and the provider's own words, so
   // they stay as they are; only the hint on the right follows the topic language.
   const cases = [

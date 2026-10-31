@@ -101,6 +101,20 @@ export const STREAM_BUDGET = 1;
 export const REFUSAL_BUDGET = 1;
 
 /**
+ * How many routes may run out of their own clock before the walk stops.
+ *
+ * A gateway limit is a fact about a big prompt meeting a slow provider: the turn
+ * took nine minutes and the vendor's ceiling was 570 seconds. One other route is
+ * worth one replay — another host may allow longer — but the replay costs the
+ * same nine minutes, so the second timeout ends the walk and the chat says what
+ * to do with the conversation instead. The error this matches is our own short
+ * code (`turn/provider-banner.mjs`), not the vendor's page.
+ */
+export const TIMEOUT_BUDGET = 1;
+/** The provider's own clock, as a family: `PROVIDER_TIMEOUT: 570`. */
+export const PROVIDER_TIMEOUT = /PROVIDER_TIMEOUT|request exceeded\s+\d+\s*s\b[^\n]{0,40}limit/i;
+
+/**
  * Failures that must NOT start the chain, and why.
  *
  * These are not provider answers at all — the turn never reached a model, or it
@@ -137,7 +151,7 @@ export const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|\b50[
  */
 export const FALLBACK_TRIGGERS = new RegExp([
   ROUTE_REJECTS, TRANSPORT_DOWN, SERVER_DOWN, RATE_LIMITED, AUTH_FAILED, MODEL_GONE, EMPTY_ANSWER, QUOTA_LIKE,
-  CONTEXT_OVERFLOW, STREAM_CUT,
+  CONTEXT_OVERFLOW, STREAM_CUT, PROVIDER_TIMEOUT,
 ].map((family) => family.source).join('|'), 'i');
 
 /**
@@ -151,6 +165,10 @@ export const FALLBACK_TRIGGERS = new RegExp([
  * person to rewrite a request that was never the problem.
  */
 const FAMILY_RULES = [
+  // First: the vendor's page for a slow request also contains "Billing:" and
+  // "context window", so anything claiming it later would explain the switch
+  // with the wrong sentence.
+  ['timeout', PROVIDER_TIMEOUT],
   ['context', CONTEXT_OVERFLOW],
   ['refused', ROUTE_REJECTS],
   ['quota', QUOTA_LIKE],
@@ -165,6 +183,7 @@ const FAMILY_RULES = [
 
 /** The sentence a switch shows: one per family, because "the model did not answer" is not true for a 401. */
 export const FAMILY_REASON = {
+  timeout: 'bridge.fallback.timeout',
   context: 'bridge.fallback.context',
   refused: 'bridge.fallback.rejected',
   quota: 'bridge.fallback.quota',
@@ -259,6 +278,9 @@ export async function runFallbackChain({
   // repeatedly: it arrives after the whole turn, so the chain spends another
   // full turn to learn whether the next proxy also gives up.
   let cuts = 0;
+  // A timeout is the third failure whose replay is not worth paying twice: the
+  // first attempt already spent the provider's whole ceiling.
+  let timeouts = 0;
 
   for (const entry of entries) {
     if (!result.error) break;
@@ -276,6 +298,10 @@ export async function runFallbackChain({
     }
     if (family === 'stream' && cuts >= STREAM_BUDGET) {
       log(`fallback stops after ${cuts} cut stream(s) for ${where}: the provider keeps ending the answer mid-call`);
+      break;
+    }
+    if (family === 'timeout' && timeouts >= TIMEOUT_BUDGET) {
+      log(`fallback stops after ${timeouts} timeout(s) for ${where}: the request is too large for a provider's clock, not for one host`);
       break;
     }
     // A dead channel pool skips only the models behind it: another company's
@@ -298,6 +324,7 @@ export async function runFallbackChain({
     log(`fallback to ${labelOf(entry)} for ${where} family=${family} after: ${String(result.error).slice(0, 120)}`);
     if (family === 'refused') refusals += 1;
     if (family === 'stream') cuts += 1;
+    if (family === 'timeout') timeouts += 1;
     // The person sees every switch, not only the final give-up: a chain of five
     // companies that silently ends on the fifth reads like a hang.
     await send(chatId, t(lang, 'bridge.fallback.switched', {

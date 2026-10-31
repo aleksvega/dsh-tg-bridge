@@ -7,6 +7,7 @@
 // placeholder still in it, because a killed child reports `code === null` and
 // `t()` only fills the variables it is given a value for.
 import { t } from '../core/i18n.mjs';
+import { bannerError, providerBanner } from './provider-banner.mjs';
 
 /** Exit codes that mean "the person asked for this", not "something broke". */
 export const STOPPED = 'stopped';
@@ -20,7 +21,19 @@ export const STOPPED = 'stopped';
  */
 export function turnOutcome({ code, stopped, stderr = '', stdout = '', finalText = '', lang = 'en' }) {
   if (stopped) return { text: finalText, error: '', stopped: true };
-  if (code === 0) return { text: finalText, error: '', stopped: false };
+  if (code === 0) {
+    // Exit 0 is not the same as an answer. A gateway limit arrives as the
+    // assistant's own message, so the turn "succeeded" and the chat got the
+    // vendor's error page — and the fallback chain never saw a failure. The
+    // banner becomes an error here, where the answer is already assembled and a
+    // subprocess is no longer needed to decide.
+    const banner = providerBanner(finalText);
+    if (banner) {
+      if (banner.rest) return { text: banner.rest, error: '', stopped: false };
+      return { text: '', error: bannerError(banner), stopped: false };
+    }
+    return { text: finalText, error: '', stopped: false };
+  }
   const errText = String(stderr).trim();
   const outTail = String(stdout)
     .split(/\r?\n/)
