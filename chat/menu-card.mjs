@@ -17,7 +17,7 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
 const SECTIONS = {
   work: ['cd', 'seed', 'send', 'diff'],
   session: ['sessions', 'rewind', 'profile', 'agents'],
-  goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind'],
+  goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind', 'every'],
   talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'lang', 'endpoint', 'fallback'],
   ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['load', 'settings', 'update', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'help'],
@@ -71,6 +71,7 @@ const LABELS = {
   plan: '/plan',
   jobs: '/jobs',
   remind: '/remind +15m',
+  every: '/every 09:00',
   model: '/model ▸ this topic',
   effort: '/effort <level>',
   reasoning: '/reasoning ▸ this topic',

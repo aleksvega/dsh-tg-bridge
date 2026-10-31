@@ -8,7 +8,7 @@
 // file imports nothing, so it can never be part of one.
 export const CONTROL_COMMANDS = [
   'status', 'models', 'model', 'effort', 'profile', 'agents', 'preset', 'permissions', 'plan',
-  'jobs', 'remind', 'sessions', 'resume', 'plugins', 'plugin',
+  'jobs', 'remind', 'every', 'sessions', 'resume', 'plugins', 'plugin',
   'skills', 'soul', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'cost', 'help', 'doctor', 'logs', 'report', 'lang', 'reasoning', 'pin', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',

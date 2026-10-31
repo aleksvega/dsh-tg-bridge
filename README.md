@@ -323,7 +323,7 @@ Goals:        /goal (plan + checklist) · /goal reopen · /tasks (checklist only
 Sessions:     /status · /sessions · /sessions <id> · /rewind [n|undo|fork [n]|branches]
 Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <route> · /model <route> all · /model auto · /endpoint · /prices
-Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind
+Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind · /every
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
 Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
 Extensions:   /skills · /plugins · /plugins search <word> · /plugins disable|enable <id> · /soul

@@ -7,8 +7,14 @@
 
 const MAX_AHEAD_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** The next time a wall clock shows `hh:mm`, local time. */
-function nextClock(hh, mm, now) {
+/**
+ * The next time a wall clock shows `hh:mm`, local time.
+ *
+ * Exported because `/every` needs the same answer: a repeating schedule that
+ * added 86 400 000 ms per day would drift by an hour after a DST change and fire
+ * at a time nobody picked.
+ */
+export function nextClock(hh, mm, now) {
   const at = new Date(now);
   at.setHours(hh, mm, 0, 0);
   if (at.getTime() <= now + 30_000) at.setDate(at.getDate() + 1);

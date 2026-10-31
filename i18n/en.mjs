@@ -11,4 +11,5 @@ import release from './en/release.mjs';
 import diff from './en/diff.mjs';
 import model from './en/model.mjs';
 import endpoint from './en/endpoint.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint };
+import every from './en/every.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every };
