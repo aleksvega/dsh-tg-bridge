@@ -65,6 +65,17 @@ const PAGES = {
       command: '/pin {v}',
       labels: { on: 'settings.state.on', off: 'settings.state.off' },
     },
+    // The same switch for every topic at once. One row could not say which it
+    // was: a person ticked it in one topic, the tick came back on, and the card
+    // stayed unpinned in all the others. Two rows name the scope instead of
+    // leaving it to be discovered.
+    {
+      id: 'pinAll',
+      field: 'pinAll',
+      values: ['on', 'off'],
+      command: '/pin {v} all',
+      labels: { on: 'settings.state.on', off: 'settings.state.off' },
+    },
     { id: 'thoughts', command: '/thoughts' },
   ],
   // Who answers and how hard it works. These open the command that owns the
@@ -131,10 +142,9 @@ export function settingsButtons({ t, current = {}, updateMode = 'check' }) {
         const data = value ? `${SET_PREFIX}${row.id}:${value}` : `${SET_PREFIX}${row.id}`;
         if (data.length > MAX_PAYLOAD) throw new Error(`payload too long: ${data}`);
         let active = false;
-        if (row.field === 'reasoning') active = current.reasoning === value;
-        else if (row.field === 'reasoningAll') active = current.reasoningAll === value;
-        else if (row.field === 'lang') active = current.lang === value;
-        else if (row.field === 'pin') active = current.pin === value;
+        // Every switch row reads `current` by the field it names, so a row added
+        // later cannot silently render with no mark on either end.
+        if (row.field) active = current[row.field] === value;
         else if (row.id === 'u-late') active = value === 'on' ? updateMode !== 'off' : updateMode === 'off';
         else if (row.id === 'u-auto') active = updateMode === value;
         buttons.push({
@@ -166,6 +176,8 @@ export function settingsCurrent({ config = {}, state = {}, key = '' }) {
     reasoningAll: reasoningMode(state, config, ''),
     lang: state.lang?.[key] || 'auto',
     pin: cardPin(state, config, key),
+    // The install-wide answer, read the same way the global reasoning row is.
+    pinAll: cardPin(state, config, ''),
     // Who answered the last turn that finished: the topic's route is what this
     // card configures, but after a fallback the honest answer is the model that
     // actually replied — and the card is where a person looks to check.
@@ -182,12 +194,25 @@ export function settingsCurrent({ config = {}, state = {}, key = '' }) {
  * the notes switch migrated.
  */
 export function cardPin(state, config, key = '') {
-  const raw = state?.pin?.[key];
-  if (raw === 'on' || raw === 'off') return raw;
-  if (raw === true) return 'on';
-  if (raw === false) return 'off';
+  const own = readPin(state?.pin?.[key]);
+  if (own) return own;
+  // The global row writes `state.pin['']`, and the per-topic read never looked
+  // there: a tick in the settings card was stored, shown back as on, and applied
+  // in no other topic. The report was exact — the box was on and nothing was
+  // pinned anywhere else.
+  if (key !== '') {
+    const all = readPin(state?.pin?.['']);
+    if (all) return all;
+  }
   if (config?.pin === 'on' || config?.pin === true) return 'on';
   return 'off';
+}
+
+/** `on`/`off` in the shapes the state file has held across releases. */
+function readPin(raw) {
+  if (raw === 'on' || raw === true) return 'on';
+  if (raw === 'off' || raw === false) return 'off';
+  return '';
 }
 
 /** The line above the buttons: what a tap on this row changes it to. */

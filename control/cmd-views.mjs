@@ -40,6 +40,23 @@ import { presetOf } from '../profile/profile-view.mjs';
 import { costReport } from '../model/cost.mjs';
 import { loadPrices } from '../model/price-cache.mjs';
 
+/**
+ * Where a `/pin` argument writes.
+ *
+ * `all` is the second word, and its absence is not the same thing: without it
+ * the switch belongs to the topic it was typed in, with it the switch is the
+ * install default every other topic falls back to. The settings card needed the
+ * second form -- one row that spoke for the whole chat -- and had only the
+ * first, which is why a tick in it changed nothing anywhere else.
+ */
+export function pinScope(arg, key = '') {
+  const words = String(arg || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const mode = { on: 'on', off: 'off' }[words[0]];
+  if (!mode || words.length > 2) return null;
+  if (words.length === 2 && words[1] !== 'all') return null;
+  return { key: words[1] === 'all' ? '' : key, mode };
+}
+
 export async function handleViewCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
   // The topic's language, then the config default, then English. Never Russian:
@@ -313,17 +330,18 @@ export async function handleViewCommands(ctx) {
       // The progress card is pinned while its turn runs, so getting back to the
       // numbers is one tap instead of a scroll. Off by default: pinning someone's
       // chat uninvited is not a favour, and a group needs the right to pin.
-      const wanted = String(arg || '').trim().toLowerCase();
-      const mode = cardPin(state, config, key);
-      const next = { on: 'on', off: 'off' }[wanted];
-      if (!next) {
-        say(t(lang, 'msg.pinState', { state: t(lang, `msg.pinMode.${mode}`) }));
+      const write = pinScope(arg, key);
+      if (!write) {
+        const mode = cardPin(state, config, key);
+        const stateAll = cardPin(state, config, '');
+        say(t(lang, 'msg.pinState', { state: t(lang, `msg.pinMode.${mode}`), stateAll: t(lang, `msg.pinMode.${stateAll}`) }));
         return true;
       }
       state.pin = state.pin || {};
-      state.pin[key] = next;
+      state.pin[write.key] = write.mode;
       ctx.saveState();
-      say(t(lang, next === 'on' ? 'msg.pinOn' : 'msg.pinOff'));
+      const suffix = write.key === '' ? 'All' : '';
+      say(t(lang, `msg.pin${write.mode === 'on' ? 'On' : 'Off'}${suffix}`));
       return true;
     }
     case '/thoughts': {

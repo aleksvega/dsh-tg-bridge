@@ -125,12 +125,13 @@ test('only the value in force is marked, in the text and on the button', () => {
   const tt = (k, vars) => t('en', k, vars);
   const view = renderSettingsCard({ page: 'reply', t: tt, current, updateMode: 'off' });
   // Two ends, one dot per switch: a card where every option is marked says
-  // nothing, and a card that marks the wrong end says worse. The reasoning rows
-  // come in a pair — this topic and every other — and both read `card` on a
-  // fresh install, because the default is what an untouched topic has.
+  // nothing, and a card that marks the wrong end says worse. The reasoning and
+  // pin rows each come in a pair — this topic and every other — and both read
+  // the same value on a fresh install, because the default is what an untouched
+  // topic and an untouched chat have.
   const dots = view.text.match(/●/g) || [];
   const marked = view.keyboard.flat().filter((b) => b.text.startsWith('●'));
-  assert.deepEqual(marked.map((b) => b.data), ['m:reasoning:card', 'm:reasoningAll:card', 'm:pin:off']);
+  assert.deepEqual(marked.map((b) => b.data), ['m:reasoning:card', 'm:reasoningAll:card', 'm:pin:off', 'm:pinAll:off']);
   assert.equal(dots.length, marked.length, 'the text and the buttons disagree about what is on');
   assert.equal(view.text.includes('○'), false);
 });
