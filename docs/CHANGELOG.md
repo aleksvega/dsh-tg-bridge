@@ -1,5 +1,49 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.0
+
+- **A provider's timeout page is no longer posted as the answer.** Reported from
+  a live topic: `[req_e00194ab] [deepseek-v4.1-flash] **Request exceeded 570s
+  limit** … **Recommended tools:** — these responses are optimized for
+  opencode, [CC] and Codex`. The turn exited 0 — the provider delivered its
+  error page through the normal channel and the CLI reported it as the model's
+  final answer — so the bridge logged `turn ok`, sent the wall of text to the
+  chat, and never walked the fallback chain: nothing had failed as far as the
+  pipeline could tell. `turn/provider-banner.mjs` now recognises the shape (a
+  request id or a `request exceeded Ns limit` line, plus the vendor's own
+  "How to fix" / "Billing" / "Recommended tools" scaffolding) and `turnOutcome`
+  turns it into `PROVIDER_TIMEOUT: 570` with no text, so the chain runs and the
+  chat gets one line in its own language instead of an advertisement. A banner
+  with real work behind it keeps the work. Detection is strict on purpose: an
+  answer that merely QUOTES such an error is an answer. `timeout` is its own
+  fallback family, claimed first — the vendor page also says "large context
+  window" and "Billing", so a later rule would explain the switch with the
+  wrong sentence — with a one-replay budget: the first attempt already spent
+  the provider's whole clock.
+- **`/dsh` says which harness is installed, and updates it in two steps.** The
+  bridge now checks the running [DSH] against `engines.dsh` (`core/dsh-version.mjs`:
+  a real semver comparison, prerelease rules included) and offers one button
+  when npm has a newer one. `/dsh update` shows the exact command, the button
+  asks again, and `/dsh update confirm` installs and names the restart. `/doctor`
+  gained the same row, so "is my harness the one this release was tested with"
+  is answerable without leaving Telegram.
+- **`/status` no longer re-parses the whole session log on every press.** The
+  stats are cached per file (`chat/thoughts.mjs`), four entries at most, and a
+  file that only grew is resumed from its last frame instead of decompressed
+  from the start.
+- **`/status` names the desktop profile only where it applies.** The UI row
+  described the desktop's route inside a card about one topic.
+- **The pin switch could not be applied to every topic.** It read only the
+  topic's own pin, so `/pin <value> all` looked accepted and changed nothing;
+  the settings card now falls back to the global pin and has a second row that
+  writes it.
+- **A turn could file a goal under any topic it named.** `goal.mjs` refuses a
+  `--key` that disagrees with `DSH_TG_KEY` (exit 2) unless `--force`, so a turn
+  in one topic cannot move another topic's goal.
+- **Commits are reviewed before they land.** `jev-gate.mjs` runs the Jev review
+  over the staged diff in the pre-commit hook, skips cleanly without a key, and
+  writes its verdict into the commit itself.
+
 ## 1.37.1
 
 - **Every `/model` button works again.** `control/model-card.mjs` passed `t` into
