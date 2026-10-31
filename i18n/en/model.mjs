@@ -15,7 +15,16 @@ export default {
   'ctrl.model.topicNone': 'This topic had no route of its own; it follows the profile: {route}.',
   'ctrl.model.topicKept': '{n} topic(s) chose their own route and keep it.',
   'ctrl.model.pickUnknown': 'Now: profile {profile} has no default model line',
-  'ctrl.model.pickHint': 'Tap a route to switch. The provider and the model change together, because the same model name can be served by several endpoints.',
+  'ctrl.model.pickHint': 'Tap a model to switch this endpoint. The endpoint stays where it is.',
+  // Two steps, because a flat list of seventeen routes does not fit on a phone
+  // and two endpoints serving one model made two buttons with the same name.
+  'ctrl.model.pickProviderRow': '{provider} · {n} routes',
+  'ctrl.model.pickModelsTitle': 'Endpoint {provider}',
+  'ctrl.model.pickBack': '‹ Endpoints',
+  'ctrl.model.pickProvidersHint': 'Step 1 of 2: pick the endpoint, then its model. The endpoint and the model change together.',
+  'ctrl.model.pickStepOne': 'Step 1: pick an endpoint.',
+  'ctrl.model.pickStepTwo': 'Step 2: the models of {provider}.',
+  'ctrl.model.pickProviderGone': 'Endpoint {provider} is no longer in the profile — the profile changed since the card was drawn.',
   'ctrl.model.pickRefresh': '↻ Refresh',
   'ctrl.model.pickHidden': '{n} more route(s) do not fit; /model <provider>/<model> names any of them.',
   'ctrl.model.pickLong': 'Every route of profile {profile} has a name too long to fit on a button; /model <provider>/<model> still switches to any of them.',

@@ -94,6 +94,12 @@ test('a press names the provider and the model, never an index', () => {
     model: 'glm-5.3:free',
   });
   assert.deepEqual(modelPress('md:list'), { kind: 'list' });
+  // The two steps and the scope row that keeps its step.
+  assert.deepEqual(modelPress('md:!p'), { kind: 'providers' });
+  assert.deepEqual(modelPress('md:!p:unorouter'), { kind: 'provider', provider: 'unorouter' });
+  assert.deepEqual(modelPress('md:!s:all:unorouter'), { kind: 'scope', scope: 'all', provider: 'unorouter' });
+  assert.deepEqual(modelPress('md:!s:topic'), { kind: 'scope', scope: 'topic' });
+  assert.deepEqual(modelPress('md:list:unorouter'), { kind: 'list', provider: 'unorouter' });
 });
 
 test('junk is not a route', () => {
@@ -122,39 +128,52 @@ test('a route too long for 64 bytes gets no button rather than a wrong one', () 
       { provider: 'unorouter', model: 'x'.repeat(80), current: false },
     ],
     t: tr('en'),
+    provider: 'unorouter',
   });
   const data = card.keyboard.flat().map((button) => button.data).filter(Boolean);
-  assert.equal(data.length, 3, 'one route, the refresh button, and the scope toggle');
+  // The one model that fits, "back", "refresh" and the scope toggle. The long
+  // one is counted as hidden instead of being drawn as a button that cannot say
+  // what it does.
+  assert.equal(data.length, 4, `unexpected buttons: ${JSON.stringify(data)}`);
   assert.ok(!data.some((value) => value.includes('xxxx')));
+  assert.match(card.text, /1 more route/);
 });
 
-test('the card marks the current route and puts every other one behind a button', () => {
+test('the card opens on endpoints, and the endpoint is what carries the tick', () => {
   const routes = routesOf(PROFILE);
   const card = modelCard({ profile: PROFILE, routes, t: tr('en') });
-  const pressable = card.keyboard.flat().filter(
-    (button) => button.data && !['md:list', 'md:@all', 'md:@topic'].includes(button.data),
-  );
-  assert.equal(pressable.length, routes.length, 'one button per route');
-  const current = pressable.find((button) => button.data === 'md:wikivibe:deepseek-v4.1-flash');
-  assert.equal(current.text, '✓ wikivibe · deepseek-v4.1-flash', 'the current route says so on the button');
+  assert.equal(card.step, 'providers');
+  const pressable = card.keyboard.flat().filter((button) => button.data?.startsWith('md:!p:'));
+  assert.equal(pressable.length, new Set(routes.map((route) => route.provider)).size, 'one button per endpoint');
+  const current = pressable.find((button) => button.data === 'md:!p:wikivibe');
+  assert.equal(current.text, '✓ wikivibe · 2 routes', 'the endpoint of the current route says so');
+  // Step two keeps the endpoint in the header and names the model on the button,
+  // so one screen never repeats a name it cannot tell apart.
+  const models = modelCard({ profile: PROFILE, routes, t: tr('en'), provider: 'wikivibe' });
+  assert.equal(models.step, 'models');
+  assert.equal(models.keyboard.flat().find((button) => button.text.startsWith('✓')).text, '✓ deepseek-v4.1-flash');
+  assert.match(models.text, /Endpoint wikivibe/);
 });
 
-test('two endpoints serving one model cannot produce two identical buttons', () => {
+test('two endpoints serving one model can no longer make two identical buttons', () => {
   // The fixture has unorouter and wikivibe both serving `deepseek-v4.1-flash`.
-  // A button labelled with the model alone gave two buttons the same text and
-  // different actions — the person cannot tell them apart, which is the whole
-  // reason they opened the route picker.
-  const card = modelCard({ profile: PROFILE, routes: routesOf(PROFILE), t: tr('en') });
-  const pressable = card.keyboard.flat().filter(
-    (button) => button.data && !['md:list', 'md:@all', 'md:@topic'].includes(button.data),
-  );
-  for (const button of pressable) {
-    assert.ok(button.text.includes(' · '), `"${button.text}" does not name a provider`);
+  // A flat list drawn those two as `deepseek-v4.1-flash` twice with different
+  // actions — the person cannot tell them apart, which is the whole reason they
+  // opened the route picker. Two steps removes the collision structurally: the
+  // endpoint is chosen on its own screen, and the model screen only ever shows
+  // one endpoint.
+  const routes = routesOf(PROFILE);
+  const endpoints = modelCard({ profile: PROFILE, routes, t: tr('en') });
+  const labels = endpoints.keyboard.flat().map((button) => button.text.replace(/^✓ /, ''));
+  assert.equal(new Set(labels).size, labels.length, `two endpoints share a label: ${labels.join(' | ')}`);
+  for (const provider of ['unorouter', 'wikivibe']) {
+    const models = modelCard({ profile: PROFILE, routes, t: tr('en'), provider });
+    const names = models.keyboard.flat().map((button) => button.text.replace(/^✓ /, ''));
+    assert.equal(new Set(names).size, names.length, `${provider} repeated a name: ${names.join(' | ')}`);
+    // And the two screens hold the same model name with different data, which is
+    // only safe because they are never on screen together.
+    assert.ok(models.keyboard.flat().some((button) => button.text.includes('deepseek-v4.1-flash')));
   }
-  const labels = pressable.map((button) => button.text.replace(/^✓ /, ''));
-  assert.equal(new Set(labels).size, labels.length, `two routes share a label: ${labels.join(' | ')}`);
-  const shared = pressable.filter((button) => button.text.includes('deepseek-v4.1-flash'));
-  assert.ok(shared.length > 1, 'the fixture must keep two providers serving one model');
 });
 
 test('every button the card draws survives the keyboard', () => {
@@ -210,8 +229,12 @@ test('a press switches this topic, and the profile is left alone', async () => {
   assert.match(said[0], /unorouter\/deepseek-v4\.1-flash/);
   assert.match(said[0], /wikivibe\/deepseek-v4\.1-flash/, 'the profile default is named too');
   assert.equal(redrawn.length, 1, 'the card is redrawn so the tick moves');
+  // The redraw lands back on the endpoint list, where the tick belongs now: the
+  // choice is finished, and staying on the model screen would read as "it did
+  // not take".
+  assert.equal(redrawn[0].step, 'providers');
   const tick = redrawn[0].keyboard.flat().find((button) => button.text.startsWith('✓'));
-  assert.equal(tick.data, 'md:unorouter:deepseek-v4.1-flash');
+  assert.equal(tick.data, 'md:!p:unorouter');
   // And the tick is the topic's, not the profile's: one button is marked.
   assert.equal(redrawn[0].keyboard.flat().filter((button) => button.text.startsWith('✓')).length, 1);
 });
@@ -356,28 +379,29 @@ test('the card can change every topic at once, not only the one it was opened in
 
 test('a global route button is drawn for the global scope, and says so', () => {
   const routes = routesOf(PROFILE);
-  const topicCard = modelCard({ profile: PROFILE, routes, t: tr('en') });
-  const allCard = modelCard({ profile: PROFILE, routes, t: tr('en'), scope: 'all' });
-  // The route buttons carry different data in the two modes, which is what makes
-  // the same tap mean "this topic" or "everywhere".
-  const routeData = (card, prefix) => card.keyboard.flat()
+  const topicCard = modelCard({ profile: PROFILE, routes, t: tr('en'), provider: 'unorouter' });
+  const allCard = modelCard({ profile: PROFILE, routes, t: tr('en'), scope: 'all', provider: 'unorouter' });
+  // The model buttons carry different data in the two modes, which is what makes
+  // the same tap mean "this topic" or "everywhere". `md:list:<provider>` is the
+  // refresh button, not a model, so it is excluded by name.
+  const modelData = (card, prefix) => card.keyboard.flat()
     .map((b) => b.data)
-    .filter((d) => d?.startsWith(prefix) && d !== `${MODEL_PREFIX}list`);
-  const topicButtons = routeData(topicCard, 'md:').filter((d) => !d.startsWith('md:@'));
-  const allButtons = routeData(allCard, 'md:@').filter((d) => d !== 'md:@topic');
+    .filter((d) => d?.startsWith(prefix) && !d.startsWith('md:!') && !d.startsWith('md:list'));
+  const topicButtons = modelData(topicCard, 'md:').filter((d) => !d.startsWith('md:@'));
+  const allButtons = modelData(allCard, 'md:@').filter((d) => d !== 'md:@topic');
   assert.ok(topicButtons.length > 0 && allButtons.length > 0);
-  assert.equal(allButtons.length, topicButtons.length, 'every route is pressable in both modes');
+  assert.equal(allButtons.length, topicButtons.length, 'every model is pressable in both modes');
   // Both modes say which one is on, and offer the other.
   assert.match(topicCard.keyboard.flat().map((b) => b.text).join('\n'), /everywhere/i);
   assert.match(allCard.keyboard.flat().map((b) => b.text).join('\n'), /this topic/i);
-  // The toggle names the mode that is ON and where the tap goes: in the topic
-  // mode it reads "this topic", and pressing it offers "everywhere".
-  assert.equal(topicCard.keyboard.flat().find((b) => b.data === 'md:@all').text.includes('💬'), true);
-  assert.equal(allCard.keyboard.flat().find((b) => b.data === 'md:@topic').text.includes('🌍'), true);
+  // The toggle keeps the step it was pressed on, so switching the scope while
+  // choosing a model does not send the person back to the endpoint list.
+  assert.ok(topicCard.keyboard.flat().some((b) => b.data === 'md:!s:all:unorouter'));
+  assert.ok(allCard.keyboard.flat().some((b) => b.data === 'md:!s:topic:unorouter'));
   // The header agreement: in the global mode it must not claim to describe this
   // topic, because that is the line a person checks before tapping.
   assert.match(allCard.text, /everywhere/i);
-  const zh = modelCard({ profile: PROFILE, routes, t: tr('zh'), scope: 'all' });
+  const zh = modelCard({ profile: PROFILE, routes, t: tr('zh'), scope: 'all', provider: 'unorouter' });
   assert.doesNotMatch(zh.text, /ctrl\.model\./, 'the global header leaked a key');
 });
 
@@ -413,7 +437,73 @@ test('a global press writes the profile default and leaves the topic alone', asy
   // dropping back to per-topic would silently undo the mode after one use.
   assert.equal(redrawn.length, 1);
   assert.equal(redrawn[0].scope, 'all');
-  assert.ok(redrawn[0].keyboard.flat().some((b) => b.data === 'md:@topic'));
+  assert.ok(redrawn[0].keyboard.flat().some((b) => b.data === 'md:!s:topic'));
   writeFileSync(patchFile, before, 'utf8');
   assert.equal(readFileSync(patchFile, 'utf8'), before, 'the fixture profile is back as it was');
+});
+
+/** Press a button on a card and collect everything the handler did. */
+function cardPress(first) {
+  const said = [];
+  const redrawn = [];
+  const answers = [];
+  const live = { route: {} };
+  const call = (data = first) => handleModelPress({
+    data,
+    profile: PROFILE,
+    key: '1:7',
+    state: live,
+    save: () => {},
+    lang: 'en',
+    t,
+    say: async (text) => said.push(text),
+    answer: async (text) => answers.push(text),
+    redraw: async (card) => redrawn.push(card),
+  });
+  return { call, said, redrawn, answers, live };
+}
+
+test('step one opens one endpoint, and back returns to the list', async () => {
+  const press = cardPress('md:!p:unorouter');
+  assert.equal(await press.call(), true);
+  const models = press.redrawn[0];
+  assert.equal(models.step, 'models');
+  assert.equal(models.provider, 'unorouter');
+  assert.match(models.text, /Endpoint unorouter/);
+  const labels = models.keyboard.flat().map((button) => button.text);
+  assert.ok(labels.includes('deepseek-v4.1-flash') && labels.includes('glm-5.3:free'));
+  assert.ok(!labels.some((label) => label.includes('kimi-k3')), 'another endpoint’s model leaked in');
+  assert.ok(models.keyboard.flat().some((button) => button.data === 'md:!p'), 'there is a way back');
+  assert.match(press.answers[0], /Step 2/);
+  // Back, on the same message: the endpoint list is a redraw, not a new answer.
+  assert.equal(await press.call('md:!p'), true);
+  assert.equal(press.redrawn[1].step, 'providers');
+  assert.match(press.answers[1], /Step 1/);
+});
+
+test('the scope toggle keeps the endpoint it was pressed on', async () => {
+  const press = cardPress('md:!s:all:wikivibe');
+  assert.equal(await press.call(), true);
+  const card = press.redrawn[0];
+  assert.equal(card.step, 'models');
+  assert.equal(card.provider, 'wikivibe');
+  assert.equal(card.scope, 'all');
+  assert.match(card.text, /everywhere/);
+  assert.ok(card.keyboard.flat().some((button) => button.data?.startsWith('md:@')), 'global model presses carry the scope');
+  assert.equal(press.live.route['1:7'], undefined, 'switching the mode must not switch a route');
+});
+
+test('an endpoint that left the profile is refused, not drawn as an empty screen', async () => {
+  const press = cardPress('md:!p:ghost');
+  assert.equal(await press.call(), true);
+  assert.match(press.said[0], /ghost/);
+  assert.equal(press.redrawn[0].step, 'providers');
+  assert.equal(press.live.route['1:7'], undefined);
+});
+
+test('a refresh on step two keeps that endpoint on screen', async () => {
+  const press = cardPress('md:list:wikivibe');
+  assert.equal(await press.call(), true);
+  assert.equal(press.redrawn[0].step, 'models');
+  assert.equal(press.redrawn[0].provider, 'wikivibe');
 });

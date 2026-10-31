@@ -15,15 +15,21 @@
 - **`/model` can switch the whole install from the card.** The scope row
   (`🌍` / `💬`) had no test through the router either, so it shipped dead in the
   same way: the mode toggle is what makes "change every topic at once" reachable
-  without typing `/model <route> global`.
-- **The route picker lists routes again.** Every provider was drawn as a
-  `— provider —` heading row, which is a button with no callback data, and
-  `inlineKeyboard` deletes those (it must: Telegram rejects the whole message
-  otherwise). The headings never reached the chat, so the card arrived as a bare
-  list of model names in which `deepseek-v4.1-flash` from two different endpoints
-  was two buttons with the same text and different actions. The provider now
-  travels on the button, so every route reads `provider · model` and no two
-  labels collide.
+  without typing `/model <route> global`. It now carries the endpoint it was
+  pressed on, so switching the mode while choosing a model keeps that model list
+  on screen instead of throwing the choice away.
+- **The route picker is two steps: the endpoint, then its model.** Every provider
+  used to be drawn as a `— provider —` heading row, which is a button with no
+  callback data, and `inlineKeyboard` deletes those (it must: Telegram rejects the
+  whole message otherwise). The headings never reached the chat, so the card
+  arrived as a flat list of model names — seventeen of them on this profile — in
+  which `deepseek-v4.1-flash` from two different endpoints was two buttons with
+  the same text and different actions. The card now opens on the endpoints, each
+  with its route count and the tick on the endpoint answering, and a second screen
+  lists that endpoint's models. The endpoint is on the header there, so a model
+  name is unambiguous and nothing is drawn that the keyboard would drop. Choosing
+  a model returns to the endpoint list with the tick moved; the back row is one
+  tap; refresh keeps the step it was pressed on.
 - **A stream the provider cuts mid-call moves to the next route.** A 1134 s turn
   with 130 tool calls ended as `PI_AI_ERROR: OpenAI Responses stream completed
   with an unfinished tool call: pwsh (…)`. The stream closes between
