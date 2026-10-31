@@ -222,6 +222,7 @@ export default {
   'bridge.fallback.auth': 'ключ не принят',
   'bridge.fallback.busy': 'провайдер перегружен',
   'bridge.fallback.network': 'соединение оборвалось',
+  'bridge.fallback.stream': 'провайдер оборвал ответ на середине вызова',
   'bridge.fallback.model': 'у маршрута нет такой модели',
   'bridge.fallback.noAnswer': 'модель не ответила',
   'bridge.fallback.rejected': 'этот маршрут отказал запросу',

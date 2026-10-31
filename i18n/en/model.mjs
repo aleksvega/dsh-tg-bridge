@@ -15,7 +15,6 @@ export default {
   'ctrl.model.topicNone': 'This topic had no route of its own; it follows the profile: {route}.',
   'ctrl.model.topicKept': '{n} topic(s) chose their own route and keep it.',
   'ctrl.model.pickUnknown': 'Now: profile {profile} has no default model line',
-  'ctrl.model.pickGroup': '— {provider} —',
   'ctrl.model.pickHint': 'Tap a route to switch. The provider and the model change together, because the same model name can be served by several endpoints.',
   'ctrl.model.pickRefresh': '↻ Refresh',
   'ctrl.model.pickHidden': '{n} more route(s) do not fit; /model <provider>/<model> names any of them.',

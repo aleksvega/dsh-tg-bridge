@@ -15,7 +15,7 @@ export default {
   'ctrl.fallback.off': '关',
   'ctrl.fallback.broken': '损坏',
   'ctrl.fallback.unnamed': '（未命名）',
-  'ctrl.fallback.triggers': '会触发切换：400/422 拒绝、401/403、402 配额、404 未知模型、429、5xx 与「all providers busy」、连接中断、空回答。',
+  'ctrl.fallback.triggers': '会触发切换：400/422 拒绝、401/403、402 配额、404 未知模型、429、5xx 与「all providers busy」、连接中断、服务商在调用中途中断的流、空回答。',
   'ctrl.fallback.notTriggers': '不会触发：本轮时间上限、/stop、会话或目录错误、缺少 dsh —— 这些不是线路的问题。',
   'ctrl.fallback.addUsage': '添加线路：/fallback add <服务商>/<模型> —— 例如 /fallback add router-a/some-model',
   'ctrl.fallback.foot': '点 ● 可关闭或开启一条线路；↑ ↓ 调整顺序；检查会逐个直接询问线路。',

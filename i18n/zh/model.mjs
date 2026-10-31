@@ -15,7 +15,6 @@ export default {
   'ctrl.model.topicNone': '本话题本来就没有单独路线，一直跟随档案：{route}。',
   'ctrl.model.topicKept': '保留自己路线的有 {n} 个话题。',
   'ctrl.model.pickUnknown': '当前：配置档 {profile} 没有默认模型行',
-  'ctrl.model.pickGroup': '— {provider} —',
   'ctrl.model.pickHint': '点一条线路即可切换。提供方和模型会一起变：同一个模型名可能由多个端点提供。',
   'ctrl.model.pickRefresh': '↻ 刷新',
   'ctrl.model.pickHidden': '还有 {n} 条线路没放下；任意一条都可以用 /model <提供方>/<模型> 指定。',

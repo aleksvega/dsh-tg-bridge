@@ -222,6 +222,7 @@ export default {
   'bridge.fallback.auth': 'the key was refused',
   'bridge.fallback.busy': 'the provider is busy',
   'bridge.fallback.network': 'the connection dropped',
+  'bridge.fallback.stream': 'the provider ended the answer mid-call',
   'bridge.fallback.model': 'the route does not carry that model',
   'bridge.fallback.noAnswer': 'the model did not answer',
   'bridge.fallback.rejected': 'this route refused the request',

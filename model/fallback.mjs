@@ -64,6 +64,29 @@ export const MODEL_GONE = /UNKNOWN_MODEL|model[_ ]not[_ ]found|no such model|mod
 export const CONTEXT_OVERFLOW = /CONTEXT_WINDOW_EXCEEDED|context[_ ]length|maximum context|context window|reduce the length|prompt is too long|exceeds the context/i;
 /** The model answered with nothing: silence is a failure, not an empty success. */
 export const EMPTY_ANSWER = /EMPTY_RESPONSE|empty response|no output|пустой ответ|нет активности|returned nothing/i;
+/**
+ * The provider ended the stream with a tool call still open.
+ *
+ * Measured 31.10: a 1134 s turn with 130 tool calls died as `PI_AI_ERROR:
+ * OpenAI Responses stream completed with an unfinished tool call: pwsh (…)`.
+ * The stream closes between `output_item.added` and `output_item.done`, so the
+ * harness never receives the call's arguments — the pipe was cut, the task was
+ * not. It matched no family, so the chain read it as "not a route fault", broke
+ * out on its first entry, and the turn ended holding an error no other route
+ * had been asked about. A truncated stream is a route's own proxy giving up on
+ * a long answer, which is exactly what a second route can answer.
+ */
+export const STREAM_CUT = /unfinished tool call|stream completed with (?:an )?unfinished|stream (?:ended|closed|completed) (?:early|midway|unexpectedly)|premature (?:end|close)|incomplete (?:stream|response|tool call)|unexpected end of (?:stream|response|json)/i;
+
+/**
+ * How many routes may lose the stream before the walk stops.
+ *
+ * One other route answers "is this vendor's proxy or this turn". Unlike a
+ * refusal, the replay is not cheap — this failure arrives after the whole turn,
+ * not before it — so walking seven routes to learn the same thing seven times
+ * is the one cost the whole chain must not pay.
+ */
+export const STREAM_BUDGET = 1;
 
 /**
  * How many routes may refuse the request before the walk stops.
@@ -114,7 +137,7 @@ export const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|\b50[
  */
 export const FALLBACK_TRIGGERS = new RegExp([
   ROUTE_REJECTS, TRANSPORT_DOWN, SERVER_DOWN, RATE_LIMITED, AUTH_FAILED, MODEL_GONE, EMPTY_ANSWER, QUOTA_LIKE,
-  CONTEXT_OVERFLOW,
+  CONTEXT_OVERFLOW, STREAM_CUT,
 ].map((family) => family.source).join('|'), 'i');
 
 /**
@@ -135,6 +158,7 @@ const FAMILY_RULES = [
   ['busy', SERVER_DOWN],
   ['rate', RATE_LIMITED],
   ['transport', TRANSPORT_DOWN],
+  ['stream', STREAM_CUT],
   ['model', MODEL_GONE],
   ['empty', EMPTY_ANSWER],
 ];
@@ -148,6 +172,7 @@ export const FAMILY_REASON = {
   busy: 'bridge.fallback.busy',
   rate: 'bridge.fallback.busy',
   transport: 'bridge.fallback.network',
+  stream: 'bridge.fallback.stream',
   model: 'bridge.fallback.model',
   empty: 'bridge.fallback.noAnswer',
 };
@@ -230,6 +255,10 @@ export async function runFallbackChain({
   // every attempt. One other route answers "is it this vendor or this prompt";
   // the whole chain would answer it in seven hours of the same conversation.
   let refusals = 0;
+  // A cut stream is the second failure whose replay is not worth paying for
+  // repeatedly: it arrives after the whole turn, so the chain spends another
+  // full turn to learn whether the next proxy also gives up.
+  let cuts = 0;
 
   for (const entry of entries) {
     if (!result.error) break;
@@ -243,6 +272,10 @@ export async function runFallbackChain({
     }
     if (family === 'refused' && refusals >= REFUSAL_BUDGET) {
       log(`fallback stops after ${refusals} refusal(s) for ${where}: the request, not the route, is what is refused`);
+      break;
+    }
+    if (family === 'stream' && cuts >= STREAM_BUDGET) {
+      log(`fallback stops after ${cuts} cut stream(s) for ${where}: the provider keeps ending the answer mid-call`);
       break;
     }
     // A dead channel pool skips only the models behind it: another company's
@@ -264,6 +297,7 @@ export async function runFallbackChain({
     tried.push(`${labelOf(entry)}: ${String(result.error).slice(0, 120)}`);
     log(`fallback to ${labelOf(entry)} for ${where} family=${family} after: ${String(result.error).slice(0, 120)}`);
     if (family === 'refused') refusals += 1;
+    if (family === 'stream') cuts += 1;
     // The person sees every switch, not only the final give-up: a chain of five
     // companies that silently ends on the fifth reads like a hang.
     await send(chatId, t(lang, 'bridge.fallback.switched', {

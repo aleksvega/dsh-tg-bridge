@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   CHANNEL_DOWN, CONTEXT_OVERFLOW, FALLBACK_TRIGGERS, QUOTA_LIKE, REFUSAL_BUDGET, ROUTE_REJECTS,
-  exhausted, failureFamily, labelOf, liveChain,
+  STREAM_BUDGET, STREAM_CUT, exhausted, failureFamily, labelOf, liveChain,
 } from "../model/fallback.mjs";
 
 test("a busy provider and a dead balance both start the chain", () => {
@@ -49,6 +49,30 @@ test("a route that refuses the request starts the chain too", () => {
   assert.equal(FALLBACK_TRIGGERS.test("API error (500)"), true);
   assert.equal(ROUTE_REJECTS.test("API error (500)"), false);
   assert.equal(failureFamily("API error (500)"), "busy");
+});
+
+test("a stream cut mid-call asks one other route, then stops paying for the replay", () => {
+  // Measured 31.10, topic 337497: a 1134 s turn with 130 tool calls died as
+  // this string, no family claimed it, and the walk read it as "not a route
+  // fault" and broke on its first entry — so the turn ended holding an error no
+  // other route had been asked about. The vendor's proxy gave up on a long
+  // answer; the task was never the problem.
+  const live = "dsh: PI_AI_ERROR: OpenAI Responses stream completed with an unfinished tool call: "
+    + "pwsh (call_c4070033b71d4d2c9a323fa7|fc_31b813f1-f74b-40b3-b8e8-cefbfa332470)";
+  assert.equal(failureFamily(live), "stream", "the walk must claim it, not skip it");
+  assert.equal(FALLBACK_TRIGGERS.test(live), true);
+  assert.equal(STREAM_CUT.test(live), true);
+  // One other route answers "this proxy or this turn"; the failure arrives after
+  // the whole turn, so the chain must not spend seven of them on the question.
+  assert.equal(STREAM_BUDGET, 1);
+  for (const other of [
+    "openai stream ended early",
+    "unexpected end of stream",
+    "incomplete tool call",
+    "premature end of JSON input",
+  ]) {
+    assert.equal(failureFamily(other), "stream", `${other} is a cut stream`);
+  }
 });
 
 test("a real task failure is not retried on four other vendors", () => {

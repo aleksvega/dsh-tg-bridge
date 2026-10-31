@@ -17,24 +17,14 @@ import { modelOf, routesOf, setModel } from './models.mjs';
 import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';
 import { baseProfileOf } from '../turn/turn.mjs';
 import { saveState, state } from '../core/state.mjs';
+// Imported for `modelPressRouter`, which hands the card's messages their `t`.
+// The handler below takes `t` as a parameter and the tests pass one in, so a
+// missing binding here survived a green suite while every real tap died with
+// "t is not defined": the router is the only caller that has to supply it.
+import { t } from '../core/i18n.mjs';
 import { send, tg, tgFast } from '../chat/telegram.mjs';
 
 export const MODEL_PREFIX = 'md:';
-
-/**
- * Group routes by provider, keeping the profile's own order: the providers a
- * person has already configured come first, and the free fallbacks last, which
- * is the order the patch declares them in.
- */
-export function routeGroups(routes) {
-  const out = [];
-  for (const route of routes) {
-    const last = out[out.length - 1];
-    if (last && last.provider === route.provider) last.routes.push(route);
-    else out.push({ provider: route.provider, routes: [route] });
-  }
-  return out;
-}
 
 /** The callback data for one route, or '' when it cannot be said in 64 bytes. */
 export function routeData(provider, model, { scope = 'topic' } = {}) {
@@ -86,12 +76,11 @@ function splitRoute(text) {
  * The card and its keyboard.
  *
  * One button per route, labelled `provider · model` so the answer to "where do
- * the answers come from" is on the button itself. The current route is marked
- * and listed first in its group, because the first thing a person checks is
- * whether they are already on the route they want. Providers are named on a row
- * of their own rather than repeated on every button: seventeen buttons with a
- * provider prefix each is a wall, and a group heading stays readable when the
- * models have long names.
+ * the answers come from" is on the button itself. The current route is marked,
+ * because the first thing a person checks is whether they are already on the
+ * route they want. The provider is repeated on every button even though it makes
+ * them longer: it is the only way the label survives, since a heading row is a
+ * button without a payload and the keyboard refuses those.
  */
 export function modelCard({
   profile, routes, current = null, topic = false, fallback = null, answered = null, t, limit = 60,
@@ -102,37 +91,28 @@ export function modelCard({
   // A route may be too long to name in 64 bytes, and the global form carries one
   // extra character, so a route can be pressable in one scope and not the other.
   const known = routes.filter((route) => routeData(route.provider, route.model, { scope }));
-  const groups = routeGroups(known);
   const rows = [];
   let hidden = 0;
   let drawn = 0;
-  let headings = 0;
-  for (const group of groups) {
+  for (const route of known) {
     if (drawn >= limit) {
-      hidden += group.routes.length;
+      hidden += 1;
       continue;
     }
-    // A heading is a button that does nothing, which is how a group is drawn
-    // without inventing a message per provider. It carries no data, so it
-    // cannot be pressed — the same trick the settings tabs avoid.
-    if (group.provider) {
-      rows.push([{ text: t('ctrl.model.pickGroup', { provider: group.provider }) }]);
-      headings += 1;
-    }
-    for (const route of group.routes) {
-      if (drawn >= limit) {
-        hidden += 1;
-        continue;
-      }
-      const mark = isNow(route) ? '✓ ' : '';
-      rows.push([
-        {
-          text: `${mark}${route.model}`,
-          data: routeData(route.provider, route.model, { scope }),
-        },
-      ]);
-      drawn += 1;
-    }
+    const mark = isNow(route) ? '✓ ' : '';
+    // The provider is on the button, not on a row above it. A heading is a
+    // button with no payload, and `inlineKeyboard` drops those — it has to,
+    // because Telegram refuses a button with no callback data and rejects the
+    // whole message with it. Dropping the heading left two identical
+    // `deepseek-v4.1-flash` buttons that switched to different endpoints, which
+    // is precisely the confusion a route picker exists to remove.
+    rows.push([
+      {
+        text: `${mark}${route.provider} · ${route.model}`,
+        data: routeData(route.provider, route.model, { scope }),
+      },
+    ]);
+    drawn += 1;
   }
   rows.push([{ text: t('ctrl.model.pickRefresh'), data: `${MODEL_PREFIX}list` }]);
   // Where a press lands, on the card itself. The scope is the one thing about
@@ -180,7 +160,6 @@ export function modelCard({
     text: lines.join('\n'),
     keyboard: rows,
     shown: drawn,
-    headings,
     total: routes.length,
     current,
     scope,

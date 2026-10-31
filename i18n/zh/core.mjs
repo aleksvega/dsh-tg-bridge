@@ -222,6 +222,7 @@ export default {
   'bridge.fallback.auth': '密钥被拒绝',
   'bridge.fallback.busy': '服务商过载',
   'bridge.fallback.network': '连接中断',
+  'bridge.fallback.stream': '服务商在调用中途中断了回答',
   'bridge.fallback.model': '这条线路没有该模型',
   'bridge.fallback.noAnswer': '模型没有回应',
   'bridge.fallback.rejected': '这条线路拒绝了请求',

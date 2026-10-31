@@ -15,7 +15,7 @@ export default {
   'ctrl.fallback.off': 'off',
   'ctrl.fallback.broken': 'broken',
   'ctrl.fallback.unnamed': '(unnamed)',
-  'ctrl.fallback.triggers': 'Starts a switch: 400/422 refusal, 401/403, 402 quota, 404 unknown model, 429, 5xx and "all providers busy", a dropped connection, an empty answer.',
+  'ctrl.fallback.triggers': 'Starts a switch: 400/422 refusal, 401/403, 402 quota, 404 unknown model, 429, 5xx and "all providers busy", a dropped connection, a stream the provider cut mid-call, an empty answer.',
   'ctrl.fallback.notTriggers': 'Does not switch: the turn time cap, /stop, a session or directory error, a missing dsh — those are not the route\'s fault.',
   'ctrl.fallback.addUsage': 'Add a route: /fallback add <provider>/<model> — e.g. /fallback add router-a/some-model',
   'ctrl.fallback.foot': 'A tap on ● switches a route off or on; ↑ ↓ move it; the test asks each route directly.',

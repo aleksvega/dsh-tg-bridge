@@ -15,7 +15,6 @@ export default {
   'ctrl.model.topicNone': 'У этой темы своего маршрута не было, она и так как в профиле: {route}.',
   'ctrl.model.topicKept': 'Свой маршрут сохранили тем: {n}.',
   'ctrl.model.pickUnknown': 'Сейчас: в профиле {profile} нет строки модели по умолчанию',
-  'ctrl.model.pickGroup': '— {provider} —',
   'ctrl.model.pickHint': 'Нажми маршрут, чтобы переключиться. Провайдер и модель меняются вместе: одно и то же имя модели могут отдавать разные эндпоинты.',
   'ctrl.model.pickRefresh': '↻ Обновить',
   'ctrl.model.pickHidden': 'Ещё {n} маршрут(ов) не влезли; любой из них можно назвать как /model <провайдер>/<модель>.',

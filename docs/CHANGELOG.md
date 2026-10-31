@@ -1,5 +1,78 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.37.1
+
+- **Every `/model` button works again.** `control/model-card.mjs` passed `t` into
+  the press handler without importing it, so `modelPressRouter` — the only caller
+  that has to supply the translator itself — threw `ReferenceError: t is not
+  defined` on every tap. The card always drew; nothing it offered ever acted.
+  The picker's own tests missed it because each one calls `handleModelPress`
+  directly and passes its own `t`, and the `unresolved-calls` guard missed it
+  because it looks for calls (`t(`) and treats a parameter of any function in the
+  file as visible module-wide. `test/model-picker.test.mjs` now drives
+  `modelPressRouter` itself with a stubbed transport, so the path a real tap
+  takes is covered; removing the import makes that test fail and only that test.
+- **`/model` can switch the whole install from the card.** The scope row
+  (`🌍` / `💬`) had no test through the router either, so it shipped dead in the
+  same way: the mode toggle is what makes "change every topic at once" reachable
+  without typing `/model <route> global`.
+- **The route picker lists routes again.** Every provider was drawn as a
+  `— provider —` heading row, which is a button with no callback data, and
+  `inlineKeyboard` deletes those (it must: Telegram rejects the whole message
+  otherwise). The headings never reached the chat, so the card arrived as a bare
+  list of model names in which `deepseek-v4.1-flash` from two different endpoints
+  was two buttons with the same text and different actions. The provider now
+  travels on the button, so every route reads `provider · model` and no two
+  labels collide.
+- **A stream the provider cuts mid-call moves to the next route.** A 1134 s turn
+  with 130 tool calls ended as `PI_AI_ERROR: OpenAI Responses stream completed
+  with an unfinished tool call: pwsh (…)`. The stream closes between
+  `output_item.added` and `output_item.done`, so the arguments never arrive: the
+  pipe was cut, not the task. It matched no failure family, so the chain logged
+  "not a route fault" and broke on its first entry, and the turn ended holding
+  an error no other route had been asked about. It is now the `stream` family,
+  the switch line calls it "the provider ended the answer mid-call", and it
+  carries a budget of one — the replay costs a whole turn, so one other route
+  answers "this proxy or this turn" and the chain stops instead of spending seven
+  turns on the same question.
+
+## 1.37.0
+
+- **`/every 09:00 text` runs that text every day at that time.** The schedule
+  reuses `/remind`'s parser and clock instead of a second time implementation:
+  `parseEvery` refuses `+15m`, `25:00` and a missing text with the same words a
+  reminder uses, and `nextClock` turns the wall clock into the next local
+  `09:00`. `/every list` numbers this chat's schedules with their next run and
+  their text,
+  `/every rm 2` removes one by that number, and a bare `/every` answers with the
+  usage line — in the language of the topic, like every other command.
+- **A firing is a real turn, not a notification.** The tick builds a synthetic
+  message for the row's own `(chatId, threadId)` and hands it to the same
+  `redeliver` path an incoming message takes, so the agent reads the text and
+  does the work; the firing path never calls `send()` itself. Because
+  `redeliver` resolves only when the turn ends, the due rows are dispatched
+  together rather than one after another.
+- **Catch-up fires once, and nothing fires twice.** A tick claims a due row by
+  moving `at` to the next occurrence and persisting that in the same
+  `saveState()` *before* delivery: a bridge that was down for four days fires
+  the missed occurrence exactly once, a restart replays nothing it already
+  claimed, and a delivery that fails is one log line rather than a retry every
+  twenty seconds. The next occurrence always comes from `nextClock`, never from
+  `at + 24h`, so a schedule follows the clock across a DST change instead of
+  drifting an hour.
+- **A deleted topic is a log line, not a crash.** A row whose topic no longer
+  exists (`sendChatAction` is rejected) is skipped under the tick's own
+  `try/catch`, the skip is written to the log with the chat and thread, and the
+  row still advances to its next occurrence. The cap is twenty schedules per
+  chat, across topics, and the refusal names the number.
+- **The words live in `i18n/{en,ru,zh}/every.mjs`.** Thirteen strings pushed
+  `ctrl.mjs` past the 500-line ceiling, and a table of its own is where the
+  neighbours (`diff.mjs`, `endpoint.mjs`) already keep a command's surface.
+  `every` is a documented control command, has a `/help every` page and a
+  `Tuning` entry beside `remind`. `test/every.test.mjs` covers the parser, the
+  claim function, a restart catch-up, double-fire, the cap, the three locales
+  and the lost topic.
+
 ## 1.36.0
 
 - **The chain no longer dies on the first error it cannot name.** A prompt past a
