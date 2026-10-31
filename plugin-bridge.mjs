@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 const DIR = join(DSH_HOME, 'tg-bridge');
 
-function alive(pid) {
+export function alive(pid) {
   try {
     process.kill(pid, 0);
     return true;
@@ -26,46 +26,63 @@ function alive(pid) {
   }
 }
 
-function runningPid() {
+export function runningPid(dir = DIR) {
   try {
-    const pid = Number(readFileSync(join(DIR, 'bridge.pid'), 'utf8').trim());
+    const pid = Number(readFileSync(join(dir, 'bridge.pid'), 'utf8').trim());
     return pid > 0 && alive(pid) ? pid : 0;
   } catch {
     return 0;
   }
 }
 
-export function apply(ctx, config = {}) {
-  if (config.autoStart === false) return;
+/**
+ * Start one bridge process, unless a bridge is already running or another
+ * profile is starting one right now.
+ *
+ * Exported because `apply` cannot be exercised without booting a desktop, and
+ * booting a desktop to test "does it start twice" is how a test starts a second
+ * poller by accident. A test passes a temporary directory and a spawn that
+ * records its arguments instead.
+ *
+ * @returns {{started: boolean, reason?: string, pid?: number}}
+ */
+export function startBridge({
+  dir = DIR,
+  ctx,
+  spawnImpl = spawn,
+  script = join(HERE, 'bridge.mjs'),
+  execPath = process.execPath,
+  env = process.env,
+} = {}) {
   // Nothing to start until `dsh-tg init` wrote a token and a working directory.
-  if (!existsSync(join(DIR, 'config.json'))) return;
-  if (runningPid()) return;
+  if (!existsSync(join(dir, 'config.json'))) return { started: false, reason: 'unconfigured' };
+  if (runningPid(dir)) return { started: false, reason: 'running' };
 
   // Two profiles loading at once must not both start a poller.
-  const lock = join(DIR, 'plugin-start.lock');
+  const lock = join(dir, 'plugin-start.lock');
   try {
     const fd = openSync(lock, 'wx');
     writeFileSync(fd, String(process.pid));
     closeSync(fd);
   } catch {
-    return;
+    return { started: false, reason: 'locked' };
   }
 
   let child = null;
   try {
-    child = spawn(process.execPath, [join(HERE, 'bridge.mjs')], {
-      cwd: DIR,
+    child = spawnImpl(execPath, [script], {
+      cwd: dir,
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
       env: {
-        ...process.env,
+        ...env,
         // Inside DSH desktop, process.execPath is Electron; this makes it run
         // as Node without opening a window.
         ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
       },
     });
-    child.unref();
+    child?.unref?.();
   } catch {
     child = null;
   } finally {
@@ -74,10 +91,18 @@ export function apply(ctx, config = {}) {
     } catch {}
   }
 
-  if (!child?.pid || typeof ctx.on !== 'function') return;
-  ctx.on('dispose', () => {
-    try {
-      if (alive(child.pid)) process.kill(child.pid);
-    } catch {}
-  });
+  if (!child?.pid) return { started: false, reason: 'spawn-failed' };
+  if (typeof ctx?.on === 'function') {
+    ctx.on('dispose', () => {
+      try {
+        if (alive(child.pid)) process.kill(child.pid);
+      } catch {}
+    });
+  }
+  return { started: true, pid: child.pid };
+}
+
+export function apply(ctx, config = {}) {
+  if (config.autoStart === false) return { started: false, reason: 'disabled' };
+  return startBridge({ ctx });
 }
