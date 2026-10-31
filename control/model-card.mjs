@@ -13,7 +13,7 @@
 // the card and the tap. Telegram caps callback data at 64 bytes, so a route too
 // long to name gets no button — a button that cannot say what it does is worse
 // than a line of text that can.
-import { modelOf, routesOf } from './models.mjs';
+import { modelOf, routesOf, setModel } from './models.mjs';
 import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';
 import { baseProfileOf } from '../turn/turn.mjs';
 import { saveState, state } from '../core/state.mjs';
@@ -37,8 +37,9 @@ export function routeGroups(routes) {
 }
 
 /** The callback data for one route, or '' when it cannot be said in 64 bytes. */
-export function routeData(provider, model) {
-  const data = `${MODEL_PREFIX}${provider}:${model}`;
+export function routeData(provider, model, { scope = 'topic' } = {}) {
+  const prefix = scope === 'all' ? `${MODEL_PREFIX}@` : MODEL_PREFIX;
+  const data = `${prefix}${provider}:${model}`;
   return Buffer.byteLength(data, 'utf8') <= 64 ? data : '';
 }
 
@@ -49,12 +50,36 @@ export function modelPress(data) {
   const rest = text.slice(MODEL_PREFIX.length);
   if (rest === 'list') return { kind: 'list' };
   if (rest === 'auto') return { kind: 'auto' };
-  const cut = rest.indexOf(':');
-  if (cut <= 0 || cut === rest.length - 1) return null;
-  const provider = rest.slice(0, cut);
-  const model = rest.slice(cut + 1);
+  // The global switch, reachable from the card: without it the only way to move
+  // every topic at once is the typed `/model <route> global`, which is exactly
+  // the spelling a person opens the panel to avoid. The scope is carried in the
+  // press data, so the two taps ("everywhere", then a route) keep the intent
+  // between them without the card having to remember anything.
+  //
+  // `@` marks the scope because it cannot appear in a provider id (`[\w.-]`
+  // only), so `md:@alpha:beta` is never mistaken for a route on a provider
+  // named `@alpha` — and a provider may legitimately be called `all`.
+  if (rest === SCOPE_ALL) return { kind: 'scope', scope: 'all' };
+  if (rest === SCOPE_TOPIC) return { kind: 'scope', scope: 'topic' };
+  if (rest.startsWith('@')) {
+    const route = splitRoute(rest.slice(1));
+    return route ? { kind: 'route', scope: 'all', ...route } : null;
+  }
+  const route = splitRoute(rest);
+  return route ? { kind: 'route', scope: 'topic', ...route } : null;
+}
+
+export const SCOPE_ALL = '@all';
+export const SCOPE_TOPIC = '@topic';
+
+/** `provider:model` -> both halves, or null when either is empty or malformed. */
+function splitRoute(text) {
+  const cut = text.indexOf(':');
+  if (cut <= 0 || cut === text.length - 1) return null;
+  const provider = text.slice(0, cut);
+  const model = text.slice(cut + 1);
   if (!/^[\w.-]+$/.test(provider) || !/^[\w.:-]+$/.test(model)) return null;
-  return { kind: 'route', provider, model };
+  return { provider, model };
 }
 
 /**
@@ -68,10 +93,15 @@ export function modelPress(data) {
  * provider prefix each is a wall, and a group heading stays readable when the
  * models have long names.
  */
-export function modelCard({ profile, routes, current = null, topic = false, fallback = null, answered = null, t, limit = 60 }) {
+export function modelCard({
+  profile, routes, current = null, topic = false, fallback = null, answered = null, t, limit = 60,
+  scope = 'topic',
+}) {
   const now = current || (routes.find((route) => route.current) || null);
   const isNow = (route) => Boolean(now && route.provider === now.provider && route.model === now.model);
-  const known = routes.filter((route) => routeData(route.provider, route.model));
+  // A route may be too long to name in 64 bytes, and the global form carries one
+  // extra character, so a route can be pressable in one scope and not the other.
+  const known = routes.filter((route) => routeData(route.provider, route.model, { scope }));
   const groups = routeGroups(known);
   const rows = [];
   let hidden = 0;
@@ -98,20 +128,35 @@ export function modelCard({ profile, routes, current = null, topic = false, fall
       rows.push([
         {
           text: `${mark}${route.model}`,
-          data: routeData(route.provider, route.model),
+          data: routeData(route.provider, route.model, { scope }),
         },
       ]);
       drawn += 1;
     }
   }
   rows.push([{ text: t('ctrl.model.pickRefresh'), data: `${MODEL_PREFIX}list` }]);
+  // Where a press lands, on the card itself. The scope is the one thing about
+  // this card that a person cannot see from the buttons — the same route tapped
+  // in the two modes changes one topic or the whole install — so it is a row of
+  // its own that says which mode is on and how to change it. A card with nothing
+  // to pick gets no toggle: a mode for a choice that does not exist is noise.
+  if (routes.length > 0) {
+    rows.push([scope === 'all'
+      ? { text: t('ctrl.model.scopeAllOn'), data: `${MODEL_PREFIX}${SCOPE_TOPIC}` }
+      : { text: t('ctrl.model.scopeTopicOn'), data: `${MODEL_PREFIX}${SCOPE_ALL}` }]);
+  }
   // The way back to the profile, and only when there is something to go back
   // from: a button that clears a choice nobody made is a button that does
   // nothing and looks broken.
-  if (topic) rows.push([{ text: t('ctrl.model.pickFollow'), data: `${MODEL_PREFIX}auto` }]);
+  if (topic && scope !== 'all') rows.push([{ text: t('ctrl.model.pickFollow'), data: `${MODEL_PREFIX}auto` }]);
 
   const lines = [t('ctrl.model.pickTitle', { profile })];
-  if (now) {
+  // In the global mode the header must not describe this topic: a card that says
+  // "this topic runs X" while every tap moves the whole install is worse than no
+  // header at all, because the person checks exactly that line before tapping.
+  if (scope === 'all') {
+    lines.push(t('ctrl.model.scopeAllHead', { route: `${now?.provider || '?'}/${now?.model || '?'}` }));
+  } else if (now) {
     lines.push(t(topic ? 'ctrl.model.pickNowTopic' : 'ctrl.model.pickNow', { route: `${now.provider}/${now.model}` }));
     if (topic && fallback) {
       lines.push(t('ctrl.model.pickNowDefault', { route: `${fallback.provider}/${fallback.model}` }));
@@ -120,7 +165,7 @@ export function modelCard({ profile, routes, current = null, topic = false, fall
   // The route above is the one this topic is set to. After a fallback the turn
   // ran somewhere else, and a card that only names the setting reads as "this is
   // who answers" when it is not.
-  if (answered?.model) {
+  if (answered?.model && scope !== 'all') {
     lines.push(t(answered.switched ? 'ctrl.model.answeredSwitched' : 'ctrl.model.answered', { model: answered.model }));
   }
   lines.push('');
@@ -129,7 +174,7 @@ export function modelCard({ profile, routes, current = null, topic = false, fall
   // one whose routes are simply cut off by the row cap below.
   if (routes.length === 0) lines.push(t('ctrl.model.pickNone', { profile }));
   else if (known.length === 0) lines.push(t('ctrl.model.pickLong', { profile }));
-  else lines.push(t('ctrl.model.pickHint'));
+  else lines.push(t(scope === 'all' ? 'ctrl.model.scopeAllHint' : 'ctrl.model.pickHint'));
   if (hidden > 0) lines.push(t('ctrl.model.pickHidden', { n: hidden }));
   return {
     text: lines.join('\n'),
@@ -138,6 +183,7 @@ export function modelCard({ profile, routes, current = null, topic = false, fall
     headings,
     total: routes.length,
     current,
+    scope,
   };
 }
 
@@ -156,10 +202,13 @@ export async function handleModelPress({
   const press = modelPress(data);
   if (!press) return false;
   const routes = routesOf(profile);
-  // Every card this handler draws is this topic's, so the tick and the two
-  // routes in the header come from one place — the same call the turn uses.
-  const draw = () => {
-    const route = topicRoute({ state: live, key });
+  // The card is drawn in whichever scope the press carried, so the tick, the
+  // header and the button data always describe the same promise: in `topic` the
+  // one this chat answers on, in `all` the default every other topic follows.
+  const draw = (scope = 'topic') => {
+    const route = scope === 'all'
+      ? { ...modelOf(profile), source: 'profile' }
+      : topicRoute({ state: live, key });
     return modelCard({
       profile,
       routes: routesOf(profile),
@@ -167,11 +216,21 @@ export async function handleModelPress({
       topic: route.source === 'topic',
       fallback: route.source === 'topic' ? modelOf(profile) : null,
       t: (k, v) => t(lang, k, v),
+      scope,
     });
   };
   if (press.kind === 'list') {
-    await redraw(draw());
+    await redraw(draw(press.scope || 'topic'));
     await answer(t(lang, 'ctrl.model.pickRefresh'));
+    return true;
+  }
+  // Switching the mode changes nothing by itself — it only decides where the
+  // NEXT tap lands. Saying so in the answer is what keeps the two-step flow from
+  // reading as "the button did nothing".
+  if (press.kind === 'scope') {
+    const scope = press.scope === 'all' ? 'all' : 'topic';
+    await redraw(draw(scope));
+    await answer(t(lang, scope === 'all' ? 'ctrl.model.scopeAllSet' : 'ctrl.model.scopeTopicSet'));
     return true;
   }
   if (press.kind === 'auto') {
@@ -179,13 +238,31 @@ export async function handleModelPress({
     save();
     const route = topicRoute({ state: live, key });
     await say(t(lang, 'ctrl.model.topicCleared', { route: `${route.provider}/${route.model}` }));
-    await redraw(draw());
+    await redraw(draw('topic'));
     return true;
   }
   const wanted = `${press.provider}/${press.model}`;
   if (!routes.some((route) => route.provider === press.provider && route.model === press.model)) {
     await say(t(lang, 'ctrl.model.pickStale', { name: profile, route: wanted }));
-    await redraw(draw());
+    await redraw(draw(press.scope));
+    return true;
+  }
+  // The global scope writes the profile's own default — the same edit the typed
+  // `/model <route> global` makes, so the panel and the command cannot drift.
+  if (press.scope === 'all') {
+    if (!setModel(profile, wanted)) {
+      await say(t(lang, 'ctrl.model.failed', { name: profile, model: wanted }));
+      await redraw(draw('all'));
+      return true;
+    }
+    const kept = Object.keys(live.route || {}).length;
+    // Named `line`, not `answer`: `answer` is the callback-acknowledgement
+    // parameter of this function, and shadowing it would silently disable the
+    // tap feedback for this branch alone.
+    const line = t(lang, 'ctrl.model.switched', { name: profile, model: wanted, desktop: '' });
+    await say(kept > 0 ? `${line}\n${t(lang, 'ctrl.model.topicKept', { n: kept })}` : line);
+    await answer(t(lang, 'ctrl.model.scopeAllSet'));
+    await redraw(draw('all'));
     return true;
   }
   setTopicRoute(live, key, press);
@@ -198,7 +275,7 @@ export async function handleModelPress({
     route: `${now.provider}/${now.model}`,
     default: `${head.provider}/${head.model}`,
   }));
-  await redraw(draw());
+  await redraw(draw('topic'));
   return true;
 }
 

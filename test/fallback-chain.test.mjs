@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CHANNEL_DOWN, FALLBACK_TRIGGERS, QUOTA_LIKE, REFUSAL_BUDGET, ROUTE_REJECTS,
+  CHANNEL_DOWN, CONTEXT_OVERFLOW, FALLBACK_TRIGGERS, QUOTA_LIKE, REFUSAL_BUDGET, ROUTE_REJECTS,
   exhausted, failureFamily, labelOf, liveChain,
 } from "../model/fallback.mjs";
 
@@ -53,8 +53,32 @@ test("a route that refuses the request starts the chain too", () => {
 
 test("a real task failure is not retried on four other vendors", () => {
   // Retrying these would cost a full turn per model and fail identically.
-  for (const error of ["context length exceeded", "invalid tool schema", "ENOENT: no such file"]) {
+  for (const error of ["invalid tool schema", "ENOENT: no such file"]) {
     assert.equal(FALLBACK_TRIGGERS.test(error), false, `${error} is not a provider fault`);
+  }
+});
+
+test("a prompt too long for one route is not a task failure: the next window is wider", () => {
+  // The live incident this guards: the balance on one route was empty, the next
+  // route answered `CONTEXT_WINDOW_EXCEEDED`, no family claimed it, and the walk
+  // stopped on the second entry while six routes sat unused. From the chat that
+  // read as "the chain did nothing and the turn froze", with no message at all.
+  const live = "dsh: CONTEXT_WINDOW_EXCEEDED: 400: {\"message\":\"This model's maximum context "
+    + "length is 131072 tokens, however you requested about 485000 tokens\"}";
+  assert.equal(CONTEXT_OVERFLOW.test(live), true);
+  assert.equal(FALLBACK_TRIGGERS.test(live), true, "a narrow window must not end the chain");
+  assert.equal(failureFamily(live), "context");
+  // It is not a refusal: nothing about the request is wrong, so the refusal
+  // budget must not be spent and the probe must not replay the whole prompt.
+  assert.equal(ROUTE_REJECTS.test(live), false, "a long prompt is not a refused request");
+  assert.equal(QUOTA_LIKE.test(live), false, "a window is not a balance");
+  // The same failure worded by another vendor's API.
+  for (const error of [
+    "400: context length exceeded",
+    "This model's maximum context length is 8192 tokens",
+    "prompt is too long: 300000 tokens > 200000 maximum",
+  ]) {
+    assert.equal(failureFamily(error), "context", `${error} is a window problem`);
   }
 });
 
@@ -68,6 +92,18 @@ test("a dead balance is reported as a balance, not as a busy channel", () => {
   assert.equal(failureFamily("insufficient_user_quota"), "quota");
   // The provider's own pool being down says nothing about the account.
   assert.equal(QUOTA_LIKE.test("get_channel_failed"), false);
+});
+
+test("a spent balance behind a 403 is a balance, not a refused key", () => {
+  // The owner's own line: a router whose period allowance was gone. The 403
+  // claimed it as `auth`, so the chat said the key was refused while the real
+  // fix was to top up or move on. Money words must win over the status code,
+  // which is why `quota` is checked before `auth`.
+  const live = 'dsh: AUTH: router API error (403): {"message":"Your subscription allowance for this period is used up and your wallet"}';
+  assert.equal(failureFamily(live), "quota", "a spent allowance is not a bad key");
+  assert.equal(QUOTA_LIKE.test(live), true);
+  // But a 403 with no money word in it stays a refused key.
+  assert.equal(failureFamily("403 forbidden: invalid api key"), "auth");
 });
 
 test("a channel-pool failure is the one that skips ahead instead of retrying", () => {

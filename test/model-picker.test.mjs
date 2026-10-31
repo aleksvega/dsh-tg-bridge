@@ -80,6 +80,7 @@ test('the profile header is what marks the current route', () => {
 test('a press names the provider and the model, never an index', () => {
   assert.deepEqual(modelPress('md:unorouter:deepseek-v4.1-flash'), {
     kind: 'route',
+    scope: 'topic',
     provider: 'unorouter',
     model: 'deepseek-v4.1-flash',
   });
@@ -87,6 +88,7 @@ test('a press names the provider and the model, never an index', () => {
   // `glm-5.3:free` stays one model rather than becoming two fields.
   assert.deepEqual(modelPress('md:unorouter:glm-5.3:free'), {
     kind: 'route',
+    scope: 'topic',
     provider: 'unorouter',
     model: 'glm-5.3:free',
   });
@@ -121,14 +123,16 @@ test('a route too long for 64 bytes gets no button rather than a wrong one', () 
     t: tr('en'),
   });
   const data = card.keyboard.flat().map((button) => button.data).filter(Boolean);
-  assert.equal(data.length, 2, 'one route plus the refresh button');
+  assert.equal(data.length, 3, 'one route, the refresh button, and the scope toggle');
   assert.ok(!data.some((value) => value.includes('xxxx')));
 });
 
 test('the card marks the current route and puts every other one behind a button', () => {
   const routes = routesOf(PROFILE);
   const card = modelCard({ profile: PROFILE, routes, t: tr('en') });
-  const pressable = card.keyboard.flat().filter((button) => button.data && button.data !== `${MODEL_PREFIX}list`);
+  const pressable = card.keyboard.flat().filter(
+    (button) => button.data && !['md:list', 'md:@all', 'md:@topic'].includes(button.data),
+  );
   assert.equal(pressable.length, routes.length, 'one button per route');
   const current = pressable.find((button) => button.data === 'md:wikivibe:deepseek-v4.1-flash');
   assert.equal(current.text, '✓ deepseek-v4.1-flash', 'the current route says so on the button');
@@ -253,4 +257,90 @@ test('a profile with no models says so instead of showing an empty keyboard', ()
   // is a dead end, and a profile can gain a model while the card is open.
   assert.equal(card.keyboard.length, 1);
   assert.equal(card.keyboard[0][0].data, `${MODEL_PREFIX}list`);
+});
+
+test('the card can change every topic at once, not only the one it was opened in', () => {
+  // The owner could not find how to move his endpoints from the panel: the
+  // global scope existed as `/model <route> global` and nowhere on the card, so
+  // the panel offered a switch that moved one topic while the profile — the
+  // thing every other topic follows — stayed where it was.
+  assert.deepEqual(modelPress('md:@all'), { kind: 'scope', scope: 'all' });
+  assert.deepEqual(modelPress('md:@topic'), { kind: 'scope', scope: 'topic' });
+  // A global route press carries the scope, and the `@` cannot be a provider id,
+  // so a provider legitimately named `all` is still reachable.
+  assert.deepEqual(modelPress('md:@unorouter:deepseek-v4.1-flash'), {
+    kind: 'route',
+    scope: 'all',
+    provider: 'unorouter',
+    model: 'deepseek-v4.1-flash',
+  });
+  assert.equal(modelPress('md:@'), null);
+  assert.equal(modelPress('md:@:model'), null);
+  assert.equal(modelPress('md:@prov:'), null);
+  assert.deepEqual(modelPress('md:unorouter:deepseek-v4.1-flash').scope, 'topic',
+    'a plain route press stays this topic\u2019s');
+});
+
+test('a global route button is drawn for the global scope, and says so', () => {
+  const routes = routesOf(PROFILE);
+  const topicCard = modelCard({ profile: PROFILE, routes, t: tr('en') });
+  const allCard = modelCard({ profile: PROFILE, routes, t: tr('en'), scope: 'all' });
+  // The route buttons carry different data in the two modes, which is what makes
+  // the same tap mean "this topic" or "everywhere".
+  const routeData = (card, prefix) => card.keyboard.flat()
+    .map((b) => b.data)
+    .filter((d) => d?.startsWith(prefix) && d !== `${MODEL_PREFIX}list`);
+  const topicButtons = routeData(topicCard, 'md:').filter((d) => !d.startsWith('md:@'));
+  const allButtons = routeData(allCard, 'md:@').filter((d) => d !== 'md:@topic');
+  assert.ok(topicButtons.length > 0 && allButtons.length > 0);
+  assert.equal(allButtons.length, topicButtons.length, 'every route is pressable in both modes');
+  // Both modes say which one is on, and offer the other.
+  assert.match(topicCard.keyboard.flat().map((b) => b.text).join('\n'), /everywhere/i);
+  assert.match(allCard.keyboard.flat().map((b) => b.text).join('\n'), /this topic/i);
+  // The toggle names the mode that is ON and where the tap goes: in the topic
+  // mode it reads "this topic", and pressing it offers "everywhere".
+  assert.equal(topicCard.keyboard.flat().find((b) => b.data === 'md:@all').text.includes('💬'), true);
+  assert.equal(allCard.keyboard.flat().find((b) => b.data === 'md:@topic').text.includes('🌍'), true);
+  // The header agreement: in the global mode it must not claim to describe this
+  // topic, because that is the line a person checks before tapping.
+  assert.match(allCard.text, /everywhere/i);
+  const zh = modelCard({ profile: PROFILE, routes, t: tr('zh'), scope: 'all' });
+  assert.doesNotMatch(zh.text, /ctrl\.model\./, 'the global header leaked a key');
+});
+
+test('a global press writes the profile default and leaves the topic alone', async () => {
+  const said = [];
+  const redrawn = [];
+  const live = { route: {} };
+  const patchFile = join(HOME, 'profiles', PROFILE, 'cordis.patch.yml');
+  // Byte-for-byte, because this test is the only one that edits the shared
+  // fixture profile on purpose: a text replace would leave the file subtly
+  // different for every test after it.
+  const before = readFileSync(patchFile, 'utf8');
+  const claimed = await handleModelPress({
+    data: 'md:@unorouter:glm-5.3:free',
+    profile: PROFILE,
+    key: '1:7',
+    state: live,
+    save: () => {},
+    lang: 'en',
+    t,
+    say: async (text) => said.push(text),
+    answer: async () => {},
+    redraw: async (card) => redrawn.push(card),
+  });
+  assert.equal(claimed, true);
+  // The whole install moved...
+  assert.deepEqual(modelOf(PROFILE), { provider: 'unorouter', model: 'glm-5.3:free' });
+  // ...and this topic was NOT given a route of its own, so it follows the new
+  // default like every other topic without one.
+  assert.deepEqual(live.route, {}, 'a global switch must not pin this topic');
+  assert.match(said[0], /unorouter\/glm-5\.3:free/);
+  // The redrawn card is still in the global mode, so the next tap stays global:
+  // dropping back to per-topic would silently undo the mode after one use.
+  assert.equal(redrawn.length, 1);
+  assert.equal(redrawn[0].scope, 'all');
+  assert.ok(redrawn[0].keyboard.flat().some((b) => b.data === 'md:@topic'));
+  writeFileSync(patchFile, before, 'utf8');
+  assert.equal(readFileSync(patchFile, 'utf8'), before, 'the fixture profile is back as it was');
 });

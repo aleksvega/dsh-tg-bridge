@@ -28,6 +28,24 @@ test("other failures keep their own causes", () => {
   assert.match(explainFailure("something odd", "ru"), /TURN_FAILED/);
 });
 
+test("a refused key is a key problem, and a spent balance is a balance problem", () => {
+  // Money first: the same line can carry a 403 and the words "allowance used
+  // up". Only one of the two sentences tells the person what to do next, and
+  // topping up an account whose key is simply wrong fixes nothing.
+  const spent = 'dsh: AUTH: router API error (403): {"message":"Your subscription allowance for this period is used up"}';
+  const said = explainFailure(spent, "ru");
+  assert.match(said, /INSUFFICIENT_QUOTA/, "a spent allowance must offer a top-up");
+  assert.doesNotMatch(said, /INVALID_KEY/, "a spent allowance is not a bad key");
+  // A bare 401 with nothing about money is the key itself.
+  const badKey = explainFailure("AUTH: 401 unauthorized", "en");
+  assert.match(badKey, /INVALID_KEY/);
+  assert.doesNotMatch(badKey, /INSUFFICIENT_QUOTA/, "a bad key is not an empty account");
+  // And a missing key is still its own case, not "the key you have is wrong".
+  const missing = explainFailure("MISSING_CREDENTIAL", "en");
+  assert.match(missing, /MISSING_CREDENTIAL/);
+  assert.doesNotMatch(missing, /INVALID_KEY/);
+});
+
 test("a provider refusing the request is named as a refusal, not a balance", () => {
   const live = 'dsh: INVALID_REQUEST: wikivibe API error (400): '
     + '{"code":"invalid_request_error","message":"WikiVibe could not accept these request parameters."}';
@@ -45,4 +63,19 @@ test("load and rate have their own sentence, not the refusal one", () => {
   assert.doesNotMatch(rate, /PROVIDER_REJECT/);
   const busy = explainFailure("API error (503): service unavailable", "en");
   assert.doesNotMatch(busy, /PROVIDER_REJECT/, "a 503 is not a refusal");
+});
+
+test("a prompt past the window is explained as a window, not as a balance", () => {
+  // The owner's own failure line. It used to fall through every case and reach
+  // the person as the raw CLI string under TURN_FAILED, while the one piece of
+  // advice that helps — the conversation is too long — was nowhere in it.
+  const live = "dsh: CONTEXT_WINDOW_EXCEEDED: 400: {\"message\":\"This model's maximum context "
+    + "length is 131072 tokens, however you requested about 485000 tokens\"}";
+  const said = explainFailure(live, "ru");
+  assert.match(said, /CONTEXT_OVERFLOW/, "a window overflow must be named as one");
+  assert.doesNotMatch(said, /INSUFFICIENT_QUOTA/, "topping up a balance does not widen a window");
+  assert.doesNotMatch(said, /TURN_FAILED/, "the generic line must not shadow a known cause");
+  assert.match(said, /\/new/, "the advice must offer a way out");
+  // And it is the first case, so no other rule can claim the line instead.
+  assert.match(explainFailure("context length exceeded", "en"), /CONTEXT_OVERFLOW/);
 });

@@ -23,4 +23,10 @@ export default {
   'ctrl.model.pickNone': 'Profile {profile} declares no models to choose from.',
   'ctrl.model.pickSwitched': 'Route {name} → {route}. Applies from the next turn.',
   'ctrl.model.pickStale': 'Profile {name} does not declare {route} any more — the profile changed since the card was drawn. /model to see the routes it has now.',
+  'ctrl.model.scopeAllOn': '🌍 Changing everywhere ▸ tap for this topic only',
+  'ctrl.model.scopeTopicOn': '💬 Changing this topic ▸ tap for everywhere',
+  'ctrl.model.scopeAllHead': 'Mode "everywhere": the profile default is {route}. Tapping a route moves every topic that has no route of its own.',
+  'ctrl.model.scopeAllHint': 'Pick a route and it becomes the default for the whole profile. Topics with their own route keep it — switch those one at a time in "this topic" mode.',
+  'ctrl.model.scopeAllSet': 'A tap now changes the whole profile.',
+  'ctrl.model.scopeTopicSet': 'A tap now changes only this topic.',
 };

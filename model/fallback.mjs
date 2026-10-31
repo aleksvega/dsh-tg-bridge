@@ -47,6 +47,21 @@ export const RATE_LIMITED = /RATE_LIMIT|\b429\b|rate.?limit|too many requests/i;
 export const AUTH_FAILED = /\b40[123]\b|AUTH\b|unauthorized|forbidden|MISSING_CREDENTIAL|no credentials|not authenticated/i;
 /** The route does not carry that model id at all. */
 export const MODEL_GONE = /UNKNOWN_MODEL|model[_ ]not[_ ]found|no such model|model not supported/i;
+/**
+ * The conversation does not fit the route's window.
+ *
+ * This is the one "request-shaped" failure that is still per-route, which is why
+ * it triggers the chain where a bad tool schema does not. A window belongs to the
+ * model: 131k here, a million tokens two routes down, so the same prompt that a
+ * narrow route cannot hold is answered by a wide one. The provider rejects it
+ * before generating anything, so walking costs a round trip, not a full turn.
+ *
+ * It used to match no family at all, so the walk stopped on the first entry,
+ * every remaining route went untried, and the turn ended on the raw CLI string
+ * with no message explaining it — which is exactly what "the chain did nothing
+ * and everything froze" looked like from the chat.
+ */
+export const CONTEXT_OVERFLOW = /CONTEXT_WINDOW_EXCEEDED|context[_ ]length|maximum context|context window|reduce the length|prompt is too long|exceeds the context/i;
 /** The model answered with nothing: silence is a failure, not an empty success. */
 export const EMPTY_ANSWER = /EMPTY_RESPONSE|empty response|no output|пустой ответ|нет активности|returned nothing/i;
 
@@ -79,8 +94,14 @@ export const NOT_A_ROUTE_FAULT = /turn exceeded|hard cap|turn hard cap|terminate
  * A bare 401/403 is NOT here: without a balance word it is a refused key, and
  * calling that a quota problem sends the person to top up an account whose key
  * was simply wrong. The words below are the only ones that mean money.
+ *
+ * "allowance" and "wallet" earn their place from a live incident: a router that
+ * had spent its period answered `403 Your subscription allowance for this period
+ * is used up and your wallet…`, the 403 claimed it as `auth`, and the chat told
+ * the owner their key was refused while the real fix was to top up or move on —
+ * the opposite of the useful advice, for the exact failure they were debugging.
  */
-export const QUOTA_LIKE = /insufficient_user_quota|insufficient quota|\b402\b|quota|balance|баланс|payment|billing/i;
+export const QUOTA_LIKE = /insufficient_user_quota|insufficient quota|\b402\b|quota|balance|баланс|payment|billing|allowance|wallet|credit/i;
 /** The provider's own channel pool, not the model: it is down for every model. */
 export const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|\b50[234]\b/i;
 
@@ -93,6 +114,7 @@ export const CHANNEL_DOWN = /get_channel_failed|all providers|no providers|\b50[
  */
 export const FALLBACK_TRIGGERS = new RegExp([
   ROUTE_REJECTS, TRANSPORT_DOWN, SERVER_DOWN, RATE_LIMITED, AUTH_FAILED, MODEL_GONE, EMPTY_ANSWER, QUOTA_LIKE,
+  CONTEXT_OVERFLOW,
 ].map((family) => family.source).join('|'), 'i');
 
 /**
@@ -100,9 +122,13 @@ export const FALLBACK_TRIGGERS = new RegExp([
  *
  * The order matters: a message can name several things ("AUTH 403
  * insufficient_user_quota"), and the first family that claims it decides how the
- * chat explains the switch and whether a probe is worth spending.
+ * chat explains the switch and whether a probe is worth spending. The longest
+ * window is claimed first for that reason: "API error (400): maximum context
+ * length exceeded" is a prompt-too-long, and calling it a refusal sent the
+ * person to rewrite a request that was never the problem.
  */
 const FAMILY_RULES = [
+  ['context', CONTEXT_OVERFLOW],
   ['refused', ROUTE_REJECTS],
   ['quota', QUOTA_LIKE],
   ['auth', AUTH_FAILED],
@@ -115,6 +141,7 @@ const FAMILY_RULES = [
 
 /** The sentence a switch shows: one per family, because "the model did not answer" is not true for a 401. */
 export const FAMILY_REASON = {
+  context: 'bridge.fallback.context',
   refused: 'bridge.fallback.rejected',
   quota: 'bridge.fallback.quota',
   auth: 'bridge.fallback.auth',
@@ -265,14 +292,21 @@ export async function runFallbackChain({
   // probe still runs — its verdict is worth reporting — but it no longer decides
   // to retry.
   let probeKind = '';
-  const rejected = Boolean(result.error) && failureFamily(result.error) === 'refused';
+  const finalFamilyEarly = failureFamily(result.error);
+  // A probe asks each route a 1-token question. That proves the key works, and
+  // nothing else: a conversation the providers refuse, or one longer than their
+  // window, answers a 1-token probe happily and then fails the real prompt all
+  // over again. Both are facts about the request, so the probe still runs for its
+  // verdict but must not decide to replay the turn.
+  const replaySafe = finalFamilyEarly !== 'refused' && finalFamilyEarly !== 'context';
+  const rejected = Boolean(result.error) && finalFamilyEarly === 'refused';
   if (result.error && FALLBACK_TRIGGERS.test(result.error)) {
     const models = [
       { model: primary.model, provider: primary.provider || '' },
       ...entries.map((entry) => ({ model: entry.model, provider: entry.provider || '' })),
     ].filter((item) => item.model && item.model !== '?');
     const { live, verdicts } = await firstLiveModel(models);
-    if (live && !rejected) {
+    if (live && replaySafe) {
       log(`probe: ${labelOf(live)} answers after ${verdicts.length} check(s), retrying the turn there`);
       const entry = entries.find((item) => item.model === live.model
         && (!live.provider || item.provider === live.provider));
@@ -284,10 +318,11 @@ export async function runFallbackChain({
         telemetry.switched = true;
       }
     } else {
-      // Nothing answers, or the request itself is what is refused: the verdict
-      // is the only useful part of the failure.
+      // Nothing answers, or the request itself is what no route can take — a
+      // refusal or a prompt past every window. Only the verdict is useful then.
       probeKind = describeVerdicts(verdicts);
-      log(`probe: ${live ? 'a route answers, but the request was refused' : 'no channel answers'} (${verdicts.map((v) => `${labelOf(v)}:${v.kind}`).join(', ')})`);
+      const why = replaySafe ? 'no channel answers' : `the request itself is the problem (family=${finalFamilyEarly})`;
+      log(`probe: ${live ? `a route answers a 1-token probe, but ${why}` : 'no channel answers'} (${verdicts.map((v) => `${labelOf(v)}:${v.kind}`).join(', ')})`);
     }
   }
   // One message naming the causes, not a cascade of errors. The chain length is
@@ -298,11 +333,19 @@ export async function runFallbackChain({
     const verdictLine = probeKind ? `\n${probeHint(probeKind, lang)}` : '';
     const list = tried.map((line) => `• ${line}`).join('\n');
     // A refusal is not a balance and not a busy provider: the useful advice is
-    // about the conversation, not about waiting.
+    // about the conversation, not about waiting. The same is true of a prompt
+    // that outgrew every window — "top up the balance" would send the person to
+    // pay for a limit that money does not raise.
+    const finalFamily = failureFamily(result.error);
+    // The last error decides the advice. `rejected` is only a fallback for the
+    // case where the retry failed with something unclassifiable.
+    const refusedAll = finalFamily === 'refused' || (!finalFamily && rejected);
+    const allKey = finalFamily === 'context' ? 'bridge.fallback.contextAll'
+      : refusedAll ? 'bridge.fallback.rejectedAll' : 'bridge.fallback.allDown';
     result = {
       sessionId: result.sessionId,
       text: '',
-      error: t(lang, rejected ? 'bridge.fallback.rejectedAll' : 'bridge.fallback.allDown', { list }) + verdictLine,
+      error: t(lang, allKey, { list }) + verdictLine,
     };
   }
   return result;

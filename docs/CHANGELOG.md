@@ -1,5 +1,39 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.36.0
+
+- **The chain no longer dies on the first error it cannot name.** A prompt past a
+  model's window comes back as `CONTEXT_WINDOW_EXCEEDED`, which matched no failure
+  family, so the walk read it as "not a route fault" and stopped — six routes
+  untried, and a turn that had been failing over correctly ended frozen on a raw
+  provider string. Context is a family of its own now, the longest-window route is
+  asked first when it hits, and the walk carries on. The same error is no longer
+  replayed: `replaySafe` covers `refused` and `context` together, because those two
+  are properties of the request, not of the route that happened to answer it.
+- **A spent balance behind a 403 is a balance, not a refused key.** `AUTH: …
+  (403): Your subscription allowance for this period is used up and your wallet`
+  was classified `auth`, which told the reader their key was rejected and sent them
+  to the wrong fix. Money words now win over the status code, `explainFailure`
+  splits `INSUFFICIENT_QUOTA` (a balance) from `INVALID_KEY` (a key), and
+  `MISSING_CREDENTIAL` keeps its own sentence in front of both. The two failures
+  read as what they are: "баланс провайдера пуст" versus "ключ не принят".
+- **`/model` can change the whole install, not only the topic it was opened in.**
+  `/model <route> all` existed and the card never offered it, so the panel's only
+  visible switch moved one topic while the profile — the default every other topic
+  follows, and the thing a fallback chain is built from — stayed where it was. The
+  card carries a scope row that names the mode that is on, route buttons carry the
+  scope they will write, and the header stops claiming to describe this topic while
+  the card is in the global mode. `@` marks a global press, which leaves a provider
+  legitimately named `all` reachable.
+- **Advice stopped naming a command that does not exist here.** The
+  context-overflow messages told the reader to run `/compact`. The desktop profile
+  mounts `command-compact`; the headless profile that serves Telegram does not, so
+  the one line meant to rescue a stuck turn answered "unknown command". They now
+  point at `/new` and `/rewind 2`, both real. `test/commands.test.mjs` gains a
+  guard: any `/command` in a user-facing string must be one the dispatcher accepts,
+  matched in command position so `on/off` and a `~/…/cordis.patch.yml` path are not
+  read as commands.
+
 ## 1.35.0
 
 - **The checkout has a shape.** Seventy-seven modules left the repository root for

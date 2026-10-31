@@ -14,12 +14,27 @@ export function explainFailure(text, lang = 'ru') {
   // The regular expressions match the CLI's and the provider's own words, so
   // they stay as they are; only the hint on the right follows the topic language.
   const cases = [
-    [/insufficient_user_quota|insufficient quota|AUTH\b|\b402\b|\bbalance\b|баланс|billing/i,
+    // First, because it is the one failure whose advice is about the conversation
+    // rather than about the account. A provider says it in many ways, and the
+    // person used to get the raw CLI string with "something went wrong" under it
+    // — the least useful answer for the one error the chat can actually fix.
+    [/CONTEXT_WINDOW_EXCEEDED|context[_ ]length|maximum context|context window|prompt is too long|exceeds the context/i,
+      'CONTEXT_OVERFLOW', 'bridge.fail.context'],
+    // Money before keys, because "AUTH 403 ... allowance ... used up" names both
+    // and only one of them tells the person what to do. A bare 401/403 with no
+    // money word is a refused key and gets its own sentence below; topping up an
+    // account whose key is wrong fixes nothing.
+    [/insufficient_user_quota|insufficient quota|\b402\b|quota|balance|баланс|billing|allowance|wallet|credit/i,
       'INSUFFICIENT_QUOTA', 'bridge.fail.quota'],
-    [/Conflict: terminated by other getUpdates|\b409\b/i,
-      'TG_CONFLICT', 'bridge.fail.conflict'],
+    // A missing credential is its own case and must come before the key rule:
+    // "MISSING_CREDENTIAL" contains no status code, and the fix (add the key) is
+    // different from "the key you have is wrong" (replace it).
     [/MISSING_CREDENTIAL|no credentials|not authenticated/i,
       'MISSING_CREDENTIAL', 'bridge.fail.noCredential'],
+    [/\b40[13]\b|AUTH\b|unauthorized|forbidden|invalid api key/i,
+      'INVALID_KEY', 'bridge.fail.auth'],
+    [/Conflict: terminated by other getUpdates|\b409\b/i,
+      'TG_CONFLICT', 'bridge.fail.conflict'],
     [/ENOENT|not recognized|не найден.*dsh|dsh\.cmd/i,
       'NO_DSH_CLI', 'bridge.fail.noCli'],
     [/fetch failed|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|socket hang up|network/i,

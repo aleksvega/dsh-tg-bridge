@@ -23,4 +23,10 @@ export default {
   'ctrl.model.pickNone': '配置档 {profile} 没有可选的模型。',
   'ctrl.model.pickSwitched': '线路 {name} → {route}。下一轮生效。',
   'ctrl.model.pickStale': '配置档 {name} 里已经没有线路 {route} —— 画卡片之后配置档变了。/model 可以看现在的线路。',
+  'ctrl.model.scopeAllOn': '🌍 全局切换 ▸ 点此改为仅本话题',
+  'ctrl.model.scopeTopicOn': '💬 仅本话题 ▸ 点此改为全局',
+  'ctrl.model.scopeAllHead': '「全局」模式：配置档当前默认 {route}。点某条线路，所有没有自己线路的话题都会切过去。',
+  'ctrl.model.scopeAllHint': '选一条线路，它就成为整个配置档的默认。已有自己线路的话题不受影响 —— 那些要在「仅本话题」模式下逐个切换。',
+  'ctrl.model.scopeAllSet': '现在点击会改动整个配置档。',
+  'ctrl.model.scopeTopicSet': '现在点击只会改动本话题。',
 };
