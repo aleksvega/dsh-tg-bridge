@@ -1,0 +1,20 @@
+// `/dsh` — установленный DSH, опубликованный и то, на чём этот мост проверяли.
+export default {
+  'ctrl.dsh.noInstalled': 'Не смог прочитать `dsh --version` — возможно, DSH стоит не там, где его ищет мост. /doctor покажет, какой бинарник запускает ход.',
+  'ctrl.dsh.head': '🔧 DSH {installed} · последняя {latest}',
+  'ctrl.dsh.headUnknown': '🔧 DSH {installed} · npm не ответил, какая последняя',
+  'ctrl.dsh.tested': 'Проверена с этим мостом: {range}',
+  'ctrl.dsh.untested': 'Вне диапазона, на котором мост проверяли: {range}. Скорее всего работает — /doctor скажет, что известно.',
+  'ctrl.dsh.hint': 'Обновить: /dsh update',
+  'ctrl.dsh.noLatest': 'npm не ответил, ставить нечего. Повторите через минуту.',
+  'ctrl.dsh.plan': 'Будет выполнено:\n{cmd}\nЭто заменит DSH для всех профилей. Пришлите /dsh update confirm.',
+  'ctrl.dsh.done': 'Поставлено {version}. Мост пока на старой: перезапустите DSH, и он поднимется уже на новой.',
+  'ctrl.dsh.error': 'Не поставилось: {error}',
+  'ctrl.dsh.usage': 'Понимаю /dsh, /dsh update и /dsh update confirm.',
+  'ctrl.dsh.button': 'Обновить до {latest}',
+  'ctrl.dsh.confirmButton': 'Поставить',
+  'ctrl.doctor.dsh': 'DSH',
+  'ctrl.doctor.dshTested': '{version} (проверена)',
+  'ctrl.doctor.dshUntested': '{version} (вне проверенного диапазона)',
+  'ctrl.help.about.dsh': 'Какой DSH установлен, какой публикует npm и проверяли ли на нём этот мост. /dsh update ставит опубликованный; перезапуск — уже сам.',
+};

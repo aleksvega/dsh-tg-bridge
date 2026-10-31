@@ -80,6 +80,16 @@ export async function handleCallback(query) {
     return;
   }
 
+  // `/dsh`'s own two presses. Each types the command the card advertised, so the
+  // install path and the confirmation in front of it exist exactly once — a
+  // button that called npm itself would be a second way to replace the harness.
+  if (data.startsWith('ds:')) {
+    await clearKeyboard();
+    await answer(t(lang, 'bridge.cb.done'));
+    await runCommandFromButton(`/dsh ${data === 'ds:confirm' ? 'update confirm' : 'update'}`, { chatId, threadId, key, lang });
+    return;
+  }
+
   if (isRewindPress(data)) {
     // A rewind button. What it acts on is read here, not taken from the card:
     // between drawing "go back 2" and the press, the session may have moved on,

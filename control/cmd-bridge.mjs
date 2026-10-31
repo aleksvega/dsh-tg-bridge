@@ -22,6 +22,7 @@ import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from '../chat
 import { chainSummary } from '../model/fallback-card.mjs';
 import { driveOf, sampleDisk } from '../core/machine.mjs';
 import { describeLaunch, dshLaunch } from '../core/dsh-launch.mjs';
+import { installedDsh, satisfies, testedRange } from '../core/dsh-version.mjs';
 import { explainCommand } from '../chat/help-explain.mjs';
 import { profileValues, resolveSettings } from '../profile/settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../core/update-policy.mjs';
@@ -262,6 +263,17 @@ export async function handleBridgeCommands(ctx) {
       // that explains why every turn fails, so it is worth one line always.
       const launch = dshLaunch({ exists: existsSync });
       add(t(lang, 'ctrl.doctor.turnCmd'), `${describeLaunch(launch)}${launch.kind === 'cli' ? t(lang, 'ctrl.doctor.turnCmdPath') : ''}`);
+
+      // Which DSH that binary is, and whether this bridge was ever run against
+      // it. Outside the range is a warning, not a failure: rewriting "may work"
+      // as "broken" is the kind of diagnostic people stop reading.
+      const dsh = installedDsh();
+      if (dsh) {
+        const tested = satisfies(dsh, testedRange());
+        add(t(lang, 'ctrl.doctor.dsh'), tested === true
+          ? t(lang, 'ctrl.doctor.dshTested', { version: dsh })
+          : t(lang, 'ctrl.doctor.dshUntested', { version: dsh }));
+      }
 
       // Project directory bound to this topic and whether it exists. The bridge
       // default is a fact, not an accident: say when it is being used.

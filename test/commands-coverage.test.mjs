@@ -56,10 +56,10 @@ const run = async (command, arg = '', overrides = {}) => {
   return { claimed, text: built.out.join('\n') };
 };
 
-// `/update` and `/subscribe` shell out to `npm view` with a 45-second timeout:
-// offline, that is a slow test, not a wrong one, so they are left to the release
-// tests that already stub the registry.
-const SLOW = new Set(['update', 'subscribe']);
+// `/update`, `/subscribe` and `/dsh` ask npm, and `/dsh` also runs `dsh
+// --version`: offline, that is a slow test, not a wrong one, so they are left to
+// the release tests that stub the registry and to the `/dsh` card test.
+const SLOW = new Set(['update', 'subscribe', 'dsh']);
 
 // `/diff` prints the working tree, so its text is code: a diff of a change that
 // adds `{route}` to a template literal is a diff with braces in it, and reading

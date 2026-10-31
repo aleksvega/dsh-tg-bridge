@@ -1,0 +1,20 @@
+// `/dsh` —— 已安装的 DSH、npm 上的最新版本，以及这个桥在哪个版本上验证过。
+export default {
+  'ctrl.dsh.noInstalled': '读不到 `dsh --version` —— DSH 可能不在桥查找的位置。/doctor 会显示一次对话会启动哪个程序。',
+  'ctrl.dsh.head': '🔧 DSH {installed} · 最新 {latest}',
+  'ctrl.dsh.headUnknown': '🔧 DSH {installed} · npm 没有回答最新版本',
+  'ctrl.dsh.tested': '已在这个区间验证过：{range}',
+  'ctrl.dsh.untested': '不在验证过的区间内：{range}。大概率可用 —— /doctor 会说明已知情况。',
+  'ctrl.dsh.hint': '更新：/dsh update',
+  'ctrl.dsh.noLatest': 'npm 没有回答，暂时没有可安装的版本。请过一分钟再试。',
+  'ctrl.dsh.plan': '将执行：\n{cmd}\n这会替换所有配置档的 DSH。发送 /dsh update confirm 继续。',
+  'ctrl.dsh.done': '已安装 {version}。桥接仍在使用旧版本：重启 DSH 后会以新版本启动。',
+  'ctrl.dsh.error': '安装失败：{error}',
+  'ctrl.dsh.usage': '我懂 /dsh、/dsh update 和 /dsh update confirm。',
+  'ctrl.dsh.button': '更新到 {latest}',
+  'ctrl.dsh.confirmButton': '安装',
+  'ctrl.doctor.dsh': 'DSH',
+  'ctrl.doctor.dshTested': '{version}（已验证）',
+  'ctrl.doctor.dshUntested': '{version}（超出验证区间）',
+  'ctrl.help.about.dsh': '已安装的 DSH、npm 上的最新版本，以及桥是否在该版本上验证过。/dsh update 安装最新版，重启由你决定。',
+};
