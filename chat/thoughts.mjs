@@ -5,7 +5,7 @@
 // appended batch of records, and a `turn/start` record marks the beginning of a
 // turn. Walking the file backwards from the newest frame is enough to reach the
 // current turn, which keeps the command cheap on a 13 MB log with 16k frames.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as zlib from 'node:zlib';
 
@@ -214,6 +214,20 @@ export function sessionStats(file) {
     inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, outputPerTurn: 0,
   };
   if (!file || !existsSync(file)) return empty;
+  let info;
+  try {
+    info = statSync(file);
+  } catch {
+    return empty;
+  }
+  // This is the most expensive read the bridge does, and the card is pressed
+  // after every turn: 27 MB and 19,727 frames took 12 s on 2026-10-31, all of it
+  // synchronous, before a word could be sent. Frames are only ever appended, so
+  // two rules make the cost fall to the new frames: an unchanged file answers
+  // from memory, and a grown one resumes from the last frame already parsed.
+  const hit = STATS_CACHE.get(file);
+  if (hit && hit.mtimeMs === info.mtimeMs && hit.size === info.size) return { ...hit.stats };
+
   let buf;
   try {
     buf = readFileSync(file);
@@ -222,7 +236,14 @@ export function sessionStats(file) {
   }
   const stats = { ...empty };
   const starts = frameStarts(buf);
-  for (let i = 0; i < starts.length - 1; i++) {
+  const frames = starts.length - 1;
+  // A prefix is reusable only while it is still that prefix: the file grew, so
+  // nothing before the old end moved. Rewritten or truncated (a compacted log,
+  // another session under the same path) starts again from zero.
+  const resume = hit && info.size > hit.size && hit.frames <= frames ? hit : null;
+  const from = resume ? resume.frames : 0;
+  if (resume) Object.assign(stats, resume.stats);
+  for (let i = from; i < frames; i++) {
     let text = '';
     try {
       text = zstdDecompressSync(buf.subarray(starts[i], starts[i + 1])).toString('utf8');
@@ -261,7 +282,19 @@ export function sessionStats(file) {
   // begun more turns than it finished divides by a number that is too big — the
   // average then reads low, which is the safe direction for an estimate.
   stats.outputPerTurn = stats.turns > 0 ? Math.round(stats.outputTokens / stats.turns) : 0;
-  return stats;
+  rememberStats(file, { mtimeMs: info.mtimeMs, size: info.size, frames, stats });
+  return { ...stats };
+}
+
+/** The last few session files, so two topics pressing at once do not evict each
+ * other. Four is enough for `/status`, `/cost` and a `/report` in between. */
+const STATS_CACHE = new Map();
+const STATS_CACHE_MAX = 4;
+
+function rememberStats(file, entry) {
+  STATS_CACHE.delete(file);
+  STATS_CACHE.set(file, entry);
+  while (STATS_CACHE.size > STATS_CACHE_MAX) STATS_CACHE.delete(STATS_CACHE.keys().next().value);
 }
 
 export { frameStarts };
