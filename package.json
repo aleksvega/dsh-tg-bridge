@@ -48,6 +48,7 @@
     "cli.mjs",
     "goal.mjs",
     "install-hooks.mjs",
+    "jev-gate.mjs",
     "plugin-bridge.mjs",
     "say.mjs",
     "scan-secrets.mjs",
