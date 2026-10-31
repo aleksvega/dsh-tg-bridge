@@ -10,32 +10,20 @@
 // menu for a release after `/task` had become an alias: the registry said one
 // thing, the menu said another, and both were "the source of truth".
 //
+// "Re-asserts it on start" used to be a comment and nothing else: the install
+// ran only from `init`/`setup`, so any later plugin that wrote its own list kept
+// it until somebody ran this file by hand. `bridge.mjs` calls `installMenu()`
+// once per start for that reason.
+//
 // Usage: node bot-menu.mjs [--delete]
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { MENU_COMMANDS } from './chat/commands-registry.mjs';
 import { LANGS, t } from './core/i18n.mjs';
-
-const args = new Set(process.argv.slice(2));
-
-const token = (() => {
-  const env = (process.env.DSH_TELEGRAM_BOT_TOKEN || '').trim();
-  if (env) return env;
-  try {
-    const home = process.env.DSH_HOME || join(homedir(), '.dsh');
-    const yaml = readFileSync(join(home, '.credentials.yaml'), 'utf8');
-    // `dsh-tg init` writes the plain name; the DSH app adds a random suffix.
-    const m = /^\s*(DSH_TELEGRAM_BOT_TOKEN[A-Z0-9_]*):\s*["']?([^"'\s]+)/m.exec(yaml);
-    return m ? m[2] : '';
-  } catch {
-    return '';
-  }
-})();
+import { findToken } from './core/secrets.mjs';
 
 /** The menu rows for one language, straight from the registry. */
-function rows(lang) {
+export function rows(lang) {
   return MENU_COMMANDS.map((name) => ({
     // Telegram caps a description at 256 characters and a name at 32; an
     // over-long row makes the whole call fail, so the cut happens here once.
@@ -44,7 +32,44 @@ function rows(lang) {
   }));
 }
 
-async function api(method, body) {
+function botToken() {
+  return findToken();
+}
+
+/**
+ * Publish the registry's menu for every language we speak, then read it back.
+ *
+ * Returns what actually landed, so a caller can log one honest line instead of
+ * assuming a `setMyCommands` it never checked. A language Telegram refuses is
+ * reported and skipped: one refusal must not leave the others unset.
+ */
+export async function installMenu({ call, log = () => {}, token = findToken() } = {}) {
+  const api = call || ((method, body) => telegram(token, method, body));
+  await api('setMyCommands', { commands: rows('ru') });
+  const languages = ['ru'];
+  const failed = [];
+  // Telegram validates language_code against its own ISO list: 'zh-hans' is
+  // rejected with "invalid language code", 'zh' is accepted.
+  for (const code of LANGS.filter((lang) => lang !== 'ru')) {
+    try {
+      await api('setMyCommands', { commands: rows(code), language_code: code });
+      languages.push(code);
+    } catch (error) {
+      failed.push(code);
+      log(`menu for ${code} failed: ${error.message}`);
+    }
+  }
+  const check = await api('getMyCommands', {});
+  return {
+    languages,
+    failed,
+    count: Array.isArray(check) ? check.length : 0,
+    rows: Array.isArray(check) ? check : [],
+  };
+}
+
+async function telegram(token, method, body) {
+  if (!token) throw new Error('bot token not found in ~/.dsh/.credentials.yaml');
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -56,36 +81,32 @@ async function api(method, body) {
   return json.result;
 }
 
+export async function deleteMenu({ call, token = findToken() } = {}) {
+  const api = call || ((method, body) => telegram(token, method, body));
+  await api('deleteMyCommands', {});
+}
+
 async function main() {
+  const args = new Set(process.argv.slice(2));
+  const token = findToken();
   if (!token) {
     console.error('bot token not found in ~/.dsh/.credentials.yaml');
     process.exit(1);
   }
   if (args.has('--delete')) {
-    await api('deleteMyCommands', {});
+    await deleteMenu({ token });
     console.log('menu deleted');
     return;
   }
-  // The default list is the language the owner reads; the others are installed
-  // per language_code so an English or Chinese phone sees its own words.
-  await api('setMyCommands', { commands: rows('ru') });
-  // Telegram validates language_code against its own ISO list: 'zh-hans' is
-  // rejected with "invalid language code", 'zh' is accepted. Each language is
-  // installed independently — one refusal must not leave the others unset.
-  for (const code of LANGS.filter((lang) => lang !== 'ru')) {
-    try {
-      await api('setMyCommands', { commands: rows(code), language_code: code });
-      console.log(`menu installed for ${code}: ${MENU_COMMANDS.length} commands`);
-    } catch (error) {
-      console.error(`menu for ${code} failed: ${error.message}`);
-    }
-  }
-  const check = await api('getMyCommands', {});
-  console.log(`menu installed: ${check.length} commands`);
-  for (const c of check) console.log(`  /${c.command} — ${c.description}`);
+  const result = await installMenu({ token, log: (line) => console.error(line) });
+  for (const code of result.languages) console.log(`menu installed for ${code}: ${MENU_COMMANDS.length} commands`);
+  console.log(`menu installed: ${result.count} commands`);
+  for (const c of result.rows) console.log(`  /${c.command} — ${c.description}`);
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}

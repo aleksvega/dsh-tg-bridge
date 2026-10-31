@@ -43,6 +43,21 @@
 - **Commits are reviewed before they land.** `jev-gate.mjs` runs the Jev review
   over the staged diff in the pre-commit hook, skips cleanly without a key, and
   writes its verdict into the commit itself.
+- **`/compact` answers instead of denying it exists.** The engine's manual
+  compaction is a command of the *app* chat: sent as plain text through the CLI
+  it reaches the model as an ordinary prompt, is billed, and compacts nothing
+  (measured: one extra turn, 13319 input tokens, no compaction). The bridge used
+  to answer "Неизвестная команда", which was also wrong. `control/cmd-compact.mjs`
+  now reads the live `thresholdRatio` out of the profile's `cordis.patch.yml`,
+  names the tokens the last turn actually sent, says where manual compaction
+  lives, and offers the one press that works here — `/new` — as a button. Three
+  languages, and the threshold is read from the install, never assumed.
+- **The bot's menu is re-asserted on every start.** `bot-menu.mjs` claimed the
+  bridge "re-asserts it on start" and had no caller outside `init`/`setup`;
+  `setMyCommands` is global state any other plugin can overwrite, and one already
+  had (31 Chinese rows this bridge cannot run). Startup now installs the
+  registry's menu for `ru`/`en`/`zh` and logs the count it read back — three API
+  calls and a log line, never fatal.
 
 ## 1.37.1
 

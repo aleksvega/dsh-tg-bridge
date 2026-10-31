@@ -31,6 +31,10 @@ const deps = (overrides = {}) => ({
   installed: () => '0.2.1-rc.3',
   latest: async () => '0.2.1-rc.5',
   forget: () => {},
+  // These tests describe an install whose CLI belongs to npm, which is what
+  // Linux and a user-set DSH_BIN look like. The app-owned case is a separate
+  // pair of tests below, because on it the npm command is not the answer at all.
+  kind: 'cli',
   ...overrides,
 });
 
@@ -91,8 +95,10 @@ test('confirm installs, re-reads the version and names the restart', async () =>
   assert.equal(forgotten, 1, 'the cached version has to be re-read after install');
   assert.deepEqual(calls[0].slice(0, 1), ['npm']);
   assert.deepEqual(calls[0][1].slice(0, 2), ['i', '-g']);
-  assert.match(out[0], /0\.2\.1-rc\.5/);
-  assert.match(out[0], /restart DSH/);
+  // Index 0 is the "installing, the bridge keeps answering" line that keeps the
+  // poll loop free; the result lands behind it.
+  assert.match(out[1], /0\.2\.1-rc\.5/);
+  assert.match(out[1], /restart DSH/);
 });
 
 test('a failed install quotes npm instead of pretending', async () => {
@@ -100,8 +106,8 @@ test('a failed install quotes npm instead of pretending', async () => {
   await handleDshCommands(ctx, deps({
     run: () => ({ status: 1, stderr: 'EACCES: permission denied, open /usr/lib' }),
   }));
-  assert.match(out[0], /EACCES/);
-  assert.doesNotMatch(out[0], /Installed/);
+  assert.match(out[1], /EACCES/);
+  assert.doesNotMatch(out.join('\n'), /Installed/);
 });
 
 test('no latest means nothing to install, said plainly', async () => {
@@ -131,6 +137,50 @@ test('an unknown word gets the usage line, in every language', async () => {
     assert.equal(await handleDshCommands(ctx, deps()), true);
     assert.match(out[0], /\/dsh update confirm/, `${lang} must name the words it knows`);
   }
+});
+
+// The app-owned CLI is the case that made `/dsh update` a lie on the machine it
+// was written on: `dsh` on PATH is the desktop app's own bundled CLI, so
+// `npm i -g` installed a second copy under npm's prefix, changed nothing a turn
+// launches, and the card then re-read the app's version and reported success.
+test('a CLI owned by the app says so, and offers no npm button', async () => {
+  const { ctx, out, extras } = context('/dsh');
+  await handleDshCommands(ctx, deps({ kind: 'app' }));
+  assert.match(out[0], /belongs to the DeepSeek Harness app/);
+  assert.match(out[0], /updates with the app/);
+  assert.doesNotMatch(out[0], /Update: \/dsh update/, 'the npm route cannot help this CLI');
+  assert.equal(extras[0].keyboard, undefined, 'a button that cannot do the job is a lie');
+});
+
+test('updating an app-owned CLI refuses instead of installing a copy nobody runs', async () => {
+  for (const lang of ['en', 'ru', 'zh']) {
+    let ran = 0;
+    const { ctx, out, extras } = context('/dsh', 'update confirm', lang);
+    await handleDshCommands(ctx, deps({
+      kind: 'app',
+      run: () => {
+        ran += 1;
+        return { status: 0 };
+      },
+    }));
+    assert.equal(ran, 0, `${lang}: npm must not run for the app's own CLI`);
+    assert.equal(out.length, 1, `${lang}: one message, and it is the refusal`);
+    assert.equal(extras[0].keyboard, undefined, `${lang} must not offer a confirm button`);
+  }
+});
+
+test('a real install says it is running before it says it is done', async () => {
+  const { ctx, out } = context('/dsh', 'update confirm');
+  await handleDshCommands(ctx, deps({
+    installed: ({ fresh } = {}) => (fresh ? '0.2.1-rc.5' : '0.2.1-rc.3'),
+    run: () => ({ status: 0 }),
+  }));
+  // The first message is the promise that the bot is still alive: npm can take
+  // minutes, and the poll loop must not be the thing that waits for it.
+  assert.match(out[0], /Installing 0\.2\.1-rc\.5 through npm/);
+  assert.match(out[0], /keeps answering/);
+  assert.match(out[1], /0\.2\.1-rc\.5/);
+  assert.match(out[1], /restart DSH/);
 });
 
 test('another command is left to its own handler', async () => {

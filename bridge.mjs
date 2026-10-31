@@ -39,6 +39,7 @@ import { answerPressFailed, handleCallback, renderTaskCard, taskRows } from './c
 import { boundSetOf, handleCardPress } from './profile/settings-press.mjs';
 import { runCommandFromButton } from './core/run-command.mjs';
 import { startJobLoops } from './turn/job-loops.mjs';
+import { installMenu } from './bot-menu.mjs';
 import { ensureProfile } from './profile/profiles.mjs';
 import { firstLiveModel, describeVerdicts, probeHint, probeModel } from './model/model-probe.mjs';
 import { explainFailure } from './turn/failures.mjs';
@@ -191,6 +192,17 @@ async function main() {
     }
   } catch (error) {
     log(`startup notice failed: ${error.message}`);
+  }
+  // The menu belongs to this bridge, but `setMyCommands` is global state that any
+  // other plugin can overwrite after an install — the Chinese list of 31 rows
+  // this bot does not implement came exactly that way. Re-asserting it on every
+  // start is three API calls, and it is the only moment the bridge is known to be
+  // awake. A failure here is logged, never fatal: a wrong menu must not stop turns.
+  try {
+    const menu = await installMenu({ log });
+    log(`menu asserted: ${menu.count} commands (${menu.languages.join(', ')}${menu.failed.length ? `, failed ${menu.failed.join(', ')}` : ''})`);
+  } catch (error) {
+    log(`menu assert failed: ${error.message}`);
   }
 
   /** One update: journal first, then the turn, then ack after delivery. */

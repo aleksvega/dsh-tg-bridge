@@ -17,7 +17,7 @@ const SECTION = {
   skills: 'Extensions', plugins: 'Extensions', soul: 'Extensions',
   update: 'Versions', subscribe: 'Versions',
   load: 'Models', settings: 'Other', lang: 'Other', reasoning: 'Other', pin: 'Other', doctor: 'Other', logs: 'Other', report: 'Other',
-  app: 'Other', restart: 'Other', help: 'Other', menu: 'Panels', dsh: 'Versions',
+  app: 'Other', restart: 'Other', help: 'Other', menu: 'Panels', dsh: 'Versions', compact: 'Versions',
 };
 
 /**

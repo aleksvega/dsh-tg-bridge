@@ -90,6 +90,16 @@ export async function handleCallback(query) {
     return;
   }
 
+  // `/compact`'s one press: the card explains where compaction lives and offers
+  // the thing that does work here, which is a fresh session. It types the command
+  // rather than doing the work, so `/new` keeps exactly one implementation.
+  if (data === 'cp:new') {
+    await clearKeyboard();
+    await answer(t(lang, 'bridge.cb.done'));
+    await runCommandFromButton('/new', { chatId, threadId, key, lang });
+    return;
+  }
+
   if (isRewindPress(data)) {
     // A rewind button. What it acts on is read here, not taken from the card:
     // between drawing "go back 2" and the press, the session may have moved on,
