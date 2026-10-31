@@ -165,7 +165,7 @@ export default {
   'ctrl.status.on': 'включены',
   'ctrl.status.off': 'выключены',
   'ctrl.status.skills': 'Скиллы: {n}',
-  'ctrl.status.ui': 'UI: desktop ({route}) — плагинов {n}',
+  'ctrl.status.ui': 'Плагинов в профиле {profile}: {n}',
   'ctrl.agents.title': '🤖 Агенты и субагенты',
   'ctrl.agents.profile': 'Профиль: {name} ({route})',
   'ctrl.agents.tools': 'Инструментов делегирования: {n}',

@@ -114,15 +114,14 @@ export async function handleViewCommands(ctx) {
         state: t(lang, `msg.reasoningMode.${reasoningMode(state, config, key)}`),
       }));
       lines.push(t(lang, 'ctrl.status.skills', { n: skillsOf().length }));
-      // The desktop profile only matters when this install actually has one.
-      if (existsSync(join(PROFILES, 'desktop', 'cordis.patch.yml'))) {
-        const desk = modelOf('desktop');
-        const deskPlugins = pluginsOf('desktop');
-        lines.push(t(lang, 'ctrl.status.ui', {
-          route: `${desk.provider}/${desk.model}`,
-          n: deskPlugins.bundles.length,
-        }));
-      }
+      // This line used to print the desktop profile's route and bundle count.
+      // Both facts were true and both were about the install, printed inside a
+      // card about one topic: the card said "Профиль: headless (unorouter/...)"
+      // four lines up and then named a wikivibe desktop route, which reads as if
+      // the topic answered there. Nothing about the desktop app belongs in a
+      // per-topic card; the count is the one this topic's own profile has.
+      const here = pluginsOf(activeProfile);
+      lines.push(t(lang, 'ctrl.status.ui', { profile: activeProfile, n: here.bundles.length }));
       const currentGoal = goalOf(state, key);
       if (currentGoal) {
         const { done, total } = progressOf(currentGoal);

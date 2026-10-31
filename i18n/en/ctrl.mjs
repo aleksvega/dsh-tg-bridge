@@ -165,7 +165,7 @@ export default {
   'ctrl.status.on': 'on',
   'ctrl.status.off': 'off',
   'ctrl.status.skills': 'Skills: {n}',
-  'ctrl.status.ui': 'UI: desktop ({route}) — bundled plugins: {n}',
+  'ctrl.status.ui': 'Plugins in the {profile} profile: {n}',
   'ctrl.agents.title': '🤖 Agents and subagents',
   'ctrl.agents.profile': 'Profile: {name} ({route})',
   'ctrl.agents.tools': 'Delegation tools: {n}',

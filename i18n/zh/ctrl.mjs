@@ -165,7 +165,7 @@ export default {
   'ctrl.status.on': '开',
   'ctrl.status.off': '关',
   'ctrl.status.skills': '技能：{n}',
-  'ctrl.status.ui': 'UI：desktop（{route}）— 插件 {n} 个',
+  'ctrl.status.ui': '{profile} 配置档的插件：{n} 个',
   'ctrl.agents.title': '🤖 智能体与子智能体',
   'ctrl.agents.profile': '配置：{name}（{route}）',
   'ctrl.agents.tools': '委派工具：{n}',
