@@ -17,6 +17,7 @@ import { diffPressRouter } from '../control/cmd-diff.mjs';
 import { handleModelPress, MODEL_PREFIX, modelPressRouter } from '../control/model-card.mjs';
 import { runCommandFromButton } from '../core/run-command.mjs';
 import { handleCardPress } from '../profile/settings-press.mjs';
+import { cardBlocks, cardKeyboard, renderCardSettings, toggleCardBlock } from '../turn/card.mjs';
 import { config, done, log, saveState, state } from '../core/state.mjs';
 import { inlineKeyboard, send, sendFile, tg, tgFast } from './telegram.mjs';
 import { sessionFile } from './thoughts.mjs';
@@ -341,6 +342,29 @@ export async function handleCallback(query) {
   }
   if (data.startsWith(MODEL_PREFIX)) {
     if (await modelPressRouter({ chatId, threadId, messageId, key, lang, answer, log })(data)) return;
+  }
+
+  if (data.startsWith('tc:')) {
+    // The turn card's own switches. Redrawn from state like the task card, so a
+    // double tap settles on one truth; an id this build does not know answers
+    // "stale" instead of writing a key nothing reads.
+    const next = toggleCardBlock(state, key, data.slice(3));
+    if (!next) {
+      await answer(t(lang, 'card.stale'));
+      return;
+    }
+    state.cardBlocks = { ...(state.cardBlocks || {}), [key]: next };
+    saveState();
+    const blocks = cardBlocks(state, key);
+    await tg('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: renderCardSettings(blocks, lang),
+      reply_markup: { inline_keyboard: inlineKeyboard(cardKeyboard(blocks, lang)) },
+    }).catch(() => {});
+    await answer(t(lang, next.includes(data.slice(3)) ? 'card.cbOn' : 'card.cbOff'));
+    log(`card block ${data.slice(3)} toggled for ${key}`);
+    return;
   }
 
   if (data.startsWith('t:')) {

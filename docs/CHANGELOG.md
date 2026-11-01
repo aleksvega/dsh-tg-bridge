@@ -1,5 +1,25 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.7
+
+- **The turn card is now a choice, not a wall.** Every turn ends with one card,
+  and it used to carry everything the bridge knew: speed, thoughts, steps,
+  context, cost, cache and reasoning, in that order, for everyone. `/card` lists
+  those rows as buttons: tap one and that block stops appearing in this topic
+  from the next turn. The choice is per topic and survives a restart.
+  A topic that never chose keeps the full card, so an update never shortens a
+  card someone was reading. The head stays either way: a card without a duration
+  is not a summary of a turn.
+- **The renderer reads the same switch the command writes.** `chat/panel.mjs`
+  takes the chosen set and drops the rows it excludes, instead of deciding for
+  itself what a card carries — the drift that would otherwise make `/card` a
+  promise the card does not keep.
+- **A press answers.** Toggling redraws the card from state (a double tap settles
+  on one truth), answers «Включено»/«Выключено», and an id this build does not
+  know says the button is stale instead of writing a key nothing reads.
+- `/help` documents `/card` next to `/model`, `/cost` and `/thoughts`, in all
+  three locales, with a sentence of its own.
+
 ## 1.38.6
 
 - **A refused key is no longer reported as an unrecognised voice message.** A

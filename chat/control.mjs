@@ -29,6 +29,7 @@ import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './comman
 
 import { handleAgentCommands } from '../control/cmd-agents.mjs';
 import { handleBridgeCommands } from '../control/cmd-bridge.mjs';
+import { handleCardCommands } from '../control/cmd-card.mjs';
 import { handleFallbackCommands } from '../control/cmd-fallback.mjs';
 import { handleDiffCommands } from '../control/cmd-diff.mjs';
 import { handleLoadCommands } from '../control/cmd-load.mjs';
@@ -112,7 +113,7 @@ export async function handleControl(ctx) {
   // that is not its job. The order is alphabetical, not meaningful: no two
   // groups claim the same command, so a miss falls through to `default` below.
   const child = { ...ctx, effective, command, arg: effectiveArgText, send, reply, log, profile, state, key, config, lang };
-  for (const handler of [handleAgentCommands, handleBridgeCommands, handleCompactCommands, handleDiffCommands, handleEveryCommands, handleDshCommands, handleFallbackCommands, handleLoadCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands]) {
+  for (const handler of [handleAgentCommands, handleBridgeCommands, handleCardCommands, handleCompactCommands, handleDiffCommands, handleEveryCommands, handleDshCommands, handleFallbackCommands, handleLoadCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands]) {
     if (await handler(child)) return true;
   }
   // Nothing claimed it: the bridge answers an unknown `/` command itself, with

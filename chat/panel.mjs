@@ -173,21 +173,29 @@ export function progressPanel({
   // no rate for this model. Only ever on the final card: a running turn has no
   // final bill, and a figure that climbs is read as a meter, not as a receipt.
   money = '',
+  // Which blocks this topic keeps, as a Set of ids from `turn/card.mjs`.
+  // `null` means "no choice recorded", and the card keeps every block — the
+  // shape it had before `/card` existed, so an old topic does not shrink.
+  blocks = null,
 } = {}) {
+  const on = (id) => !blocks || blocks.has(id);
   const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
   const mark = String(chip).trim() ? ` · ${String(chip).trim()}` : '';
   const where = String(topic || '').trim() ? `\n${String(topic).trim()}` : '';
   // The speed sits right after the clock so the two read as one measurement.
-  const rate = Number(speed) > 0 ? ` · ${Math.round(Number(speed))} ${t(lang, 'status.speed')}` : '';
+  const rate = Number(speed) > 0 && on('speed') ? ` · ${Math.round(Number(speed))} ${t(lang, 'status.speed')}` : '';
   const head = final
     ? `✅ ${t(lang, 'status.done')} · ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`
     : snippet
       ? `⏳ ${t(lang, 'status.accepted')}: «${snippet}${String(task).trim().length > 48 ? '…' : ''}» · ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`
       : `⏳ ${t(lang, 'status.working')}… ${seconds} ${secondsUnit(lang)}${rate}${mark}${where}`;
-  const mind = thoughts.map((line) => `💭 ${line}`);
-  const ctx = String(context || '').trim();
-  const paid = String(money || '').trim();
-  const base = [head, ...mind, ctx, paid, cache].filter(Boolean).join('\n').length;
+  // Every block below is a row `/card` can switch off for this topic. The head
+  // always stays: a card with no duration is not a summary of a turn.
+  const mind = on('thoughts') ? thoughts.map((line) => `💭 ${line}`) : [];
+  const ctx = on('context') ? String(context || '').trim() : '';
+  const paid = on('cost') ? String(money || '').trim() : '';
+  const cacheLine = on('cache') ? cache : '';
+  const base = [head, ...mind, ctx, paid, cacheLine].filter(Boolean).join('\n').length;
 
   // While the turn runs this message is rewritten every few seconds, and
   // Telegram drops an expanded block on every edit — which is what yanks the
@@ -196,16 +204,19 @@ export function progressPanel({
   // all. The two blocks arrive once, in the final edit, which nothing touches
   // again, so a block can be opened and read in peace.
   const many = steps.length > 3;
-  const inline = many
-    ? (final ? [] : steps.slice(-3).map((line) => `• ${line}`))
-    : steps.map((line) => `• ${line}`);
-  const more = !final && many ? t(lang, 'status.more', { n: steps.length - 3 }) : '';
-  const text = String(thinking || '').trim();
+  const showSteps = on('steps');
+  const inline = !showSteps
+    ? []
+    : many
+      ? (final ? [] : steps.slice(-3).map((line) => `• ${line}`))
+      : steps.map((line) => `• ${line}`);
+  const more = showSteps && !final && many ? t(lang, 'status.more', { n: steps.length - 3 }) : '';
+  const text = on('reasoning') ? String(thinking || '').trim() : '';
   const live = (reasoning === 'counter' && final)
     ? (text ? `🧠 ${t(lang, 'status.thinkTitle')} · ${text.length} · /thoughts file` : '')
     : (!final && text ? `🧠 ${t(lang, 'status.thinkTitle')} · ${text.length}` : '');
   const stepsRoom = Math.max(0, Math.min(STEPS_MAX, PANEL_MAX - base - 1200));
-  const all = many && final
+  const all = showSteps && many && final
     ? tailOf(steps.map((line) => `• ${line}`).join('\n'), stepsRoom)
     : { text: '', cut: false };
   const stepsLabel = `🛠 ${t(lang, 'status.stepsTitle')} · ${steps.length}`
@@ -231,7 +242,7 @@ export function progressPanel({
     escapeHtml(ctx),
     escapeHtml(paid),
     all.text ? `<blockquote expandable>${escapeHtml(stepsLabel)}\n${escapeHtml(all.text)}</blockquote>` : '',
-    escapeHtml(cache),
+    escapeHtml(cacheLine),
   ].filter(Boolean).join('\n');
   const plain = [
     head,
@@ -243,7 +254,7 @@ export function progressPanel({
     ctx,
     paid,
     all.text ? `${stepsLabel}\n${all.text}` : '',
-    cache,
+    cacheLine,
   ].filter(Boolean).join('\n');
   return { html, plain };
 }

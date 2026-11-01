@@ -15,6 +15,7 @@ import { topicName } from '../chat/topics.mjs';
 import { t } from '../core/i18n.mjs';
 import { addStep, progressPanel, stepLine } from '../chat/panel.mjs';
 import { reasoningMode, thoughtRows } from '../chat/notes.mjs';
+import { cardBlocks } from './card.mjs';
 import { cardPin } from '../profile/settings-card.mjs';
 import { continueKeyboard, errorKeyboard } from '../chat/keyboards.mjs';
 import { contextFill, contextRow, contextUsed } from './context-meter.mjs';
@@ -181,6 +182,9 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       : '';
     return progressPanel({
       lang,
+      // Which blocks this topic asked for with `/card`. A topic that never chose
+      // gets the full card, which is what it had before the choice existed.
+      blocks: cardBlocks(state, panelKey),
       // Two topics run at once in a group, so a card that does not name its topic
       // is unattributable the moment it scrolls: the same 💭 line in the wrong
       // place looks like a cross-topic bug, and half the time it is one. The
