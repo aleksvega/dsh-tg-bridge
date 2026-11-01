@@ -118,7 +118,12 @@ function transcribeLocal(file, voice, useScript) {
     log(`voice: python=${command} script=${voice.script} — both must be absolute`);
     return Promise.resolve({ text: '', error: 'voice.python and voice.script must be absolute paths' });
   }
-  const cwd = voice.cwd || DIR;
+  const cwd = voice.cwd || (existsSync(DIR) ? DIR : tmpdir());
+  // `DIR` is the live install, and it exists on every machine that finished
+  // `init`. It does not exist before that — CI included — and spawning with a
+  // missing cwd fails with ENOENT, so the engine answered nothing and the
+  // transcript came back empty. Falling back to the temp directory keeps the
+  // engine runnable wherever the package is checked out.
   // A cwd that does not exist is a typo, and a spawn error names the file rather
   // than the setting that is actually wrong.
   if (voice.cwd && !(existsSync(cwd) && statSync(cwd).isDirectory())) {
@@ -144,7 +149,7 @@ function transcribeLocal(file, voice, useScript) {
   if (!useScript && !(voice.args ?? []).some((arg) => String(arg).includes('{file}'))) args.push(file);
   return new Promise((resolve) => {
     const child = spawn(command, args, {
-      cwd: voice.cwd || DIR,
+      cwd,
       windowsHide: true,
       env: { ...process.env },
     });

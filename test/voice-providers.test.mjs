@@ -4,6 +4,7 @@
 // the promise that a failure says what to fix without leaking the key.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -126,6 +127,31 @@ test('any local engine can answer as plain text, as JSON, or in a file', async (
     output: 'file',
   });
   assert.equal(file.text, 'из файла');
+});
+
+test('the engine still runs before the install exists', () => {
+  // `transcribeLocal` used the live install as the working directory, and CI has
+  // no install: the spawn failed with ENOENT, the transcript came back empty, and
+  // this file was red on all three runners while green on the one machine that had
+  // `init` behind it. The fallback is exercised in a child process because `DIR`
+  // is bound once, at import, from the environment.
+  const missing = join(tmpdir(), `dsh-no-install-${process.pid}-${Date.now()}`);
+  const module = new URL('../chat/media.mjs', import.meta.url).href;
+  const child = `
+    const { transcribe } = await import(${JSON.stringify(module)});
+    const out = await transcribe('note.ogg', {
+      provider: 'command', command: process.execPath,
+      args: ['-e', 'process.stdout.write("[00:00:01.000 --> 00:00:02.000]  привет")', '{file}'],
+    });
+    process.stdout.write(JSON.stringify({ text: out.text, error: out.error }));
+  `;
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', child], {
+    encoding: 'utf8',
+    env: { ...process.env, DSH_TG_HOME: missing },
+  });
+  const out = JSON.parse(run.stdout || '{}');
+  assert.equal(out.error, '', `the engine failed: ${out.error || run.stderr}`);
+  assert.equal(out.text, 'привет');
 });
 
 test('a busy local engine is killed at the timeout instead of pinning the turn', async () => {

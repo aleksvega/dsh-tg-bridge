@@ -1,5 +1,19 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.1
+
+- **Speech runs before the first `init`.** `chat/media.mjs` spawned the local
+  engine with the live install (`~/.dsh/tg-bridge`) as its working directory. On
+  a checkout that had never been initialised that directory does not exist, the
+  spawn failed with `ENOENT`, and `transcribe` returned an empty transcript with
+  no hint why. CI had been red on all three runners since 1.34.1 for exactly
+  this reason, while the suite stayed green on the one machine that had an
+  install — a test that only passes where the product is already installed
+  proves nothing. The working directory now falls back to the temp directory
+  when the install is absent, and `test/voice-providers.test.mjs` runs the engine
+  in a child process with `DSH_TG_HOME` pointed at a path that does not exist,
+  so the empty-install case stays covered.
+
 ## 1.38.0
 
 - **A provider's timeout page is no longer posted as the answer.** Reported from
