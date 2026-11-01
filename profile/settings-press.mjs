@@ -21,7 +21,7 @@ import { DIR } from '../core/paths.mjs';
 import { maxParallel } from '../turn/queue.mjs';
 import { commandFor, renderSettingsCard, settingsCurrent } from './settings-card.mjs';
 import { config, log, saveConfig, saveState, state } from '../core/state.mjs';
-import { inlineKeyboard, send, tg, tgFast } from '../chat/telegram.mjs';
+import { inlineKeyboard, send, sendWithMarkup, tg, tgFast } from '../chat/telegram.mjs';
 import { activeTurns, baseProfileOf } from '../turn/turn.mjs';
 import { join } from 'node:path';
 
@@ -92,6 +92,17 @@ export async function handleCardPress(query, ctx) {
   // in the chat: the one line below is the chat's share of this press. Only a
   // command that failed says more than that.
   const replies = [];
+  // A command may answer with buttons — `/model` and `/fallback` are cards whose
+  // whole point is their keyboard. The adapters below used to keep only the text,
+  // so the settings door to the model picker opened onto a message that named the
+  // current model and offered no way to change it.
+  const cards = [];
+  const collect = (text, extra = {}) => {
+    const body = String(text ?? '');
+    if (extra?.keyboard || extra?.reply_markup) cards.push({ body, extra });
+    else replies.push(body);
+    return Promise.resolve(0);
+  };
   // A press that fails has to say so: the card is redrawn either way, and a
   // redraw alone looks exactly like success. The old path hid failures behind a
   // line the person read as a confirmation.
@@ -113,14 +124,8 @@ export async function handleCardPress(query, ctx) {
     // and vanish on restart, which is the worst of both answers.
     saveConfig,
     log,
-    send: (text) => {
-      replies.push(String(text ?? ''));
-      return Promise.resolve(0);
-    },
-    reply: (text) => {
-      replies.push(String(text ?? ''));
-      return Promise.resolve(0);
-    },
+    send: collect,
+    reply: collect,
     jobs: () => ({ active: [], queued: 0, max: maxParallel() }),
     api: tg,
     sendFile: () => Promise.resolve(0),
@@ -151,6 +156,17 @@ export async function handleCardPress(query, ctx) {
   // a failure is on the card too, so it is not repeated below it.
   if (!handled) log(`settings press ${data}: no handler answered`);
   const notLine = replies.filter(Boolean).filter((r) => r !== wanted.command);
+  // A card-shaped answer goes under the settings card, with its buttons: the press
+  // asked to go somewhere, and swallowing the keyboard is what made
+  // `/settings → Модель` a screen you could read but not act on.
+  if (cards.length > 0 && !failed) {
+    const card = cards[0];
+    await sendWithMarkup(chatId, threadId, card.body, card.extra).catch((error) => {
+      log(`settings press ${data}: card with buttons failed (${error.message})`);
+      return send(chatId, card.body, threadId).catch(() => {});
+    });
+    return;
+  }
   if (notLine.length > 0 && !changed && !failed) {
     await send(chatId, notLine[0], threadId).catch(() => {});
   }

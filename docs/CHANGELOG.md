@@ -1,5 +1,21 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.5
+
+- **The settings card opens the thing it names.** A row like «Модель» runs
+  `/model`, whose answer is a card with buttons. The press handler kept only the
+  text of whatever the command answered, so the model card arrived as a plain
+  message: it named the current model and gave no way to change it — the settings
+  screen could describe the install but not edit it. A card-shaped answer is now
+  sent under the settings card with its keyboard, in the topic it was asked in,
+  and a plain answer still comes as one line. `/fallback`, `/permissions`,
+  `/preset` and `/cd` sit behind the same door and open the same way.
+- **The last thought of a turn reaches the card.** The progress card re-reads the
+  decision trail every three seconds, so a line written in the final seconds —
+  "the result is checked", the one that says how the turn ended — landed between
+  two ticks and never appeared at all. The card now reads the trail once more
+  before it is finished, and only while `/thoughts` is not off.
+
 ## 1.38.4
 
 - **A rewind button no longer answers "undefined".** `answerRewindPress()` was

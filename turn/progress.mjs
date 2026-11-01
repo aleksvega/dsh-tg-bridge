@@ -371,6 +371,21 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     async finish(result) {
       clearTimeout(timer);
       clearInterval(thoughtTimer);
+      // One last read before the card is finished. A thought written in the last
+      // seconds of a turn — "the result is checked", usually, the line that matters
+      // most — used to land between two ticks of the loop above and never reach the
+      // card at all. The trail is written until the turn ends, so the last read has
+      // to happen at the end too.
+      if (reasoningMode(state, config, panelKey) !== 'off') {
+        try {
+          const rows = thoughtRows([notes, topicNotes], started);
+          const merged = rows.slice(-2).map((row) => row.text);
+          if (merged.join('\n') !== thoughts.join('\n')) thoughts = merged;
+        } catch {
+          // An unreadable file leaves the last known lines in place: the card is
+          // worth more than an empty promise of a trail.
+        }
+      }
       if (result?.stopped) {
         // The person pressed Стоп. The card says so in their words, not with a
         // ⚠️ and not with a retry button: nothing failed, and the session is
