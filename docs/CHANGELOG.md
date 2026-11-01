@@ -1,5 +1,41 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.2
+
+- **A turn that ends without an answer asks once more instead of apologising.**
+  Reported from a live topic, with the log to prove it: `turn ok … 994s
+  tools=39`, then `reasoning echo suppressed … (3252 chars)`, then `sent …
+  len=96`. The turn did the work; the CLI reported the model's own notes as the
+  final text; the bridge refused to forward a page of thinking — correctly — and
+  sent only the apology, so nearly seventeen minutes of work ended in a sentence
+  that said nothing. The work was still in the session, so `chat/reply-guard.mjs`
+  now asks once more in that same session with `REPLY_NUDGE` and sends the real
+  answer when it arrives. The apology stays for the case where the second attempt
+  also comes back as notes, because silence is worse than either.
+- **A leaked thinking block no longer reaches the chat.** Some routes stream
+  reasoning into the text channel, so the reply arrives as
+  `<thinkingAll done. Now the final answer. …` — a string the reasoning block
+  does not contain, which is why the guard missed exactly its target case:
+  `reasoning.includes(answer)` was false by one marker. `stripThinkingBlocks()`
+  now runs before the comparison: a closed `<thinking>…</thinking>` block is
+  dropped whole, a stray or unclosed marker is removed and the rest kept, and the
+  final send strips it too, so a real reply with a leaked marker keeps its text
+  without showing the marker.
+- **The `/model` endpoint step reaches its models even when Telegram refuses the
+  edit.** Tapping an endpoint was handled — `model press md:!p:unorouter` in the
+  log — and the screen still did not change, because `redraw()` ended in
+  `.catch(() => {})`: the one failure that matters was the one failure that said
+  nothing. The refusal is now logged, and the card is sent as a new message so
+  step two is reachable either way. Both halves are pinned by tests: the router
+  that a real tap goes through must translate, redraw and claim, and a refused
+  redraw must still produce a keyboard.
+- **Command reading moved out of the message handler.** `handle-message.mjs` had
+  grown past its 500-line ceiling, and the block it was carrying — mapping a
+  collapsed head like `/apprestart.confirm` onto `/app restart confirm` — is
+  command knowledge, not the business of one-message-becomes-one-turn. It is
+  `commandParts()` in `chat/commands.mjs` now, with the reply guard in
+  `chat/reply-guard.mjs`.
+
 ## 1.38.1
 
 - **Speech runs before the first `init`.** `chat/media.mjs` spawned the local

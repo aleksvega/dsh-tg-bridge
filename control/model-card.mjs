@@ -379,7 +379,21 @@ export function modelPressRouter({ chatId, threadId, messageId, key, lang, answe
           text: card.text,
           reply_markup: { inline_keyboard: card.keyboard },
           ...(threadId > 0 ? { message_thread_id: threadId } : {}),
-        }).catch(() => {}),
+        }).catch(async (error) => {
+          // A refused edit used to be swallowed, which is how "the endpoint tap
+          // does nothing" survived a release: the press was handled, the log said
+          // so, and the screen never changed. Say why, then draw the card as a
+          // new message so the step the person asked for is still reachable.
+          log(`model card redraw failed for ${key} (${data}): ${error.message}`);
+          await tgFast('sendMessage', {
+            chat_id: chatId,
+            text: card.text,
+            reply_markup: { inline_keyboard: card.keyboard },
+            ...(threadId > 0 ? { message_thread_id: threadId } : {}),
+          }).catch((sendError) => {
+            log(`model card resend failed for ${key}: ${sendError.message}`);
+          });
+        }),
     }).then((claimed) => {
       if (claimed) log(`model press ${data} for ${key}`);
       return claimed;

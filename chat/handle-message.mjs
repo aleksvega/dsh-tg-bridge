@@ -5,7 +5,7 @@
 // topic's session, profile, request and progress panel fit together. Everything
 // it calls lives in a module of its own.
 
-import { GENERAL_SAFE, commandOf } from './commands.mjs';
+import { commandParts, GENERAL_SAFE } from './commands.mjs';
 import { CONTROL_COMMANDS, handleControl, modelOf } from './control.mjs';
 import { reasoningMode } from './notes.mjs';
 import { explainFailure } from '../turn/failures.mjs';
@@ -17,7 +17,7 @@ import { holdIfLoaded } from '../work/load-guard.mjs';
 import { guardOf } from '../core/machine.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
-import { looksLikeReasoning } from './panel.mjs';
+import { replyText } from './reply-guard.mjs';
 import { QUIET_MS, quietGuard } from './quiet-guard.mjs';
 import { DIR, GOAL_CMD, THOUGHT_DIR } from '../core/paths.mjs';
 import { renderPrices } from '../model/prices.mjs';
@@ -173,34 +173,12 @@ export async function handleMessage(msg, album = null) {
     }
   }
 
-  const space = text.indexOf(' ');
-  const head = space === -1 ? text : text.slice(0, space);
-  const command = commandOf(head);
-  const arg = space === -1 ? '' : text.slice(space + 1).trim();
-
-  // `/apprestart.confirm` (no space) is a real way to mistype the service
-  // command and used to fall through to a full AI turn. Map the collapsed
-  // forms onto the canonical command + argument instead.
-  //
-  // Heads are matched WITHOUT their punctuation, so `/apprestart.confirm` and
-  // `/app-restart-confirm` both arrive here as "apprestartconfirm".
-  const collapsed = command.replace(/^\//, '').replace(/[.-]+/g, '');
-  const known = new Set(CONTROL_COMMANDS);
-  let effective = known.has(collapsed) ? `/${collapsed}` : '';
-  let effectiveArg = arg;
-  if (collapsed === 'apprestart' || collapsed === 'apprestartconfirm') {
-    effective = '/app';
-    // The dotted/solid form already says "restart", so confirm is the only
-    // missing word: `/apprestart.confirm` must mean `/app restart confirm`.
-    effectiveArg = arg || 'restart confirm';
-  } else if (collapsed === 'restartconfirm') {
-    effective = '/restart';
-    effectiveArg = arg || 'confirm';
-  }
+  // Command knowledge lives in `commands.mjs`: a collapsed head like
+  // `/apprestart.confirm` must reach the control command, never the model.
+  const { head, command, effective, effectiveArg } = commandParts(text, CONTROL_COMMANDS);
   if (effective && effective !== command) {
     log(`command alias: ${head} -> ${effective} ${effectiveArg}`);
   }
-  if (effectiveArg === 'restartconfirm' || effectiveArg === 'restart.confirm') effectiveArg = 'restart confirm';
 
   // General is the lobby: a prompt written there runs in the most recently active
   // topic so one project stays in one place. A command that CHANGES things must
@@ -380,7 +358,10 @@ ${t(lang, 'help.body')}`,
     log,
     onSession: (id) => liveSessions.set(key, id),
   });
-  const attempt = turnAttempt(text, key, { onEvent, onAbort: () => killTurn(key), env: thoughtEnv, profile: turnProfile || profileOf(key), cwd, lang });
+  // One options object for every attempt on this message, so the retries below
+  // cannot drift from the first call — the bug that made 1.30.0 fail everywhere.
+  const turnOptions = { onEvent, onAbort: () => killTurn(key), env: thoughtEnv, profile: turnProfile || profileOf(key), cwd, lang };
+  const attempt = turnAttempt(text, key, turnOptions);
   let result = await attempt(sessionAtStart);
   if (result.error && /unknown id|not found|не найдена|was recorded in/i.test(result.error) && sessionAtStart) {
     delete state.sessions[key];
@@ -479,15 +460,23 @@ ${t(lang, 'help.body')}`,
   // An answered turn proves this release works, and makes it the version a later
   // rollback returns to.
   await noteTurn(state, { saveState });
-  // A turn that ends without an answer hands back its last assistant text —
-  // the reasoning — and sending that looks exactly like the bot answering with
-  // its own notes. Say what happened instead of forwarding the page.
-  if (looksLikeReasoning(result.text, progress.reasoning())) {
-    log(`reasoning echo suppressed for ${where} (${String(result.text).length} chars)`);
+  // A turn that ends without an answer hands back its last assistant text — the
+  // reasoning. `reply-guard.mjs` decides what the chat sees: one more ask, the
+  // honest sentence when that fails too, and never a page of the model's notes.
+  const reply = await replyText({
+    result,
+    reasoning: () => progress.reasoning(),
+    key,
+    turnOptions,
+    sessionId: sessionAtStart,
+    where,
+    log,
+  });
+  if (reply.echoed) {
     await send(chatId, t(lang, 'bridge.progress.reasoningOnly'), threadId);
     return;
   }
-  await send(chatId, result.text || t(lang, 'bridge.progress.emptyReply'), threadId);
+  await send(chatId, reply.text || t(lang, 'bridge.progress.emptyReply'), threadId);
   // A refusal explains the turn that just ended, so it goes after the answer.
   await reportRefusals({
     refusals,

@@ -343,6 +343,44 @@ test('the router a real tap goes through can translate, redraw and claim', async
   }
 });
 
+test('a refused redraw still shows the next step, and says why', async () => {
+  // The second half of the same lesson. `redraw` swallowed its error, so when
+  // Telegram refused the edit the person pressed an endpoint and the screen
+  // simply did not change — the press was logged as handled, which made it look
+  // like the card worked. The card must reach step two either way.
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const method = String(url).split('/').pop();
+    calls.push({ method, body: JSON.parse(init.body) });
+    if (method === 'editMessageText') {
+      return { json: async () => ({ ok: false, description: 'Bad Request: message to edit not found' }) };
+    }
+    return { json: async () => ({ ok: true, result: { message_id: 99 } }) };
+  };
+  try {
+    const logs = [];
+    const router = modelPressRouter({
+      chatId: 1,
+      threadId: 7,
+      messageId: 42,
+      key: '1:7',
+      lang: 'ru',
+      answer: async () => {},
+      log: (line) => logs.push(line),
+    });
+    const provider = routesOf(PROFILE)[0].provider;
+    assert.equal(await router(`md:!p:${provider}`), true);
+    const sent = calls.find((call) => call.method === 'sendMessage');
+    assert.ok(sent, 'the card is sent as a new message when the edit is refused');
+    assert.ok(sent.body.reply_markup.inline_keyboard.length > 0, 'and it carries the step-two buttons');
+    assert.ok(!/ctrl\.model\./.test(sent.body.text), `the resent card leaked an i18n key: ${sent.body.text}`);
+    assert.ok(logs.some((line) => /redraw failed/.test(line)), `the refusal is logged: ${JSON.stringify(logs)}`);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 test('a profile with no models says so instead of showing an empty keyboard', () => {
   const dir = join(HOME, 'profiles', 'bare');
   mkdirSync(dir, { recursive: true });

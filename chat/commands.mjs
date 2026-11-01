@@ -66,6 +66,38 @@ export function immediateCommandOf(text) {
 }
 
 /**
+ * Split a message into its command and argument, including the collapsed forms.
+ *
+ * `/apprestart.confirm` (no space) is a real way to mistype the service command
+ * and used to fall through to a full AI turn. Heads are matched WITHOUT their
+ * punctuation, so `/apprestart.confirm` and `/app-restart-confirm` both arrive
+ * as `apprestartconfirm`, and the dotted form already says "restart" — the only
+ * missing word is `confirm`.
+ *
+ * Pure, and moved here from the message handler: what a head means is command
+ * knowledge, not the business of one-message-becomes-one-turn.
+ */
+export function commandParts(text, known) {
+  const space = String(text).indexOf(' ');
+  const head = space === -1 ? String(text) : String(text).slice(0, space);
+  const command = commandOf(head);
+  const arg = space === -1 ? '' : String(text).slice(space + 1).trim();
+  const collapsed = command.replace(/^\//, '').replace(/[.-]+/g, '');
+  const set = known instanceof Set ? known : new Set(known);
+  let effective = set.has(collapsed) ? `/${collapsed}` : '';
+  let effectiveArg = arg;
+  if (collapsed === 'apprestart' || collapsed === 'apprestartconfirm') {
+    effective = '/app';
+    effectiveArg = arg || 'restart confirm';
+  } else if (collapsed === 'restartconfirm') {
+    effective = '/restart';
+    effectiveArg = arg || 'confirm';
+  }
+  if (effectiveArg === 'restartconfirm' || effectiveArg === 'restart.confirm') effectiveArg = 'restart confirm';
+  return { head, command, arg, collapsed, effective, effectiveArg };
+}
+
+/**
  * Language for a chat and topic.
  *
  * Extracting the formatting helpers into `format.mjs` took this function with

@@ -23,6 +23,14 @@ cost) are read from a log rather than from the message.
 3. **A block that cannot be measured is not drawn.** An unknown cost is not
    `$0.00`; an unknown balance is not a zero.
 
+## Priority
+
+This change runs **after** the P0 work in `2026-11-01-stability-first` and after
+the approvals wiring in `2026-11-01-desktop-parity`: a panel that reports a turn
+nobody can trust is decoration. Within the change, the card comes before the
+panel — the card is one message at the end, the panel is a throttled editor
+during the turn and carries the rate-limit risk.
+
 ## Non-goals
 
 - No chart, no history, no per-tool breakdown.

@@ -32,6 +32,25 @@ function tailOf(text, room) {
 }
 
 /**
+ * Remove the model's own thinking markers from a reply.
+ *
+ * Some routes stream reasoning into the text channel, and the marker survives
+ * into the answer: a reply begins with a literal `<thinking` and continues with
+ * the model's notes (`<thinkingAll done. Now the final answer.`). Two shapes are
+ * handled — a closed `<thinking>…</thinking>` block, and the unclosed marker the
+ * routes actually emit, where only the marker itself can be removed because the
+ * end of the notes is not knowable from the text alone. The comparison against
+ * the panel's reasoning decides what remains.
+ */
+export function stripThinkingBlocks(text) {
+  return String(text ?? '')
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, ' ')
+    .replace(/<\/?think(?:ing)?>/gi, ' ')
+    .replace(/^\s*<think(?:ing)?/i, ' ')
+    .trim();
+}
+
+/**
  * Is this "answer" the reasoning the panel already holds?
  *
  * The headless CLI's `final` event is supposed to carry the turn's answer, but a
@@ -40,14 +59,36 @@ function tailOf(text, room) {
  * person reads it as "the bot answers with its own notes". Matching is on
  * whitespace-normalised text, and the answer must be long enough that a one-word
  * reply cannot be swallowed by coincidence.
+ *
+ * The marker is stripped first: a leaked `<thinking…` prefix made the answer a
+ * string the reasoning does not contain, so the guard missed exactly the case it
+ * exists for.
  */
 export function looksLikeReasoning(answer, thinking) {
   const norm = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-  const said = norm(answer);
+  const raw = norm(answer);
+  const said = norm(stripThinkingBlocks(answer));
   const thought = norm(thinking);
-  if (!said || !thought || said.length < 120) return false;
+  if (!thought || raw.length < 120) return false;
+  // A reply that is nothing but a thinking marker carries no answer.
+  if (!said) return /<think(?:ing)?/i.test(raw);
+  if (said.length < 120) return false;
   return thought.includes(said) || (said.includes(thought) && thought.length > said.length * 0.6);
 }
+
+/**
+ * What to ask a model that answered with its notes instead of a reply.
+ *
+ * Sent as one more message in the same session: the work it did is still in
+ * context, so the second attempt is cheap and usually lands. It is a prompt, not
+ * chat copy, so it lives here and not in the locale tables.
+ */
+export const REPLY_NUDGE = [
+  'You sent your reasoning instead of the answer. The person is waiting.',
+  'Answer now: the result of the work you just did, in the language of the',
+  'conversation, as a finished reply. Do not narrate the plan, do not think out',
+  'loud, and do not repeat the reasoning.',
+].join(' ');
 
 /**
  * One line for a tool call in the panel.
