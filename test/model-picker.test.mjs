@@ -332,6 +332,19 @@ test('the router a real tap goes through can translate, redraw and claim', async
     assert.ok(edit, 'the card is redrawn in place');
     assert.ok(edit.body.text && !/ctrl\.model\./.test(edit.body.text), `the redraw leaked an i18n key: ${edit.body.text}`);
     assert.ok(edit.body.reply_markup.inline_keyboard.length > 0, 'and it keeps its buttons');
+    // The assertion whose absence shipped the bug: inside this module a button
+    // carries its payload as `data`, and Telegram refuses a button that has text
+    // and no `callback_data` — "Text buttons are not allowed in the inline
+    // keyboard" — rejecting the whole edit. Drawing the card locally proved
+    // nothing; only the shape that goes on the wire does.
+    for (const [r, row] of edit.body.reply_markup.inline_keyboard.entries()) {
+      for (const [b, button] of row.entries()) {
+        assert.ok(button.text, `row ${r} button ${b} has no text`);
+        assert.ok(button.callback_data, `row ${r} button ${b} ("${button.text}") is sent without callback_data`);
+        assert.ok(Buffer.byteLength(button.callback_data) <= 64, `row ${r} button ${b} payload exceeds 64 bytes`);
+        assert.equal(button.data, undefined, `row ${r} button ${b} still carries the internal "data" field`);
+      }
+    }
     assert.ok(answers.length > 0, 'the tap is acknowledged, so the spinner stops');
     assert.equal(logs.length, 1, `a claimed press is logged once: ${JSON.stringify(logs)}`);
     assert.match(logs[0], /md:@all/);
@@ -374,6 +387,11 @@ test('a refused redraw still shows the next step, and says why', async () => {
     const sent = calls.find((call) => call.method === 'sendMessage');
     assert.ok(sent, 'the card is sent as a new message when the edit is refused');
     assert.ok(sent.body.reply_markup.inline_keyboard.length > 0, 'and it carries the step-two buttons');
+    // A re-send that carries the same bad shape fails for the same reason the
+    // edit did, so the fallback is only worth having if its buttons are valid.
+    for (const row of sent.body.reply_markup.inline_keyboard) {
+      for (const button of row) assert.ok(button.callback_data, `resent button "${button.text}" has no callback_data`);
+    }
     assert.ok(!/ctrl\.model\./.test(sent.body.text), `the resent card leaked an i18n key: ${sent.body.text}`);
     assert.ok(logs.some((line) => /redraw failed/.test(line)), `the refusal is logged: ${JSON.stringify(logs)}`);
   } finally {

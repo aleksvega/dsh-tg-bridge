@@ -23,7 +23,7 @@ import { saveState, state } from '../core/state.mjs';
 // missing binding here survived a green suite while every real tap died with
 // "t is not defined": the router is the only caller that has to supply it.
 import { t } from '../core/i18n.mjs';
-import { send, tg, tgFast } from '../chat/telegram.mjs';
+import { inlineKeyboard, send, tg, tgFast } from '../chat/telegram.mjs';
 
 export const MODEL_PREFIX = 'md:';
 /** Step one: the endpoint list. `md:!p` on its own asks for it again. */
@@ -372,12 +372,19 @@ export function modelPressRouter({ chatId, threadId, messageId, key, lang, answe
       t,
       say: async (text) => send(chatId, text, threadId),
       answer,
-      redraw: (card) =>
-        tgFast('editMessageText', {
+      redraw: (card) => {
+        // `card.keyboard` is this module's own shape: `{ text, data }`. Telegram
+        // knows only `callback_data`, and a button with `text` and no
+        // `callback_data` is refused with "Text buttons are not allowed in the
+        // inline keyboard" — the whole edit, not just that button. Sending the
+        // internal shape is why every endpoint tap since 1.19 left the card on
+        // step one. Convert, and never hand Telegram the raw rows.
+        const keyboard = inlineKeyboard(card.keyboard);
+        return tgFast('editMessageText', {
           chat_id: chatId,
           message_id: messageId,
           text: card.text,
-          reply_markup: { inline_keyboard: card.keyboard },
+          reply_markup: { inline_keyboard: keyboard },
           ...(threadId > 0 ? { message_thread_id: threadId } : {}),
         }).catch(async (error) => {
           // A refused edit used to be swallowed, which is how "the endpoint tap
@@ -388,12 +395,13 @@ export function modelPressRouter({ chatId, threadId, messageId, key, lang, answe
           await tgFast('sendMessage', {
             chat_id: chatId,
             text: card.text,
-            reply_markup: { inline_keyboard: card.keyboard },
+            reply_markup: { inline_keyboard: keyboard },
             ...(threadId > 0 ? { message_thread_id: threadId } : {}),
           }).catch((sendError) => {
             log(`model card resend failed for ${key}: ${sendError.message}`);
           });
-        }),
+        });
+      },
     }).then((claimed) => {
       if (claimed) log(`model press ${data} for ${key}`);
       return claimed;

@@ -1,5 +1,27 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.3
+
+- **The `/model` endpoint tap now reaches the model list.** The report was always
+  the same: tap an endpoint, nothing happens, the card stays on step one, and
+  there is no way to test a turn on another model without asking an agent to do
+  it by hand. The cause was one field name. `modelCard()` builds buttons as
+  `{ text, data }` — this module's own shape — and the redraw sent
+  `card.keyboard` straight to Telegram, which knows only `callback_data` and
+  rejects a button that has text and no payload with `can't parse
+  InlineKeyboardButton: Text buttons are not allowed in the inline keyboard`.
+  That rejects the whole edit, so the second step was built, sent, and refused
+  every time since the two-step card shipped. The redraw now converts with the
+  same `inlineKeyboard()` every other keyboard uses, and the re-send fallback
+  gets the converted rows too — a fallback carrying the bad shape fails for the
+  same reason the edit did.
+- **The test asserts the wire shape, not the local one.** Twenty-five green tests
+  covered this card and none of them caught it, because they checked that the
+  keyboard had rows after building it in memory, where `data` is correct. The
+  press test now walks every button of the edit and of the re-sent message and
+  requires `callback_data`, at most 64 bytes, and no leftover `data` field — the
+  three things Telegram checks before it will draw anything.
+
 ## 1.38.2
 
 - **A turn that ends without an answer asks once more instead of apologising.**
