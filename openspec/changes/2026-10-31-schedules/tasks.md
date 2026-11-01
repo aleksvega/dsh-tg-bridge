@@ -41,4 +41,4 @@
 - [ ] 3.4 A test that the tick does not run twice for one row when two ticks
   overlap (the claim is synchronous, the delivery is not). Today the claim is
   asserted, the overlap is not.
-- [ ] 3.5 Release 1.37.0 with the CHANGELOG entry already written.
+- [x] 3.5 Release 1.37.0 with the CHANGELOG entry already written.

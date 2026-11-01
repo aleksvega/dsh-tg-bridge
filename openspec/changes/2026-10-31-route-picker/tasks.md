@@ -43,4 +43,4 @@
 - [ ] 2.3 Extend the `unresolved-calls` guard to shorthand references, so the
   missing-import class is caught by governance rather than by a card's own test.
   Belongs to the acceptance-bar change; tracked there.
-- [ ] 2.4 Release 1.37.1 with the CHANGELOG entry already written.
+- [x] 2.4 Release 1.37.1 with the CHANGELOG entry already written.

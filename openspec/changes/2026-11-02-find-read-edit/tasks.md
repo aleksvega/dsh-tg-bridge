@@ -1,0 +1,59 @@
+# Tasks — find, read and edit
+
+Ordered so each step is testable alone. Every string gets three locales in the
+commit that adds it.
+
+## 0. Ground
+
+- [ ] 0.1 One path fence shared by all three commands: resolve, refuse outside the
+      workspace, refuse a binary and a file over the size cap, with the reason in
+      the message. Test: three refusals, one accept.
+- [ ] 0.2 A walk with a bound (depth, entries, milliseconds) that returns what it
+      reached and says it stopped. Test: a tree larger than the bound returns
+      `stopped` and still renders.
+- [ ] 0.3 `test/file-fence.test.mjs` covers 0.1 and 0.2 before any card exists.
+
+## 1. Browse
+
+- [ ] 1.1 `control/cmd-ls.mjs`: `/ls [path]` lists folders first, then files, both
+      as buttons; a page holds twenty and says how many remain.
+- [ ] 1.2 A folder button opens that folder on the same message; a file button
+      opens a preview on a new message with the first forty lines.
+- [ ] 1.3 A **more** button on a preview extends it by forty lines, until the end.
+- [ ] 1.4 `ls:` router with its own tests: a stale button, a missing path, a path
+      that became a file since the card was drawn.
+- [ ] 1.5 Three locales.
+
+## 2. Search
+
+- [ ] 2.1 `control/cmd-find.mjs`: `/find <text> [path]` walks the workspace, matches
+      a literal string, returns `path:line: text`, capped at twenty rows.
+- [ ] 2.2 A result is a button that opens the file at that line, through 1.2.
+- [ ] 2.3 No match is one sentence; more than the cap says how many were found.
+- [ ] 2.4 A file the fence refuses is skipped silently, and the answer says how many
+      files were skipped.
+- [ ] 2.5 `test/find.test.mjs`: one match, no match, a match inside a skipped file,
+      a query with a regex character in it that must not be treated as one.
+- [ ] 2.6 Three locales.
+
+## 3. Edit
+
+- [ ] 3.1 `control/cmd-edit.mjs`: `/edit <path>` then two messages — old text, new
+      text — collected by the same pending-question seam the approval card uses.
+- [ ] 3.2 An exact replacement that matches once shows a diff preview with the hunk
+      and two buttons: **Применить**, **Отмена**.
+- [ ] 3.3 A replacement matching zero or several times is refused with the count and
+      the file left untouched.
+- [ ] 3.4 The write records a revert entry for the hunk, so `/diff` can undo it.
+- [ ] 3.5 `ed:` router with its own tests: apply, cancel, ambiguous, stale press, a
+      file changed between preview and confirm.
+- [ ] 3.6 Three locales.
+
+## 4. Finish
+
+- [ ] 4.1 Suite green with `DSH_HOME` unset; no new dependency; no module over 500
+      lines; every command in the registry and in `/help`.
+- [ ] 4.2 Measured on the live bot: a folder of forty entries, a search with one hit
+      and one with none, an edit applied and then reverted from `/diff`.
+- [ ] 4.3 CHANGELOG names the three commands and their limits (bounded walk, no
+      binary, workspace fence).

@@ -52,6 +52,50 @@ all of it.
 | 6 | Inline hints | `-commands` | 4 | Needs @BotFather inline mode, so it is the only surface with an external dependency. |
 | 7 | Plugin settings read-back | `-settings-*` | 12 | The largest and least certain; a switch that cannot be read back is worse than no screen. |
 
+### Revised order, 2026-11-02
+
+The table above ranks the three surfaces this change was opened for. The wider
+order below was set on 2026-11-02 and absorbs the three gaps found that day,
+which are specified in `2026-11-02-find-read-edit` and `2026-11-02-mcp-control`
+rather than in a second roadmap. Tiers, not one list: a P0 defect makes the chat
+misreport what happened, and every surface below it is read through that lie.
+
+**P0 — the chat must not misreport a turn**
+
+| # | Work | Where | Hours | Why first |
+|---|---|---|---|---|
+| 1 | Approvals actually fire | `stability-first` 1.3 | 5 | `requestApproval` (`turn/queue.mjs:198`) and the `ap:` route exist; nothing calls them, so a turn that needs permission stalls silently. |
+| 2 | Voice 401 is a refusal, not an attempt | topic task 46 | 2 | A local engine answering 401 spends the attempt and then reports a generic failure. |
+| 3 | The dead `progressMode` key | topic task 56 | 0.5 | A config key with no reader is a promise the file makes and the code breaks. |
+| 4 | Live proof of the `/model` endpoint tap | topic task 55 | 0.2 | One press after a restart; the wire shape is already asserted by a test. |
+
+**P1 — see what the turn is doing**
+
+| # | Work | Where | Hours | Why here |
+|---|---|---|---|---|
+| 5 | Turn card with chosen blocks | `2026-11-01-turn-insight` | 6 | The answer is readable today; the facts around it are one dense line. |
+| 6 | Subagent panel | `2026-11-01-turn-insight` | 5 | A delegated run is invisible from the chat. |
+| 7 | Plan mode as a mode | this change, §1 | 8 | `/plan` only reports state, so "show me the plan first" is prose. |
+
+**P2 — reach the work without the desktop**
+
+| # | Work | Where | Hours | Why here |
+|---|---|---|---|---|
+| 8 | `/find` over sessions and the project | `2026-11-02-find-read-edit` | 6 | `/sessions` lists; nothing searches. |
+| 9 | `/ls` browse and read a file | `2026-11-02-find-read-edit` | 6 | `-sidebar-files` equivalent; `/send` presumes a known path. |
+| 10 | Edit a file from the chat | `2026-11-02-find-read-edit` | 5 | `/diff` can revert a hunk; nothing can change a line. |
+| 11 | MCP servers from the chat | `2026-11-02-mcp-control` | 8 | The repo has no MCP surface at all. |
+
+**P3 — blocked outside the repo, or large and uncertain**
+
+| # | Work | Where | Hours | Why last |
+|---|---|---|---|---|
+| 12 | Inline hints | this change, §3 | 4 | Needs @BotFather inline mode — the only external dependency. |
+| 13 | Plugin settings read-back | this change, §2 | 12 | Largest and least certain; a switch that cannot be read back is worse than no screen. |
+| 14 | Plugin entry under a live DSH | topic task 50 | 4 | Needs a scratch profile and a real host; start, stop and `bridge.pid` are unit-tested. |
+| 15 | Mid-turn questions | this change table, #4 | 6 | Same seam as approvals; only worth building once approvals demonstrably fire. |
+| 16 | Terminal | this change table, #5 | 10 | The largest security surface in the list. |
+
 **Considered and out of scope**, with the reason:
 
 - **Browser tabs** (`-sidebar-browser`) — no webview in Telegram, and the agent's
