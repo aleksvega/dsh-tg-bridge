@@ -205,6 +205,8 @@ export default {
   'menu.lang': 'Язык интерфейса: en, ru, zh',
   'msg.voiceDownloadFailed': 'Не смог скачать голосовое: {err}',
   'msg.voiceNotRecognized': 'Не распознал голосовое{detail}',
+  'msg.voiceRefused': 'Движок распознавания отказал (код {status}) — ключ не принят. Проверьте voice.apiKey или voice.apiKeyEnv.',
+  'msg.voiceRefusedRest': 'Остальные голосовые из этой пачки не отправлял: ответ движка был бы тот же.',
   'msg.voiceOff': '🎤 Расшифровка голоса здесь не настроена. В `voice` подойдёт любой движок: локальный скрипт (`voice.python` + `voice.script`), любая CLI (`voice.command` + `voice.args`) или OpenAI-совместимый API (`voice.baseUrl` + `voice.model` + ключ). Готовые блоки — в docs/VOICE.md.',
   'prompt.photo': 'Посмотри изображение по пути {path} и подробно опиши, что на нём: текст (дословно, с сохранением языка), элементы интерфейса, объекты.',
   'prompt.file': 'Пользователь прислал файл: {path} ({type}, {size} байт).',

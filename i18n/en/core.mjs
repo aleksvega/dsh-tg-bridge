@@ -205,6 +205,8 @@ export default {
   'menu.lang': 'Interface language: en, ru, zh',
   'msg.voiceDownloadFailed': 'Could not download the voice message: {err}',
   'msg.voiceNotRecognized': 'Could not make out the voice message{detail}',
+  'msg.voiceRefused': 'The speech engine refused the request (status {status}) — the key was not accepted. Check voice.apiKey or voice.apiKeyEnv.',
+  'msg.voiceRefusedRest': 'The rest of the clips in this batch were not sent: the engine would answer the same way.',
   'msg.voiceOff': '🎤 Voice transcription is not set up here. `voice` takes any engine: a local script (`voice.python` + `voice.script`), any CLI (`voice.command` + `voice.args`), or an OpenAI-compatible API (`voice.baseUrl` + `voice.model` + a key). Ready-made blocks are in docs/VOICE.md.',
   'prompt.photo': 'Look at the image at {path} and describe it in detail: text (verbatim, keeping its language), interface elements, objects.',
   'prompt.file': 'The user sent a file: {path} ({type}, {size} bytes).',

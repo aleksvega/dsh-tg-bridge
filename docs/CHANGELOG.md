@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.6
+
+- **A refused key is no longer reported as an unrecognised voice message.** A
+  speech engine answering 401 or 404 says the same thing on every attempt, but
+  the chat got «Не распознал голосовое» — the same sentence a mumbled clip gets —
+  and the batch sent every clip through the same doomed request. The transcript
+  result now carries `fatal` and the status: a refused key, a model the server
+  does not have, a rejected request, a missing key, a broken `voice.cwd` or a
+  non-absolute `voice.python` all stop the batch at the first clip and say which
+  setting to fix. Load is left retryable, because 429 and 5xx do change their
+  mind: those keep the old line, with the status in it.
+- **The rest of a batch is counted, not sent.** One refusal explained, the
+  remaining clips are skipped and one line at the end says how many were left
+  out — previously each clip cost a download and printed the identical warning.
+
 ## 1.38.5
 
 - **The settings card opens the thing it names.** A row like «Модель» runs

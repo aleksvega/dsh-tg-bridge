@@ -205,6 +205,8 @@ export default {
   'menu.lang': '界面语言：en、ru、zh',
   'msg.voiceDownloadFailed': '语音下载失败：{err}',
   'msg.voiceNotRecognized': '没能识别这条语音{detail}',
+  'msg.voiceRefused': '语音引擎拒绝了请求（状态码 {status}）——密钥未被接受。请检查 voice.apiKey 或 voice.apiKeyEnv。',
+  'msg.voiceRefusedRest': '这批里其余语音没有发送：引擎的答复会一样。',
   'msg.voiceOff': '🎤 这里还没有配置语音转写。`voice` 可以接任意引擎：本地脚本（`voice.python` + `voice.script`）、任意命令行（`voice.command` + `voice.args`），或 OpenAI 兼容接口（`voice.baseUrl` + `voice.model` + 密钥）。现成配置见 docs/VOICE.md。',
   'prompt.photo': '查看路径 {path} 的图片并详细描述：文字（逐字，保留原语言）、界面元素、物体。',
   'prompt.file': '用户发来文件：{path}（{type}，{size} 字节）。',

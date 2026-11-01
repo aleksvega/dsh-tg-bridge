@@ -54,7 +54,20 @@ export function transcribe(file, voice = {}) {
   const provider = voiceProvider(voice);
   if (provider === 'openai') return transcribeHttp(file, voice);
   if (provider === 'script' || provider === 'command') return transcribeLocal(file, voice, provider === 'script');
-  return Promise.resolve({ text: '', error: 'no speech backend: set voice.provider to script, command or openai' });
+  return Promise.resolve({ text: '', error: 'no speech backend: set voice.provider to script, command or openai', fatal: true });
+}
+
+/**
+ * Is another attempt pointless?
+ *
+ * A refused key, a model the server does not have and a rejected request answer
+ * the same way on the tenth try, and every try costs a download and, in a batch
+ * of clips, a separate failure line in the chat. Load is the opposite: 429 and
+ * 5xx are worth the retry, and so is a timeout that named no status at all.
+ */
+export function voiceRefused(status) {
+  const code = Number(status);
+  return code === 400 || code === 401 || code === 403 || code === 404;
 }
 
 /**
@@ -65,12 +78,12 @@ async function transcribeHttp(file, voice) {
   const base = String(voice.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const key = voice.apiKey || process.env[voice.apiKeyEnv || ''] || '';
   // The message goes into the chat, so it names the setting, never the value.
-  if (!key) return { text: '', error: `no key for ${base}: set voice.apiKey or voice.apiKeyEnv` };
+  if (!key) return { text: '', error: `no key for ${base}: set voice.apiKey or voice.apiKeyEnv`, fatal: true };
   let audio;
   try {
     audio = readFileSync(file);
   } catch (error) {
-    return { text: '', error: `cannot read the audio: ${error.code || error.message}` };
+    return { text: '', error: `cannot read the audio: ${error.code || error.message}`, fatal: true };
   }
   const form = new FormData();
   form.set('file', new Blob([audio]), basename(file));
@@ -93,7 +106,7 @@ async function transcribeHttp(file, voice) {
     // Some providers put a readable reason in the body ("model not found", "bad
     // key"); keep it short and log it without the key or the audio.
     log(`voice http ${res.status} from ${base}: ${raw.slice(0, 200)}`);
-    return { text: '', error: `the speech endpoint answered ${res.status}` };
+    return { text: '', error: `the speech endpoint answered ${res.status}`, status: res.status, fatal: voiceRefused(res.status) };
   }
   let text = '';
   try {
@@ -116,7 +129,7 @@ function transcribeLocal(file, voice, useScript) {
   // way to install it, and it is not an interpreter that will run our script.
   if (useScript && (!isAbsolute(command) || !isAbsolute(voice.script))) {
     log(`voice: python=${command} script=${voice.script} — both must be absolute`);
-    return Promise.resolve({ text: '', error: 'voice.python and voice.script must be absolute paths' });
+    return Promise.resolve({ text: '', error: 'voice.python and voice.script must be absolute paths', fatal: true });
   }
   const cwd = voice.cwd || (existsSync(DIR) ? DIR : tmpdir());
   // `DIR` is the live install, and it exists on every machine that finished
@@ -128,7 +141,7 @@ function transcribeLocal(file, voice, useScript) {
   // than the setting that is actually wrong.
   if (voice.cwd && !(existsSync(cwd) && statSync(cwd).isDirectory())) {
     log(`voice: cwd=${cwd} is not a directory`);
-    return Promise.resolve({ text: '', error: 'voice.cwd is not a directory' });
+    return Promise.resolve({ text: '', error: 'voice.cwd is not a directory', fatal: true });
   }
   // `{out}` is a temp path the engine may write to: whisper.cpp is not the only
   // program people run — Vosk, WhisperX, GigaAM wrappers and plain ffmpeg chains
@@ -257,22 +270,33 @@ export async function readVoiceIntoText(msg, chatId, threadId, lang) {
   };
   let heard = '';
   let error = '';
+  let fatal = false;
+  let status = 0;
   try {
-    ({ text: heard, error } = await voiceToText(msg, config.voice));
+    const got = await voiceToText(msg, config.voice);
+    heard = got.text;
+    error = got.error;
+    fatal = Boolean(got.fatal);
+    status = Number(got.status) || 0;
   } catch (err) {
     const fail = t(lang, 'msg.voiceDownloadFailed', { err: err.message });
     await editOrSend(`⚠️ ${fail}`, fail);
-    return '';
+    return { text: '', fatal: false };
   }
   if (!heard) {
-    const fail = t(lang, 'msg.voiceNotRecognized', { detail: error ? `: ${error}` : '' });
+    // A refused key is not a misheard word: "не распознал голосовое" would send
+    // the person to re-record something the engine never listened to, and the
+    // fix is in `voice.apiKey`, which the refusal line names.
+    const fail = fatal && status
+      ? t(lang, 'msg.voiceRefused', { status })
+      : t(lang, 'msg.voiceNotRecognized', { detail: error ? `: ${error}` : '' });
     await editOrSend(`⚠️ ${fail}`, fail);
-    return '';
+    return { text: '', fatal };
   }
   log(`voice -> text len=${heard.length}${error ? ` (warn: ${error})` : ''}`);
   const preview = heard.length > 1200 ? `${heard.slice(0, 1200)}…` : heard;
   if (statusId || config.voice?.echo !== false) await editOrSend(`🎤 ${preview}`, `🎤 ${preview}`);
-  return heard;
+  return { text: heard, fatal: false };
 }
 
 /**
@@ -314,6 +338,12 @@ export async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   // saw the bot ignore them, and nothing said the engine was missing. Once per
   // batch is enough — an album of clips must not repeat the same line.
   let voiceTold = false;
+  // A refused key or a model the engine does not have answers the same way for
+  // every clip in the batch. Sending the next one would cost another download
+  // and print an identical warning, so the rest are counted, not sent, and one
+  // line at the end says so.
+  let voiceRefused = false;
+  let voiceSkipped = 0;
   for (const msg of list) {
     if (!caption && (msg.caption || '').trim()) caption = msg.caption.trim();
     if (msg.voice || msg.audio) {
@@ -325,15 +355,19 @@ export async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
         }
         continue;
       }
+      if (voiceRefused) { voiceSkipped += 1; continue; }
       const heard = await readVoiceIntoText(msg, chatId, threadId, lang);
-      if (heard) parts.push(voicePromptText(heard, lang));
+      if (heard.fatal) { voiceRefused = true; continue; }
+      if (heard.text) parts.push(voicePromptText(heard.text, lang));
       continue;
     }
     // An audio file sent as a document is a voice note with a different
     // wrapper: transcribe it instead of handing over a path nobody can listen to.
     if (msg.document?.mime_type?.startsWith('audio/') && voiceOn) {
+      if (voiceRefused) { voiceSkipped += 1; continue; }
       const heard = await readVoiceIntoText({ ...msg, audio: msg.document }, chatId, threadId, lang);
-      if (heard) parts.push(voicePromptText(heard, lang));
+      if (heard.fatal) { voiceRefused = true; continue; }
+      if (heard.text) parts.push(voicePromptText(heard.text, lang));
       continue;
     }
     // Photo handling: the turn's own model reads the file through `read_image`.
@@ -392,6 +426,9 @@ export async function mediaPrompt(msgs, chatId, threadId, lang, opts = {}) {
   const liveNow = opts.stillRunning ? opts.stillRunning() : true;
   if (text && photo && opts.steer && liveNow) text += `\n\n${t(lang, 'prompt.photoMidTurn')}`;
   if (text && caption) text += `\n\n${t(lang, 'prompt.note', { note: caption })}`;
+  // Said once, after the batch: the first clip already explained the refusal,
+  // and silence about the rest would look like they were ignored.
+  if (voiceSkipped) await send(chatId, t(lang, 'msg.voiceRefusedRest'), threadId);
   return { text, extraArgs, profile };
 }
 
