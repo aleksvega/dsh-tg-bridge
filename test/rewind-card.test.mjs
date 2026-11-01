@@ -132,3 +132,46 @@ test('a session with no turns gets a usage card with no buttons', () => {
   const { keyboard } = renderRewindUsage({ t: (k, v) => t('en', k, v), file, sessionId: SESSION });
   assert.deepEqual(keyboard, []);
 });
+
+/** A press context over one session file, the way the bridge wires it. */
+function pressCtx(file) {
+  return {
+    sessionId: SESSION,
+    busy: false,
+    cut: (steps) => cutSession(file, steps, () => {
+      const plan = requirePlan(file, steps);
+      return rewindApi.applyRewind(file, plan.offset, plan.size);
+    }),
+    undo: () => ({ error: 'nothing' }),
+  };
+}
+
+test('a "back N" button from the usage card cuts, it does not cancel', () => {
+  // The usage card's quick picks carry `rw:n:<steps>`, and the cancel button
+  // carries `rw:n::`. Reading the verb alone made every quick pick a cancel, so
+  // "back 2" did nothing at all — the bug behind "/rewind нажал и ничего".
+  const { file } = writeSession(THREE);
+  const tr = (k, v) => t('en', k, v);
+  const usage = renderRewindUsage({ t: tr, file, sessionId: SESSION });
+  const backTwo = usage.keyboard[0][1].callback_data;
+  assert.equal(backTwo, 'rw:n:2:abcd1234');
+  const said = answerRewindPress(backTwo, { t: tr, ctx: pressCtx(file), used: new Set() });
+  assert.match(said, /Went back 2 turn/);
+  assert.deepEqual(allTurns(file).map((turn) => turn.turn), [1]);
+});
+
+test('a press never answers with the word "undefined"', () => {
+  // What a person actually saw: the helper was handed the unbound `t`, which read
+  // the key as a language and returned String(undefined). Both a missing
+  // translation and a wrong binding must leave a readable line, never that word.
+  const { file, tr, cancel, ctx } = rig();
+  for (const line of [
+    answerRewindPress(cancel.callback_data, { t: tr, ctx: ctx() }),
+    answerRewindPress(cancel.callback_data, { t: () => undefined, ctx: ctx() }),
+    answerRewindPress('rw:zzz', { t: () => undefined, ctx: pressCtx(file) }),
+  ]) {
+    assert.equal(typeof line, 'string');
+    assert.notEqual(line, 'undefined');
+    assert.ok(line.length > 0);
+  }
+});

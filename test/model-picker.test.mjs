@@ -537,6 +537,19 @@ test('step one opens one endpoint, and back returns to the list', async () => {
   assert.match(press.answers[1], /Step 1/);
 });
 
+test('choosing a model for this topic is acknowledged, so the spinner stops', async () => {
+  // Telegram keeps the spinner on a button for 45 seconds and then reports that
+  // the tap never answered. This branch switched the route and said so in a
+  // message, but never acknowledged the press: on 2026-11-01 at 17:34 the log
+  // read "nothing answered in 45s" for exactly this tap, and the person read the
+  // late confirmation as the answer to the press they had already made.
+  const press = cardPress('md:unorouter:deepseek-v4.1-flash');
+  assert.equal(await press.call(), true);
+  assert.equal(press.answers.length, 1, 'one acknowledgement');
+  assert.match(press.answers[0], /unorouter\/deepseek-v4\.1-flash/, 'and it names the route that took');
+  assert.equal(press.live.route['1:7'].model, 'deepseek-v4.1-flash', 'the topic really moved');
+});
+
 test('the scope toggle keeps the endpoint it was pressed on', async () => {
   const press = cardPress('md:!s:all:wikivibe');
   assert.equal(await press.call(), true);

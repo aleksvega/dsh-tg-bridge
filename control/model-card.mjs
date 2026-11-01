@@ -344,6 +344,12 @@ export async function handleModelPress({
   // "route → x" would read as a change to the whole install.
   const now = topicRoute({ state: live, key });
   const head = modelOf(profile);
+  // Acknowledge before speaking: without it Telegram keeps the spinner on the
+  // button for 45 seconds and then reports that the tap never answered — which is
+  // how a switch that worked was shown to a person as a failure. Every other
+  // branch of this function answered; this one did not. The toast carries the
+  // chosen route, because that is the one fact checked right after the tap.
+  await answer(`${now.provider}/${now.model}`);
   await say(t(lang, 'ctrl.model.topicSet', {
     route: `${now.provider}/${now.model}`,
     default: `${head.provider}/${head.model}`,

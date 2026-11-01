@@ -147,12 +147,30 @@ export async function sendWithMarkup(chatId, threadId, text, extra = {}) {
       ...thread,
     }).catch(() => {});
   }
-  if (extra.keyboard) {
+  // A card may also hand its buttons over ready-made, under Telegram's own field
+  // name: `/load` (control/cmd-load.mjs), the held-turn notice (work/load-guard.mjs)
+  // and the sandbox notice (chat/handle-message.mjs) all pass
+  // `{ reply_markup: { inline_keyboard: rows } }`. Only `extra.keyboard` used to be
+  // read, so those three took the plain-send path and their buttons were never
+  // drawn — `/load` is a card whose whole point is its two buttons, and the sandbox
+  // notice tells a person to open /permissions with a button that did not exist.
+  // What arrives is this repo's `{ text, data }` vocabulary as often as a finished
+  // Telegram button, so both shapes go through the same conversion.
+  const rows = extra.keyboard || extra.reply_markup?.inline_keyboard;
+  if (rows) {
+    const keyboard = inlineKeyboard(rows);
+    if (keyboard.length === 0) {
+      // Every button was a label with no payload. Sending the empty keyboard would
+      // hide that; the text still has to arrive, and the log has to say why the
+      // card came without buttons.
+      log('inline keyboard had no usable buttons; sending without buttons');
+      return send(chatId, text, threadId);
+    }
     return tg('sendMessage', {
       chat_id: chatId,
       text,
       disable_web_page_preview: true,
-      reply_markup: { inline_keyboard: inlineKeyboard(extra.keyboard) },
+      reply_markup: { inline_keyboard: keyboard },
       ...thread,
     }).catch((error) => {
       // Silence here cost a release: the card never appeared and the log said

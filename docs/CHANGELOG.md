@@ -1,5 +1,35 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.4
+
+- **A rewind button no longer answers "undefined".** `answerRewindPress()` was
+  handed the unbound `t`, and it calls `t(key, vars)` with one argument, so the
+  i18n read the key as a language and returned `String(undefined)` — every press
+  on the card replaced it with the single word *undefined*, in every language.
+  The caller now binds the topic's language, and the helper itself falls back to
+  the key when a translation is missing, so a caller's binding mistake stays
+  visible instead of becoming a message.
+- **"Back N" on the usage card cuts; it no longer only cancels.** Both buttons
+  carried the verb `n`: the quick pick as `rw:n:<steps>`, the cancel as `rw:n::`.
+  The handler read the verb alone, so `/rewind` followed by "back 2" cancelled
+  and removed nothing — the one path the feature exists for. A step count now
+  decides: `rw:n:<n>` cuts, `rw:n::` cancels, and both take the same one-use
+  ticket, so a double tap still cannot cut twice.
+- **Picking a model for one topic acknowledges the press.** That branch switched
+  the route, wrote the state and sent its confirmation, but never answered the
+  callback, so Telegram kept the spinner for 45 seconds and then reported that
+  the tap never answered — a switch that worked, shown as a failure, with the
+  confirmation arriving after the person had already pressed something else. The
+  toast now carries the route that took, before the confirmation text.
+- **Three cards stop losing their buttons on the way out.** `/load`
+  (control/cmd-load.mjs), the held-turn notice (work/load-guard.mjs) and the
+  sandbox notice (chat/handle-message.mjs) hand their markup over as
+  `reply_markup`, and `sendWithMarkup()` read only `extra.keyboard` — so the
+  `/load` card arrived without its refresh and guard buttons, and the sandbox
+  notice told a person to open `/permissions` with a button that was never drawn.
+  Both shapes now go through the same conversion, and a keyboard with nothing
+  pressable is logged and sent without buttons instead of arriving empty.
+
 ## 1.38.3
 
 - **The `/model` endpoint tap now reaches the model list.** The report was always

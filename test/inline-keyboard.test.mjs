@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { LANGS, t } from '../core/i18n.mjs';
 import { renderPanel, MENU_GROUPS } from '../chat/menu-card.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
-import { inlineKeyboard } from '../chat/telegram.mjs';
+import { inlineKeyboard, sendWithMarkup } from '../chat/telegram.mjs';
 
 const tr = (lang) => (key, vars) => t(lang, key, vars);
 const flat = (rows) => (Array.isArray(rows) ? rows.flat() : []);
@@ -91,4 +91,53 @@ test('the cards keep their own vocabulary — the conversion lives at the edge',
     assert.equal(button.callback_data, undefined);
     assert.equal(typeof button.data, 'string');
   }
+});
+
+/** Capture what the transport puts on the wire, then put fetch back. */
+async function wire(run) {
+  const sent = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    sent.push({ method: String(url).split('/').pop(), body: JSON.parse(init.body) });
+    return { json: async () => ({ ok: true, result: { message_id: 1 } }) };
+  };
+  try {
+    await run();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  return sent;
+}
+
+test('a card that hands its buttons over as reply_markup still gets buttons', async () => {
+  // The second way a keyboard went missing. `/load` (control/cmd-load.mjs), the
+  // held-turn notice (work/load-guard.mjs) and the sandbox notice
+  // (chat/handle-message.mjs) all pass `{ reply_markup: { inline_keyboard } }`,
+  // and `sendWithMarkup` read only `extra.keyboard`, so the key was ignored and
+  // each of those messages left without buttons: a card whose whole point is its
+  // two buttons, and a notice telling a person to open /permissions with a button
+  // that was never drawn.
+  const sent = await wire(() => sendWithMarkup(1, 7, 'load', {
+    reply_markup: { inline_keyboard: [[{ text: 'refresh', data: 'ld:r' }]] },
+  }));
+  assert.equal(sent.length, 1, 'one message, no retry');
+  assert.equal(sent[0].method, 'sendMessage');
+  assert.equal(sent[0].body.message_thread_id, 7, 'and it stays in its topic');
+  assert.deepEqual(sent[0].body.reply_markup.inline_keyboard, [[{ text: 'refresh', callback_data: 'ld:r' }]]);
+  telegramAcceptable(sent[0].body.reply_markup.inline_keyboard);
+});
+
+test('a finished button handed over as reply_markup passes through untouched', async () => {
+  const sent = await wire(() => sendWithMarkup(1, 7, 'notice', {
+    reply_markup: { inline_keyboard: [[{ text: 'permissions', callback_data: 'mn:permissions' }]] },
+  }));
+  assert.deepEqual(sent[0].body.reply_markup.inline_keyboard, [[{ text: 'permissions', callback_data: 'mn:permissions' }]]);
+});
+
+test('a keyboard with nothing pressable is reported, not sent empty', async () => {
+  const sent = await wire(() => sendWithMarkup(1, 7, 'guard', {
+    reply_markup: { inline_keyboard: [[{ text: 'label only' }]] },
+  }));
+  assert.equal(sent.length, 1, 'the text still arrives');
+  assert.equal(sent[0].body.reply_markup, undefined, 'and it arrives without an empty keyboard');
 });

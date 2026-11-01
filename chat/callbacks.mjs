@@ -109,7 +109,11 @@ export async function handleCallback(query) {
     const line = answerRewindPress(data, {
       used: rewindUsed,
       lang,
-      t,
+      // Bound, not the raw `t`: this helper calls `t(key, vars)` with one
+      // argument, so the unbound import read the key as a language and returned
+      // the string "undefined" — which is what every rewind button answered on
+      // 2026-11-01 until the binding was fixed here.
+      t: (k, vars) => t(lang, k, vars),
       ctx: {
         sessionId,
         busy: activeTurns.has(key),

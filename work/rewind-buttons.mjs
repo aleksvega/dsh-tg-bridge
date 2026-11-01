@@ -35,34 +35,48 @@ export function cutSession(file, steps, applyRewind) {
  * changes nothing and says why.
  */
 export function answerRewindPress(data, { t, ctx, used = new Set() }) {
+  // A missing translation must never reach a chat as the word "undefined": the
+  // helper used to be handed the unbound `t`, so `t('ctrl.rewind.cancelled')` read
+  // the key as a language and returned String(undefined) — which is what every
+  // rewind button said on 2026-11-01. Unknown keys now fall back to the key, which
+  // is ugly but true, and a caller's binding mistake stays visible instead of
+  // becoming a message.
+  const say = (k, vars) => {
+    const line = t(k, vars);
+    return typeof line === 'string' && line && line !== 'undefined' ? line : k;
+  };
   const match = REWIND_CALLBACK.exec(String(data || ''));
-  if (!match) return t('ctrl.rewind.stale');
+  if (!match) return say('ctrl.rewind.stale');
   const [, verb, rawSteps, tail] = match;
   const steps = rawSteps ? Number.parseInt(rawSteps, 10) : 0;
-  if (!ctx.sessionId || !ctx.sessionId.endsWith(tail)) return t('ctrl.rewind.stale');
-  if (ctx.busy) return t('ctrl.rewind.busy');
+  if (!ctx.sessionId || !ctx.sessionId.endsWith(tail)) return say('ctrl.rewind.stale');
+  if (ctx.busy) return say('ctrl.rewind.busy');
   // A card is used once. Without this a double tap on "go back 2" cuts four
   // turns, and the second cut has no card left to undo it from.
-  if (verb === 'y' && used.has(data)) return t('ctrl.rewind.stale');
-  if (verb === 'y') used.add(data);
+  // `rw:n:<steps>` is the usage card's "back N" quick pick — the same cut, one
+  // tap. Only `rw:n::` with no number is the cancel button. Reading the verb
+  // alone made those two the same press, so "back 2" could only ever cancel.
+  const cuts = verb === 'y' || (verb === 'n' && steps > 0);
+  if (cuts && used.has(data)) return say('ctrl.rewind.stale');
+  if (cuts) used.add(data);
 
-  if (verb === 'n') return t('ctrl.rewind.cancelled');
+  if (verb === 'n' && !steps) return say('ctrl.rewind.cancelled');
   if (verb === 'u') {
     const done = ctx.undo();
-    if (done.error === 'nothing') return t('ctrl.rewind.nothing');
-    return done.error ? t('ctrl.rewind.failed', { error: done.error }) : t('ctrl.rewind.undone');
+    if (done.error === 'nothing') return say('ctrl.rewind.nothing');
+    return done.error ? say('ctrl.rewind.failed', { error: done.error }) : say('ctrl.rewind.undone');
   }
-  if (!steps) return t('ctrl.rewind.stale');
+  if (!steps) return say('ctrl.rewind.stale');
 
   const done = ctx.cut(steps);
   if (done.error) {
     const why = REFUSALS.includes(done.error)
-      ? t(`ctrl.rewind.refused.${done.error}`, { total: done.plan?.total ?? 0, dropped: steps })
+      ? say(`ctrl.rewind.refused.${done.error}`, { total: done.plan?.total ?? 0, dropped: steps })
       : done.error;
-    return t('ctrl.rewind.failed', { error: why });
+    return say('ctrl.rewind.failed', { error: why });
   }
   // The card becomes one line with no buttons: the turns it offered are gone.
   const kept = done.plan ? done.plan.kept : 0;
-  if (kept > 0) return t('ctrl.rewind.done', { n: steps, turn: kept, backup: done.backup });
-  return t('ctrl.rewind.done.alias', { n: steps, turn: 0 });
+  if (kept > 0) return say('ctrl.rewind.done', { n: steps, turn: kept, backup: done.backup });
+  return say('ctrl.rewind.done.alias', { n: steps, turn: 0 });
 }
