@@ -10,14 +10,24 @@
   interrupted turn that was months old. `test/supervision.test.mjs` runs the real
   tick against a temp home whose `bridge.pid` names the test process: an 11-minute
   marker goes away with one line, a fresh one stays.
-- [ ] 0.2 Start lock: an exclusive file taken before spawn; a second tick inside
+- [x] 0.2 Start lock: an exclusive file taken before spawn; a second tick inside
   the window exits. Test: two ticks 100 ms apart → one spawn.
-  → Half true, and the half that is missing is the one that matters. The lock is
-  taken before spawn and released on exit (`acquireLock`, shared with `setup.mjs`,
-  with a three-minute staleness takeover). But the window ends when the tick
-  exits, which is before the child has written its pid file — so a tick 100 ms
-  later can still start a second bridge. Closing it means holding the lock until
-  the pid file appears, and that needs a test with a deliberately slow stub.
+  → The lock was taken before spawn but released when the tick exited, which is
+  before the child writes its pid file. The tick now waits for that file (at most
+  eight seconds) before it returns, so the lock covers the gap. The wait is
+  `core/start-guard.mjs`, injectable and unit-tested: it stops at once when the
+  child died and at the deadline otherwise.
+  The end-to-end test starts two ticks 150 ms apart against a stub bridge that
+  takes 600 ms to write its pid: exactly one start, and the second tick logs
+  "restart in progress". Two honest limits. On Windows the process scan is a
+  second line of defence, so this test passes even with the wait removed — the
+  scan would have caught the live stub. On Linux and macOS the scan returns
+  nothing by design, and there the test is the only thing standing between the
+  gap and a second poller; it is reason, not a measurement, that says it fails
+  without the fix on those platforms.
+  Also fixed while there: the scan matched ANY node process running `bridge.mjs`,
+  so a second profile under another `DSH_HOME` made a dead pid file here look
+  healthy. It now matches this install's `BRIDGE` path.
 - [x] 0.3 Rollback cooldown persisted and at least twice the tick interval. Test:
   two ticks inside the cooldown → one restore, one message.
   → `startupRolledBackAt` in state; "the supervisor does not repeat a rollback it
@@ -92,8 +102,9 @@
   dependency. (950 tests at the last run.)
 - [ ] 4.2 Each P0 has a test that fails on the previous revision (checked by
   reverting the fix locally).
-  → Three of the four fixes above have one. 0.4 does not, and 0.2 has none because
-  it is not fixed.
+  → Three of the four fixes above have one. 0.4 does not — spawning the real
+  bridge claims the pid file and talks to Telegram — and 0.2's end-to-end test
+  does not discriminate on Windows, as noted there.
 - [ ] 4.3 Three locales for every new string.
   → Done for everything added so far (`supervision.mjs` in all three).
 - [ ] 4.4 A release notes every behaviour change and its limit; the migration is

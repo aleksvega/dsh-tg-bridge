@@ -19,6 +19,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, openSync, closeSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { awaitPid } from './core/start-guard.mjs';
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 const DIR = join(DSH_HOME, 'tg-bridge');
@@ -45,6 +46,10 @@ const LOCK = join(DIR, 'restart.lock');
 const LOCK_MAX_AGE_MS = 180_000;
 // A restart marker older than this is a leftover, not a restart in progress.
 const MARKER_MAX_AGE_MS = 600_000;
+// How long a tick keeps the lock after spawning, waiting for the child's pid
+// file. Long enough for a cold start to get there, short enough that a wedged
+// child cannot hold the supervisor's lock.
+const START_WAIT_MS = 8_000;
 
 function acquireLock(owner) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -136,8 +141,15 @@ function alive(pid) {
 }
 
 function bridgePids() {
+  // PowerShell is a Windows tool: on macOS and Linux this scan has never found
+  // anything, so say so instead of spawning a missing binary and timing out.
+  if (process.platform !== 'win32') return [];
+  // Match THIS install's bridge, not any bridge on the machine: a second profile
+  // under another DSH_HOME would otherwise make a stale pid file here look
+  // healthy, and the tick would refuse to start the bridge that is actually gone.
+  const literal = BRIDGE.replace(/'/g, "''");
   const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command',
-    "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'bridge\\.mjs' } | Select-Object -ExpandProperty ProcessId"],
+    `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${literal}') } | Select-Object -ExpandProperty ProcessId`],
     { encoding: 'utf8', windowsHide: true, timeout: 20000 });
   return (r.stdout || '').split(/\r?\n/).map((v) => Number(v.trim())).filter((v) => Number.isInteger(v) && v > 0);
 }
@@ -273,6 +285,12 @@ async function main() {
   child.unref();
   if (!restored) writeStarts([...readStarts(), Date.now()]);
   log(`start issued pid=${child.pid ?? '?'}`);
+  // Hold the lock until the child has written its pid file, or for a few
+  // seconds at most. Without this the tick exits — and releases the lock —
+  // before the bridge is visible, and a tick that lands in that gap starts a
+  // second poller. Two bridges on one token is the 409 storm this lock exists
+  // to prevent.
+  await awaitPid({ readPid: pidFromFile, isAlive: alive, childPid: child.pid, limit: START_WAIT_MS });
   return 0;
 }
 

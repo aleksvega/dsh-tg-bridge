@@ -7,12 +7,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, utimesSync, existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describeAge, supervisionRows } from '../control/doctor-rows.mjs';
+import { awaitPid } from '../core/start-guard.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -118,4 +119,74 @@ test('a corrupt state.json is kept as .bad, logged, and does not stop the bridge
   }
   assert.equal(readFileSync(join(dir, 'state.json.bad'), 'utf8'), '{"sessions": {', 'the file that broke is the evidence');
   assert.match(readFileSync(join(dir, 'bridge.log'), 'utf8'), /state unreadable: .*kept as state\.json\.bad/);
+});
+
+// ------------------------------------------------------- two ticks, one bridge
+
+test('the wait ends when a pid appears, when the child dies, or at the deadline', async () => {
+  const calls = [];
+  const sleep = async (ms) => calls.push(ms);
+  let clock = 0;
+  const now = () => clock;
+
+  // The pid shows up on the third look: true, and it did wait for it.
+  const seen = [0, 0, 4242];
+  let look = 0;
+  assert.equal(await awaitPid({
+    readPid: () => seen[Math.min(look++, seen.length - 1)],
+    isAlive: () => true,
+    childPid: 7,
+    limit: 10_000,
+    sleep,
+    now,
+  }), true);
+
+  // A child that exited will never write one: stop at once, do not burn the
+  // whole deadline on a bridge that is already gone.
+  calls.length = 0;
+  clock = 0;
+  assert.equal(await awaitPid({
+    readPid: () => 0,
+    isAlive: (pid) => pid !== 7,
+    childPid: 7,
+    limit: 10_000,
+    sleep: async () => { clock += 100; },
+    now,
+  }), false);
+  assert.equal(clock, 0, 'a dead child is known before the first sleep');
+});
+
+test('two ticks a moment apart start exactly one bridge', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-race-'));
+  const dir = join(home, 'tg-bridge');
+  mkdirSync(dir, { recursive: true });
+  // A stub bridge that takes 600 ms to write its pid, which is the window the
+  // second tick used to fall into. It records every start, so a double start is
+  // visible as two lines rather than inferred from a log message.
+  writeFileSync(join(dir, 'bridge.mjs'), [
+    "import { appendFileSync, writeFileSync } from 'node:fs';",
+    "appendFileSync(new URL('./spawns.log', import.meta.url), `${process.pid}\\n`);",
+    'await new Promise((resolve) => setTimeout(resolve, 600));',
+    "writeFileSync(new URL('./bridge.pid', import.meta.url), String(process.pid));",
+    '',
+  ].join('\n'), 'utf8');
+
+  const env = { ...process.env, DSH_HOME: home };
+  const first = spawn(process.execPath, [join(ROOT, 'bridge-kick.mjs')], { env, stdio: 'ignore', windowsHide: true });
+  const firstDone = new Promise((resolve) => first.on('exit', resolve));
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  // Blocking on purpose: the second tick must run while the first still holds
+  // the lock, which is the situation the lock exists for.
+  const second = tick(home);
+  await firstDone;
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
+
+  const spawns = existsSync(join(dir, 'spawns.log'))
+    ? readFileSync(join(dir, 'spawns.log'), 'utf8').trim().split(/\r?\n/).filter(Boolean)
+    : [];
+  assert.equal(spawns.length, 1, `two ticks started ${spawns.length} bridges`);
+  assert.equal(second.status, 0, second.stderr);
+  const log = readFileSync(join(dir, 'kick.log'), 'utf8');
+  assert.match(log, /restart in progress .*skipping this tick/, 'the second tick must back off, not race');
+  assert.match(log, /start issued pid=/);
 });
