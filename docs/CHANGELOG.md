@@ -1,5 +1,12 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.41.2
+
+- **An empty note file is removed when its turn ends.** Every turn creates a
+  per-turn thought file; a turn that wrote no note left it at 0 bytes, and one
+  real folder had 269 of them out of 285. The card is finished before the unlink
+  runs, so nothing reads the file afterwards, and a file with a line is kept.
+
 ## 1.41.1
 
 - **A note cannot land in General while its turn is elsewhere.** `say.mjs
