@@ -1,5 +1,23 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.40.0
+
+- **`/find <text> [path]` — where a string lives in this project.** The chat could
+  send a file and show a diff, but not answer "which file has this line", the
+  question that sends a person back to their desk. The search is literal, so a
+  query with `.`, `*`, `(` or `\` searches for those characters instead of
+  throwing; it is bounded by files, milliseconds and depth, and says when the
+  walk stopped. Twenty rows come back as buttons, with the total and a hint how to
+  narrow; a file that is binary or over 512 KB is skipped and counted, never read.
+  Pressing a row opens the file at the matched line, marked `▶`, with a **more**
+  button that pages forty lines at a time.
+- **One fence for every file the chat touches** (`lib/file-fence.mjs`): a path
+  outside the topic folder is refused with the folder named, a file is opened only
+  when it is plausibly text and under the cap, and the walk skips `.git`,
+  `node_modules` and their kind. `/ls` and `/edit` will read through the same
+  fence, so the rule cannot drift between three commands.
+- `lib/` joins the published files; the fence is imported by shipped modules.
+
 ## 1.39.1
 
 - **A subagent is visible in the card as one honest line.** The headless stream

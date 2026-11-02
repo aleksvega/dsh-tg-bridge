@@ -312,13 +312,14 @@ Send the bot:
 | `/help` | commands grouped by category |
 | `/cd my-app` | topic bound to the project, and the sandbox narrowed to it |
 | `/diff [stat]` | what the turn changed, one hunk at a time: every hunk has "explain" and "revert this hunk"; a stale button is refused |
+| `/find <text> [path]` | where a literal string lives in the topic's folder: matches as buttons that open the file at the matched line; binary and oversized files are skipped and counted |
 | `/report` | a redacted bundle (version, profile, preset, model, cwd, last failure, log tail) sent to the owner as a document; in a group, the path only |
 | `/prices` | what the current model costs, and whose price that is: your provider's, the same model on another gateway, or "no public price" when nobody publishes one |
 
 ## Commands
 
 ```
-Work:         /cd · /new · /stop · /send · /seed · /diff
+Work:         /cd · /new · /stop · /send · /seed · /diff · /find <text> [path]
 Goals:        /goal (plan + checklist) · /goal reopen · /tasks (checklist only) · /tasks done|rm|edit <n>
 Sessions:     /status · /sessions · /sessions <id> · /rewind [n|undo|fork [n]|branches]
 Agents:       /agents · /agents <id> · /agents set model|depth|filter

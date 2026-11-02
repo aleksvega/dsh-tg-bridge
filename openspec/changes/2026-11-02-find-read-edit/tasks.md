@@ -5,13 +5,13 @@ commit that adds it.
 
 ## 0. Ground
 
-- [ ] 0.1 One path fence shared by all three commands: resolve, refuse outside the
+- [x] 0.1 One path fence shared by all three commands: resolve, refuse outside the
       workspace, refuse a binary and a file over the size cap, with the reason in
       the message. Test: three refusals, one accept.
-- [ ] 0.2 A walk with a bound (depth, entries, milliseconds) that returns what it
+- [x] 0.2 A walk with a bound (depth, entries, milliseconds) that returns what it
       reached and says it stopped. Test: a tree larger than the bound returns
       `stopped` and still renders.
-- [ ] 0.3 `test/file-fence.test.mjs` covers 0.1 and 0.2 before any card exists.
+- [x] 0.3 `test/file-fence.test.mjs` covers 0.1 and 0.2 before any card exists.
 
 ## 1. Browse
 
@@ -26,15 +26,15 @@ commit that adds it.
 
 ## 2. Search
 
-- [ ] 2.1 `control/cmd-find.mjs`: `/find <text> [path]` walks the workspace, matches
+- [x] 2.1 `control/cmd-find.mjs`: `/find <text> [path]` walks the workspace, matches
       a literal string, returns `path:line: text`, capped at twenty rows.
-- [ ] 2.2 A result is a button that opens the file at that line, through 1.2.
-- [ ] 2.3 No match is one sentence; more than the cap says how many were found.
-- [ ] 2.4 A file the fence refuses is skipped silently, and the answer says how many
+- [x] 2.2 A result is a button that opens the file at that line, through 1.2.
+- [x] 2.3 No match is one sentence; more than the cap says how many were found.
+- [x] 2.4 A file the fence refuses is skipped silently, and the answer says how many
       files were skipped.
-- [ ] 2.5 `test/find.test.mjs`: one match, no match, a match inside a skipped file,
+- [x] 2.5 `test/find.test.mjs`: one match, no match, a match inside a skipped file,
       a query with a regex character in it that must not be treated as one.
-- [ ] 2.6 Three locales.
+- [x] 2.6 Three locales.
 
 ## 3. Edit
 
@@ -57,3 +57,9 @@ commit that adds it.
       and one with none, an edit applied and then reverted from `/diff`.
 - [ ] 4.3 CHANGELOG names the three commands and their limits (bounded walk, no
       binary, workspace fence).
+## 5. Done so far
+
+- 1.40.0 ships 0.x and 2.x: the fence (lib/file-fence.mjs), the bounded walk,
+  /find, and the s: press that opens a file at the matched line with a **more**
+  button. /ls (1.x) and /edit (3.x) are next; the task numbers above stay
+  open until they land.
