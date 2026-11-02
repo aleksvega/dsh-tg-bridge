@@ -15,6 +15,8 @@ import { t } from '../core/i18n.mjs';
 import { turnArgs } from '../core/cli-args.mjs';
 import { turnOutcome } from './turn-outcome.mjs';
 import { routeProfile } from '../control/topic-route.mjs';
+import { clearActive, markActive } from './active.mjs';
+import { linkSession } from './workspace-link.mjs';
 
 /** Turns currently running, keyed like sessions — `/stop` kills one. */
 export const activeTurns = new Map();
@@ -86,6 +88,20 @@ export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [
       windowsHide: true,
     });
     if (key) activeTurns.set(key, child);
+    // A shell that lost the bridge's env still has to place its 💭 line: the
+    // marker names this turn by folder, and `say.mjs` reads it. Written after
+    // the spawn so the pid is real, and cleared on both exits below.
+    const markerPid = child.pid;
+    if (markerPid && key) {
+      markActive({
+        pid: markerPid,
+        key,
+        chatId: String(key).split(':')[0],
+        threadId: String(key).split(':')[1] || '0',
+        cwd: cwd && existsSync(cwd) ? cwd : config.cwd,
+        thought: env.DSH_TG_THOUGHT || '',
+      });
+    }
     let stdout = '';
     let stderr = '';
     let sid = sessionId || '';
@@ -128,6 +144,7 @@ export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [
     child.on('error', (error) => {
       clearTimeout(timer);
       if (key) activeTurns.delete(key);
+      if (markerPid) clearActive(markerPid);
       const hint = error?.code === 'ENOENT'
         ? t(lang, 'bridge.error.noApp', { path: launch.exe })
         : t(lang, 'bridge.error.spawn', { msg: error?.message || String(error) });
@@ -137,6 +154,7 @@ export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [
     child.on('close', (code) => {
       clearTimeout(timer);
       if (key) activeTurns.delete(key);
+      if (markerPid) clearActive(markerPid);
       // No live process means no agent to steer; a job written now would wait
       // for the next turn instead of the current one.
       if (key) liveSessions.delete(key);
@@ -153,6 +171,18 @@ export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [
         finalText,
         lang,
       });
+      // The sidebar groups by a membership list, and a headless turn never
+      // writes to it: the session works and looks homeless. Naming it is a
+      // bookkeeping line, so a refusal here is logged and the turn still ends.
+      if (sid) {
+        try {
+          const linked = linkSession({ sessionId: sid, cwd: cwd && existsSync(cwd) ? cwd : config.cwd });
+          if (linked === 'linked') log(`workspace: session ${sid} added to the group for this folder`);
+          else if (linked === 'no-workspace') log(`workspace: no single group claims ${cwd}; session ${sid} stays ungrouped`);
+        } catch (error) {
+          log(`workspace link failed: ${String(error?.message ?? error).slice(0, 120)}`);
+        }
+      }
       resolve({ sessionId: sid, text: outcome.text, error: outcome.error, stopped: outcome.stopped });
     });
   });

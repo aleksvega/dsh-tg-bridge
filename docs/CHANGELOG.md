@@ -1,5 +1,24 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.39.0
+
+- **A Telegram session now appears under its folder in the desktop sidebar**
+  (issue #3). The sidebar groups by a membership list — `workspace.json` →
+  `tables.workspaces[<id>].sessionIds` — and only the web host or a one-time
+  migration ever wrote to it, so a headless turn produced a session that worked
+  and looked homeless. After a turn the bridge adds that session id to the
+  workspace whose `path` is the turn's folder: once, idempotently, atomically
+  (temp file plus rename, so a host holding the file never reads half of it), and
+  only when the id is absent everywhere. A folder no single workspace claims is a
+  refusal, logged and left alone — the wrong group is worse than "Ungrouped",
+  because it claims the session ran somewhere it never did.
+- **A 💭 line finds its turn without the environment** (follow-up to 1.38.8). The
+  bridge now writes one marker per running turn — pid, topic, folder, note file —
+  and `say.mjs` reads it when the shell inherited nothing: a turn running in this
+  folder is a fact, so no guessing is involved. Zero or two live turns in one
+  folder is still a refusal, for the reason the guessing was removed in the first
+  place.
+
 ## 1.38.8
 
 - **A 💭 line is no longer lost when the sandbox forbids the write.** A turn that

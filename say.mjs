@@ -19,7 +19,7 @@
 //
 // With `--steer` the chat/thread come from the job file and an ack marker is
 // written, which suppresses the bridge's fallback line.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -86,6 +86,53 @@ function activeThoughtFile() {
 }
 
 /**
+ * The turn running in this very folder, from the marker the bridge writes.
+ *
+ * The second source after the environment, and still a fact rather than a guess:
+ * markers are matched by the shell's own `cwd`, and two live turns in one folder
+ * is an answer we do not give — the same rule that keeps a lost shell from
+ * posting into a stranger's topic.
+ */
+function activeMarker() {
+  try {
+    const dir = join(DSH_HOME, 'tg-bridge', 'active');
+    const want = process.cwd().toLowerCase();
+    const hits = [];
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith('.json')) continue;
+      try {
+        const record = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+        if (!record?.chatId) continue;
+        if (String(record.cwd || '').toLowerCase() !== want) continue;
+        if (!alive(record.pid)) continue;
+        hits.push(record);
+      } catch {}
+    }
+    const [only] = hits;
+    if (hits.length !== 1 || !only) return null;
+    return {
+      chatId: Number(only.chatId),
+      threadId: Number(only.threadId) || 0,
+      thought: String(only.thought || ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Is that pid still running? EPERM means it exists and belongs to someone else. */
+function alive(pid) {
+  const id = Number(pid);
+  if (!Number.isInteger(id) || id <= 0) return false;
+  try {
+    process.kill(id, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+}
+
+/**
  * Send one plain chat line and report the message id, or null.
  *
  * Used by the thought fallback: a 💭 line that cannot be written into the card
@@ -115,19 +162,22 @@ async function main() {
   if (!args.text) usage();
 
   // Without a target, the safest answer is silence: refusal with the reason is
-  // better than a note in the wrong topic.
-  if (!args.steer && !args.chatId && !Number(process.env.DSH_TG_CHAT || 0) && !activeThoughtFile()) {
-    console.error('no target: pass --steer/--chat, or run inside a turn whose DSH_TG_THOUGHT is set');
+  // better than a note in the wrong topic. Three sources, in the order of how
+  // much they are facts: the flags, the env the bridge exported, and the marker
+  // it wrote for whichever turn is running in this folder.
+  const marker = activeMarker();
+  if (!args.steer && !args.chatId && !Number(process.env.DSH_TG_CHAT || 0) && !activeThoughtFile() && !marker) {
+    console.error('no target: pass --steer/--chat, or run inside a turn (env DSH_TG_THOUGHT, or the bridge\'s active marker for this folder)');
     process.exit(7);
   }
 
   let chatId = args.chatId || Number(process.env.DSH_TG_CHAT || 0);
   let threadId = args.threadId || Number(process.env.DSH_TG_THREAD || 0);
   let jobPath = '';
-  // Tool shells do not inherit the bridge's env, so fall back to the thought
-  // file the bridge named for this very turn.
+  // Tool shells do not inherit the bridge's env, so fall back to the marker of
+  // the turn running here, then to the file named by the thought env.
   if (!chatId && (args.thought || args.note)) {
-    const active = activeThoughtFile();
+    const active = marker || activeThoughtFile();
     if (active) {
       chatId = active.chatId;
       threadId = active.threadId;
@@ -146,7 +196,7 @@ async function main() {
   if (!chatId) usage();
 
   if (args.thought) {
-    const explicit = (process.env.DSH_TG_THOUGHT || '').trim();
+    const explicit = (process.env.DSH_TG_THOUGHT || '').trim() || (marker?.thought || '');
     const own = explicit && explicit.split(/[\\/]/).pop()?.startsWith(`${chatId}_${threadId || 0}_`)
       ? explicit
       : '';
