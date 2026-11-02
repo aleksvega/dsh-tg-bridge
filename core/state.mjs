@@ -47,8 +47,23 @@ export function writeAtomic(path, text) {
   renameSync(tmp, path);
 }
 
+/**
+ * Persist `state`. Best effort on purpose.
+ *
+ * Remembering a card's rows is a convenience: the card already reached the
+ * person, and a missing or unwritable state file must not turn a finished
+ * command into an error. Every command used to decide this for itself, so a
+ * fresh machine without `~/.dsh/tg-bridge` made `/ls` die in CI while the same
+ * code passed on a machine that had the folder.
+ */
 export function saveState() {
-  writeAtomic(STATE, JSON.stringify(state, null, 2));
+  try {
+    writeAtomic(STATE, JSON.stringify(state, null, 2));
+    return true;
+  } catch (error) {
+    log(`state save failed [STATE]: ${error?.code || error?.message || 'unknown'}`);
+    return false;
+  }
 }
 
 export function log(line) {

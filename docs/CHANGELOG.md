@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.43.1
+
+- **A state file that cannot be written no longer fails the command.** 1.43.0
+  shipped `/ls` and `/view` calling `saveState()` directly, and on a machine
+  that has never run the bridge — CI's clean home, or a fresh install — the
+  atomic write throws before the card can be drawn. Remembering a card's rows is
+  a convenience: the card already reached the person, so the save now logs
+  `state save failed [STATE]` and lets the command finish. This was invisible
+  locally because the developer machine has that folder.
+- The bug is covered by a test that points `DSH_HOME` at an empty directory, so
+  the clean-machine answer is checked instead of assumed.
+- Nothing else changed: same commands, same behaviour on a machine that works.
+
 ## 1.43.0
 
 - **Read the folder from the chat: `/ls` and `/view`.** Until now the only way
