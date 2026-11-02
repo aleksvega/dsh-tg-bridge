@@ -15,14 +15,17 @@ commit that adds it.
 
 ## 1. Browse
 
-- [ ] 1.1 `control/cmd-ls.mjs`: `/ls [path]` lists folders first, then files, both
-      as buttons; a page holds twenty and says how many remain.
-- [ ] 1.2 A folder button opens that folder on the same message; a file button
+- [x] 1.1 `control/cmd-files.mjs`: `/ls [path]` lists folders first, then files, both
+      as buttons; a page holds forty and says how many remain. The listing itself
+      lives in `chat/file-listing.mjs`, because the press that walks into the next
+      folder is in `chat/`, and `chat` must not import `control`.
+- [x] 1.2 A folder button opens that folder on the same message; a file button
       opens a preview on a new message with the first forty lines.
-- [ ] 1.3 A **more** button on a preview extends it by forty lines, until the end.
-- [ ] 1.4 `ls:` router with its own tests: a stale button, a missing path, a path
+- [x] 1.3 A **more** button on a preview extends it by forty lines, until the end.
+      `/view <file>[:line]` opens straight into that preview.
+- [x] 1.4 `fv:` press with its own tests: a stale button, a missing path, a path
       that became a file since the card was drawn.
-- [ ] 1.5 Three locales.
+- [x] 1.5 Three locales.
 
 ## 2. Search
 
@@ -60,6 +63,10 @@ commit that adds it.
 ## 5. Done so far
 
 - 1.40.0 ships 0.x and 2.x: the fence (lib/file-fence.mjs), the bounded walk,
-  /find, and the s: press that opens a file at the matched line with a **more**
-  button. /ls (1.x) and /edit (3.x) are next; the task numbers above stay
-  open until they land.
+  /find, and the `fs:` press that opens a file at the matched line with a **more**
+  button.
+- 1.43.0 ships 1.x: `/ls` and `/view` on the same fence and the same paged
+  window, plus the `fv:` press that walks into a folder, and fourteen tests.
+  1.43.1 fixes what that release exposed: `saveState()` threw on a machine with
+  no `~/.dsh/tg-bridge`, so a read command failed on its own bookkeeping.
+- /edit (3.x) is next; the task numbers above stay open until they land.
