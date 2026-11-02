@@ -152,6 +152,14 @@ test('a CLI owned by the app says so, and offers no npm button', async () => {
   assert.equal(extras[0].keyboard, undefined, 'a button that cannot do the job is a lie');
 });
 
+test('an app-owned CLI with no readable version names the app, not a bad install', async () => {
+  const { ctx, out } = context('/dsh', '', 'en');
+  await handleDshCommands(ctx, deps({ kind: 'app', installed: () => '' }));
+  assert.match(out[0], /from the desktop app/, 'the app is the launcher');
+  assert.match(out[0], /npm is not involved/);
+  assert.doesNotMatch(out[0], /could not read|may not be installed/, 'nothing is misplaced here');
+});
+
 test('updating an app-owned CLI refuses instead of installing a copy nobody runs', async () => {
   for (const lang of ['en', 'ru', 'zh']) {
     let ran = 0;

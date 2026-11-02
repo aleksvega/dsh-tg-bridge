@@ -1,6 +1,7 @@
 // `/dsh` — установленный DSH, опубликованный и то, на чём этот мост проверяли.
 export default {
   'ctrl.dsh.noInstalled': 'Не смог прочитать `dsh --version` — возможно, DSH стоит не там, где его ищет мост. /doctor покажет, какой бинарник запускает ход.',
+  'ctrl.dsh.appNoVersion': '🔧 Ход запускает DSH из приложения, поэтому `dsh` в PATH нет и спрашивать некого. Версию знает само приложение, а CLI моста обновляется вместе с ним — npm тут ни при чём.',
   'ctrl.dsh.head': '🔧 DSH {installed} · последняя {latest}',
   'ctrl.dsh.headUnknown': '🔧 DSH {installed} · npm не ответил, какая последняя',
   'ctrl.dsh.tested': 'Проверена с этим мостом: {range}',

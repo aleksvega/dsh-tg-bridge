@@ -1,6 +1,7 @@
 // `/dsh` —— 已安装的 DSH、npm 上的最新版本，以及这个桥在哪个版本上验证过。
 export default {
   'ctrl.dsh.noInstalled': '读不到 `dsh --version` —— DSH 可能不在桥查找的位置。/doctor 会显示一次对话会启动哪个程序。',
+  'ctrl.dsh.appNoVersion': '🔧 一次对话启动的是应用内的 DSH，PATH 里没有 `dsh` 可问。版本由应用自己掌握，桥的 CLI 随应用一起更新 —— 与 npm 无关。',
   'ctrl.dsh.head': '🔧 DSH {installed} · 最新 {latest}',
   'ctrl.dsh.headUnknown': '🔧 DSH {installed} · npm 没有回答最新版本',
   'ctrl.dsh.tested': '已在这个区间验证过：{range}',

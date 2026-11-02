@@ -13,7 +13,10 @@ import { dshLaunch } from '../core/dsh-launch.mjs';
 import { dshStatus, forgetInstalledDsh, installedDsh, latestDsh } from '../core/dsh-version.mjs';
 
 function card(lang, status, kind) {
-  if (!status.installed) return t(lang, 'ctrl.dsh.noInstalled');
+  // An app-owned CLI has no `dsh` on PATH to ask, and that is not a misplaced
+  // install: the sentence a person reads here must name the app, or they go
+  // looking in /doctor for a problem that does not exist.
+  if (!status.installed) return t(lang, kind === 'app' ? 'ctrl.dsh.appNoVersion' : 'ctrl.dsh.noInstalled');
   const lines = [
     status.latest
       ? t(lang, 'ctrl.dsh.head', { installed: status.installed, latest: status.latest })
