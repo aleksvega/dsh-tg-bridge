@@ -7,6 +7,7 @@
 
 import { commandParts, GENERAL_SAFE } from './commands.mjs';
 import { CONTROL_COMMANDS, handleControl, modelOf } from './control.mjs';
+import { takeEditText } from '../control/cmd-edit.mjs';
 import { reasoningMode } from './notes.mjs';
 import { explainFailure } from '../turn/failures.mjs';
 import { runFallbackChain } from '../model/fallback.mjs';
@@ -192,6 +193,11 @@ export async function handleMessage(msg, album = null) {
     await send(chatId, t(lang, 'msg.generalGuard', { cmd: effective, topic: named }), 0);
     return;
   }
+
+  // An edit waiting for its replacement owns the next message: it is the new
+  // text for those lines, not a task. Before the unknown-command answer, so a
+  // replacement starting with `/` still reaches the file. Seam: `edit-press`.
+  if (!effective && await takeEditText({ text, key, lang, state, saveState, reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra) })) return;
 
   // An unknown slash command must never become an AI turn: it burns money and
   // answers something the person did not ask. Answer with the menu instead.

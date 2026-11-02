@@ -13,7 +13,7 @@ export const CONTROL_COMMANDS = [
   'prices', 'cost', 'help', 'doctor', 'logs', 'report', 'lang', 'reasoning', 'pin', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
   'rewind', 'fork', 'branches', 'menu', 'fallback', 'load', 'diff', 'endpoint', 'dsh', 'compact', 'card', 'find', 'start',
-  'ls', 'view',
+  'ls', 'view', 'edit',
 ];
 
 /**

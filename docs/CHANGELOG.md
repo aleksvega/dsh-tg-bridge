@@ -1,5 +1,36 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.44.0
+
+- **Change a file from the chat: `/edit`.** `/edit app.mjs:12` shows line 12 and
+  asks for the replacement; `/edit app.mjs:12-14` takes a range. The next plain
+  message in the topic is the new text — it is not a turn, so a typo fix costs
+  one message instead of a provider round trip. A diff appears with «Применить»
+  and «Отмена», and nothing on disk changes until the first is pressed. A single
+  dash as the replacement deletes the lines, because a chat never sends an empty
+  message.
+- **Lines, not a text match.** The first design was "send the old text, send the
+  new text, refuse an ambiguous match". That asks the person to solve a problem
+  the command created: a string that appears three times needs a fourth message
+  of context to disambiguate. Naming the lines has no such state — the file
+  position is the answer — and the spec now says so instead of describing the
+  version that was not built.
+- **The write re-reads the file.** The button carries a decision, not a copy of
+  the file: on the press, the lines are read again and compared with what the
+  diff showed. If a turn changed them in between, the answer is "the file
+  changed, run /edit again" and nothing is written. That is the difference
+  between an undoable edit and a silently overwritten turn.
+- **The fence covers writing.** `writeTextFile` sits next to `readTextFile` in
+  `lib/file-fence.mjs`, with the same refusals: nothing outside the topic folder,
+  never a directory, nothing that would grow past 512 KB, and never a new file —
+  editing a file that disappeared is a refusal, not a creation.
+- The file keeps the trailing newline it had. Adding one would show up as a
+  change nobody asked for, and some of this repo's own checks read that byte.
+- `/edit` is in `/help` (work), `/menu`, the registry, and all three locales.
+  Fifteen tests cover the parse, the preview, apply, cancel, delete, a multi-line
+  range, a stale press, a file changed under the preview, the fence, and the
+  no-folder answer. The full suite is 935 passing.
+
 ## 1.43.1
 
 - **A state file that cannot be written no longer fails the command.** 1.43.0

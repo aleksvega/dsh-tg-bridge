@@ -41,16 +41,20 @@ commit that adds it.
 
 ## 3. Edit
 
-- [ ] 3.1 `control/cmd-edit.mjs`: `/edit <path>` then two messages — old text, new
-      text — collected by the same pending-question seam the approval card uses.
-- [ ] 3.2 An exact replacement that matches once shows a diff preview with the hunk
+- [x] 3.1 `control/cmd-edit.mjs`: `/edit <path>:<line>` or `<path>:<from>-<to>` shows
+      those lines, and the next plain message in the topic is the replacement. The
+      intercept sits in `chat/handle-message.mjs` before the unknown-command answer,
+      so a replacement that starts with `/` still reaches the file.
+- [x] 3.2 An exact replacement that matches once shows a diff preview with the hunk
       and two buttons: **Применить**, **Отмена**.
-- [ ] 3.3 A replacement matching zero or several times is refused with the count and
-      the file left untouched.
-- [ ] 3.4 The write records a revert entry for the hunk, so `/diff` can undo it.
-- [ ] 3.5 `ed:` router with its own tests: apply, cancel, ambiguous, stale press, a
-      file changed between preview and confirm.
-- [ ] 3.6 Three locales.
+- [x] 3.3 A replacement matching zero or several times is refused with the count and
+      the file left untouched. A range past the end names the real length, and the
+      file keeps the trailing newline it had.
+- [x] 3.4 The write records a revert entry for the hunk, so `/diff` can undo it; the
+      card says so in the same sentence.
+- [x] 3.5 `ed:` press with its own tests: apply, cancel, stale press, and a file
+      changed between preview and confirm.
+- [x] 3.6 Three locales.
 
 ## 4. Finish
 
@@ -69,4 +73,8 @@ commit that adds it.
   window, plus the `fv:` press that walks into a folder, and fourteen tests.
   1.43.1 fixes what that release exposed: `saveState()` threw on a machine with
   no `~/.dsh/tg-bridge`, so a read command failed on its own bookkeeping.
-- /edit (3.x) is next; the task numbers above stay open until they land.
+- 1.44.0 ships 3.x: `/edit` names lines, takes the replacement as the next
+  message, shows a diff, and writes only on «Применить» — and only if those lines
+  still match. `writeTextFile` joins `readTextFile` in the fence, so the one
+  place that knows the rules is still one place. Fifteen tests.
+- 4.x stays open: 4.2 is the live measurement, which only the person can do.

@@ -26,9 +26,12 @@ a whole turn and a provider round trip.
    and answers with `path:line` plus the matching line, capped and paged. It walks
    with a bound, skips binary and ignored directories, and never reads a file it
    would have to redact.
-3. **`/edit <path>`** changes a file by exact replacement: the person sends the
-   old text and the new text, the bridge shows the diff it would make and writes
-   only after **Применить**. An ambiguous match is refused with the count.
+3. **`/edit <path>:<line>`** changes a file by line number: the person names the
+   lines, sends the replacement as the next message, and the bridge shows the diff
+   it would make and writes only after **Применить**. Naming lines instead of
+   matching text is the one change this proposal got wrong: a text match has to
+   answer "which of the three occurrences", and a chat has no good way to ask. A
+   line range is unambiguous by construction, and a dash deletes the lines.
 4. **The diff card is the undo.** Every write records the same hunk `/diff`
    already reverts, so a bad edit is one button away from being undone.
 
@@ -52,8 +55,9 @@ surfaces, ahead of MCP and the plugin settings screen.
    the next one; a path with a space works.
 2. `/find` on a string that appears once returns it with the line number, and on
    a string that appears nowhere says so instead of an empty message.
-3. `/edit` refuses an ambiguous replacement, shows the diff, writes only after the
-   confirm press, and the written file is byte-identical to what the preview said.
+3. `/edit` shows the diff, writes only after the confirm press, and the written
+   file is byte-identical to what the preview said; a range past the end is refused
+   with the real length and a file that changed under the preview is not written.
 4. A refused path (outside the workspace, binary, too large) is one sentence with
    the reason, never a stack trace.
 5. Three locales in the same commit; every press answered inside the quiet guard.

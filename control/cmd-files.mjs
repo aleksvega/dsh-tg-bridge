@@ -12,7 +12,7 @@ import { listDir, listingCard } from '../chat/file-listing.mjs';
 import { saveState as saveStateNow, state as liveState } from '../core/state.mjs';
 
 /** The folder this topic itself is bound to — no install-wide fallback. */
-function ownRoot(st, key) {
+export function ownRoot(st, key) {
   return (st?.cwd && st.cwd[key]) || '';
 }
 

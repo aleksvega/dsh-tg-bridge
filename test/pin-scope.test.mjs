@@ -15,27 +15,27 @@ const t = (key) => key;
 
 test('a tick in one topic reaches the others only when it was the global row', () => {
   const state = { pin: { '': 'on' } };
-  assert.equal(cardPin(state, {}, '311217285:337382'), 'on', 'the reported bug: global on, other topic reads off');
-  assert.equal(cardPin(state, {}, '311217285:336703'), 'on');
+  assert.equal(cardPin(state, {}, '1001:3003'), 'on', 'the reported bug: global on, other topic reads off');
+  assert.equal(cardPin(state, {}, '1001:2002'), 'on');
   assert.equal(cardPin(state, {}, ''), 'on');
 });
 
 test('a topic that chose for itself keeps its choice', () => {
-  const state = { pin: { '': 'on', '311217285:337382': 'off' } };
-  assert.equal(cardPin(state, {}, '311217285:337382'), 'off', 'off here wins over on everywhere');
-  assert.equal(cardPin(state, {}, '311217285:336703'), 'on', 'and does not leak to the next topic');
+  const state = { pin: { '': 'on', '1001:3003': 'off' } };
+  assert.equal(cardPin(state, {}, '1001:3003'), 'off', 'off here wins over on everywhere');
+  assert.equal(cardPin(state, {}, '1001:2002'), 'on', 'and does not leak to the next topic');
 });
 
 test('the config default is the last word before off', () => {
-  assert.equal(cardPin({}, { pin: 'on' }, '311217285:337382'), 'on');
-  assert.equal(cardPin({ pin: {} }, { pin: true }, '311217285:337382'), 'on');
-  assert.equal(cardPin({}, {}, '311217285:337382'), 'off');
-  assert.equal(cardPin(undefined, undefined, '311217285:337382'), 'off', 'no state file yet is not a crash');
+  assert.equal(cardPin({}, { pin: 'on' }, '1001:3003'), 'on');
+  assert.equal(cardPin({ pin: {} }, { pin: true }, '1001:3003'), 'on');
+  assert.equal(cardPin({}, {}, '1001:3003'), 'off');
+  assert.equal(cardPin(undefined, undefined, '1001:3003'), 'off', 'no state file yet is not a crash');
 });
 
 test('booleans from older state files still read as on and off', () => {
-  assert.equal(cardPin({ pin: { '': true } }, {}, '311217285:337382'), 'on');
-  assert.equal(cardPin({ pin: { '311217285:337382': false } }, { pin: 'on' }, '311217285:337382'), 'off');
+  assert.equal(cardPin({ pin: { '': true } }, {}, '1001:3003'), 'on');
+  assert.equal(cardPin({ pin: { '1001:3003': false } }, { pin: 'on' }, '1001:3003'), 'off');
 });
 
 test('the second word is what makes a switch global', () => {
