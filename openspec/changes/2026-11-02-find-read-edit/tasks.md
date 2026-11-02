@@ -58,11 +58,11 @@ commit that adds it.
 
 ## 4. Finish
 
-- [ ] 4.1 Suite green with `DSH_HOME` unset; no new dependency; no module over 500
+- [x] 4.1 Suite green with `DSH_HOME` unset; no new dependency; no module over 500
       lines; every command in the registry and in `/help`.
 - [ ] 4.2 Measured on the live bot: a folder of forty entries, a search with one hit
       and one with none, an edit applied and then reverted from `/diff`.
-- [ ] 4.3 CHANGELOG names the three commands and their limits (bounded walk, no
+- [x] 4.3 CHANGELOG names the three commands and their limits (bounded walk, no
       binary, workspace fence).
 ## 5. Done so far
 
@@ -77,4 +77,15 @@ commit that adds it.
   message, shows a diff, and writes only on «Применить» — and only if those lines
   still match. `writeTextFile` joins `readTextFile` in the fence, so the one
   place that knows the rules is still one place. Fifteen tests.
-- 4.x stays open: 4.2 is the live measurement, which only the person can do.
+- 4.x is down to 4.2, the live measurement, which only the person can do: forty
+  entries, one hit, no hit, an edit reverted from `/diff`. Everything else in this
+  change is built, tested and released, so the change is one `/restart confirm` and
+  five presses away from being archived.
+
+## 6. What the build changed in the design
+
+The proposal asked for `/edit <path>` and an exact text replacement. What shipped
+is `/edit <path>:<line>` with a line range, because a text match has to answer
+"which occurrence" and a chat has no good way to ask, while a line number has no
+such question. The spec was rewritten to describe the built surface rather than
+the one that was planned; `/diff` still carries the undo.

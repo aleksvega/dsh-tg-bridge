@@ -6,7 +6,11 @@
       profile's `cordis.patch.yml` — id, server name, transport, url or command.
       `test/mcp-config.test.mjs` runs it against the real `headless` shape
       (`mcp-exa`, streamable-http) copied into a fixture, plus a file with no MCP
-      block and a file with two entries.
+      block and a file with two entries. The real shape is a list of patch entries,
+      each `- insert:` holding one or more plugins, and the MCP one is
+      `{id: mcp-exa, name: '@deepseek-ai/dsh-mcp-client', config: {transport,
+      serverName, url}}`; `serverName` is the name the person says, `id` is the
+      patch row. A server identified by `id` alone would be a different command.
 - [ ] 0.2 Redaction: a header value, a token inside a URL query and an `env` value
       render as `***`. Test: three shapes, all redacted, and the untouched parts of
       the URL still visible.
