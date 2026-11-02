@@ -383,7 +383,7 @@ export async function handleBridgeCommands(ctx) {
           return true;
         }
         if (installed && installed === latest) {
-          say(t(lang, 'ctrl.update.current', { v: installed }));
+          say(`${t(lang, 'ctrl.update.current', { v: installed })}\n\n${t(lang, 'ctrl.update.dshHint')}`);
           return true;
         }
         say(t(lang, 'ctrl.update.running', { v: latest }));

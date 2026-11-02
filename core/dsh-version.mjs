@@ -7,7 +7,7 @@
 // package's own `engines.dsh`. `/dsh` and `/doctor` ask all three; nothing here
 // writes anything.
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -121,6 +121,72 @@ export function installedDsh({ run = null, fresh = false } = {}) {
   const version = parseVersion(runner());
   installedCache = version ? `${version.major}.${version.minor}.${version.patch}${version.pre.length ? `-${version.pre.join('.')}` : ''}` : '';
   return installedCache;
+}
+
+/**
+ * One JSON file out of an Electron `asar` archive, or null.
+ *
+ * The archive is a pickled header — sizes, then the directory tree as JSON —
+ * followed by the files back to back, and every entry says where its bytes start.
+ * Reading it directly is what lets `/dsh` answer "the app carries 0.2.1-rc.3"
+ * without starting the app: the alternative was asking nobody and printing
+ * "version unknown" on the one screen that exists to name versions.
+ */
+export function asarJson(archive, entry) {
+  let fd = null;
+  try {
+    fd = openSync(archive, 'r');
+    const head = Buffer.alloc(8);
+    readSync(fd, head, 0, 8, 0);
+    const headerSize = head.readUInt32LE(4);
+    if (!headerSize || headerSize > 64 * 1024 * 1024) return null;
+    const header = Buffer.alloc(headerSize);
+    readSync(fd, header, 0, headerSize, 8);
+    const jsonSize = header.readUInt32LE(4);
+    const tree = JSON.parse(header.subarray(8, 8 + jsonSize).toString('utf8'));
+    let node = tree;
+    for (const part of String(entry).split('/').filter(Boolean)) {
+      node = node?.files?.[part];
+      if (!node) return null;
+    }
+    const size = Number(node.size) || 0;
+    const offset = Number(node.offset) || 0;
+    if (!size) return null;
+    const body = Buffer.alloc(size);
+    readSync(fd, body, 0, size, 8 + headerSize + offset);
+    return JSON.parse(body.toString('utf8'));
+  } catch {
+    return null;
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {}
+    }
+  }
+}
+
+/**
+ * The DSH version the desktop app carries, or '' when this is not an app install.
+ *
+ * The app runs its own copy of the CLI out of `app.asar`, so `dsh --version` has
+ * nothing to answer here — and a card that stops at "unknown" leaves the person
+ * with no way to tell whether they are current.
+ */
+export function appDshVersion(exe = '') {
+  if (!exe) return '';
+  const root = dirname(String(exe));
+  const candidates = [
+    join(root, 'resources', 'app.asar'),
+    join(dirname(root), 'Resources', 'app.asar'),
+  ];
+  for (const archive of candidates) {
+    if (!existsSync(archive)) continue;
+    const pkg = asarJson(archive, 'dsh/node_modules/@deepseek-ai/dsh/package.json');
+    const version = parseVersion(pkg?.version);
+    if (version) return `${version.major}.${version.minor}.${version.patch}${version.pre.length ? `-${version.pre.join('.')}` : ''}`;
+  }
+  return '';
 }
 
 /** Forget the reading above; the command that installs a version calls this. */

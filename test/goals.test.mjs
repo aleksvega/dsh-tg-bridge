@@ -98,3 +98,21 @@ test('the cap still refuses when every task is open', () => {
   assert.equal(addTask(state, KEY, 'one too many'), null);
   assert.match(applyGoalJob(state, { key: KEY, op: 'add', text: 'one too many' }), /rejected/);
 });
+
+test('ticked history survives past sixty lines, where it used to be cut', () => {
+  // The trim is a safety valve for a list that never ends, not a rule for a long
+  // project: at sixty it deleted the oldest finished work, and the person saw
+  // their completed plan shrink with no message. Seventy lines must keep all
+  // seventy, ticked ones first among them.
+  const state = {};
+  setGoal(state, KEY, 'long project');
+  // One at a time, ticked as it goes: the open-task cap is 30, so a list of
+  // seventy is only reachable when most of it is finished work.
+  for (let i = 0; i < 70; i += 1) {
+    addTask(state, KEY, `step ${i + 1}`);
+    if (i < 69) doneTask(state, KEY, i + 1);
+  }
+  assert.equal(goalOf(state, KEY).tasks.length, 70);
+  assert.equal(goalOf(state, KEY).tasks[0].text, 'step 1', 'the first ticked task is still there');
+  assert.equal(addTask(state, KEY, 'step 71'), 71, 'and the list still grows');
+});

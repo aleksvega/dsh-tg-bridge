@@ -257,6 +257,7 @@ export default {
   'ctrl.version.stale': 'Файлы новее запуска ({when}) — /restart confirm загрузит их.',
   'ctrl.version.hint': 'Новый код включится после /restart confirm — до этого чат работает как есть.',
   'ctrl.update.current': 'Уже стоит {v} — это последняя опубликованная версия.',
+  'ctrl.update.dshHint': 'Сам харнесс (DSH) — отдельный вопрос: /dsh назовёт версию из приложения или из PATH рядом с тем, что публикует npm.',
   'ctrl.update.offline': 'npm недоступен, проверить версию не могу. Попробуй через минуту.',
   'ctrl.update.running': 'Ставлю {v} в каталог моста…',
   'ctrl.update.done': 'Установлено {v}. Включить: /restart confirm',

@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 
 import { t } from '../core/i18n.mjs';
 import { dshLaunch } from '../core/dsh-launch.mjs';
-import { dshStatus, forgetInstalledDsh, installedDsh, latestDsh } from '../core/dsh-version.mjs';
+import { appDshVersion, dshStatus, forgetInstalledDsh, installedDsh, latestDsh } from '../core/dsh-version.mjs';
 
 function card(lang, status, kind) {
   // An app-owned CLI has no `dsh` on PATH to ask, and that is not a misplaced
@@ -27,7 +27,16 @@ function card(lang, status, kind) {
   // Which copy of the CLI this is decides what an update even means: the app's
   // own CLI is not npm's, and a person who reads "update" and gets a second
   // install has been told the wrong thing in the one place that names versions.
-  if (kind === 'app') lines.push(t(lang, 'ctrl.dsh.fromApp'));
+  if (kind === 'app') {
+    // With the version in hand the two facts belong in one sentence — what the
+    // app carries and where npm is — because the ownership note ("updates with
+    // the app") is exactly what that sentence already means. Only the blank
+    // case needs the ownership note on its own, to explain why the version is
+    // missing instead of leaving a hole where a number should be.
+    if (status.outdated) lines.push(t(lang, 'ctrl.dsh.appBehind', { installed: status.installed, latest: status.latest }));
+    else if (status.latest && status.installed) lines.push(t(lang, 'ctrl.dsh.appCurrent', { latest: status.latest }));
+    else lines.push(t(lang, 'ctrl.dsh.fromApp'));
+  }
   // "Update available" and "could not ask" must not read the same: an unknown
   // latest is not an up-to-date install. An app-owned CLI gets no update hint at
   // all — the npm command the hint names is the one that cannot help it.
@@ -98,18 +107,34 @@ function install({ latest, run = null }) {
   });
 }
 
+/** What version a turn would actually run: the CLI's answer, or the app's copy. */
+export function installedVersion({ kind = '', exe = '', installed = installedDsh, appVersion = appDshVersion } = {}) {
+  return installed() || (kind === 'app' ? appVersion(exe) : '');
+}
+
 export async function handleDshCommands(ctx, deps = {}) {
   const { effective, arg, lang, reply, log } = ctx;
   if (effective !== '/dsh') return false;
   const words = String(arg || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const readInstalled = deps.installed || installedDsh;
   const readLatest = deps.latest || latestDsh;
   const run = deps.run || null;
   const forget = deps.forget || forgetInstalledDsh;
   // Which CLI the bridge measured, and therefore which one an update would have
   // to touch. `dshLaunch` is the same module a turn uses to pick its binary, so
   // "what /dsh reads" and "what a turn runs" cannot drift apart.
-  const kind = deps.kind || dshLaunch().kind;
+  const launch = deps.launch || dshLaunch();
+  const kind = deps.kind || launch.kind;
+  const appVersion = deps.appVersion || appDshVersion;
+  // The app keeps its CLI inside `app.asar`, where `dsh --version` cannot reach
+  // it: without this fallback the one screen about versions would answer "unknown"
+  // on the platform where "am I current" is the question being asked.
+  const readInstalled = deps.installed
+    || ((opts = {}) => installedVersion({
+      kind,
+      exe: launch.exe,
+      installed: () => installedDsh(opts),
+      appVersion,
+    }));
 
   if (words[0] !== 'update') {
     if (words.length) {

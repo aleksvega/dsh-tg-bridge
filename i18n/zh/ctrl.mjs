@@ -257,6 +257,7 @@ export default {
   'ctrl.version.stale': '文件比本进程更新（{when}）—— /restart confirm 后生效。',
   'ctrl.version.hint': '新代码在 /restart confirm 之后生效；在此之前聊天照常运行。',
   'ctrl.update.current': '已经是 {v} —— 最新发布版本。',
+  'ctrl.update.dshHint': 'harness 本身（DSH）是另一个问题：/dsh 会给出应用内或 PATH 中的版本，并与 npm 发布版本对比。',
   'ctrl.update.offline': 'npm 不可达，无法检查版本。请稍后再试。',
   'ctrl.update.running': '正在把 {v} 安装到桥接目录…',
   'ctrl.update.done': '已安装 {v}。加载它：/restart confirm',

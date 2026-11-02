@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { handleDshCommands } from '../control/cmd-dsh.mjs';
+import { handleDshCommands, installedVersion } from '../control/cmd-dsh.mjs';
 
 function context(command, arg = '', lang = 'en') {
   const out = [];
@@ -143,11 +143,10 @@ test('an unknown word gets the usage line, in every language', async () => {
 // was written on: `dsh` on PATH is the desktop app's own bundled CLI, so
 // `npm i -g` installed a second copy under npm's prefix, changed nothing a turn
 // launches, and the card then re-read the app's version and reported success.
-test('a CLI owned by the app says so, and offers no npm button', async () => {
+test('a CLI owned by the app names both versions and offers no npm button', async () => {
   const { ctx, out, extras } = context('/dsh');
   await handleDshCommands(ctx, deps({ kind: 'app' }));
-  assert.match(out[0], /belongs to the DeepSeek Harness app/);
-  assert.match(out[0], /updates with the app/);
+  assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; npm already has 0\.2\.1-rc\.5/);
   assert.doesNotMatch(out[0], /Update: \/dsh update/, 'the npm route cannot help this CLI');
   assert.equal(extras[0].keyboard, undefined, 'a button that cannot do the job is a lie');
 });
@@ -158,6 +157,39 @@ test('an app-owned CLI with no readable version names the app, not a bad install
   assert.match(out[0], /from the desktop app/, 'the app is the launcher');
   assert.match(out[0], /npm is not involved/);
   assert.doesNotMatch(out[0], /could not read|may not be installed/, 'nothing is misplaced here');
+});
+
+test('the app card says which DSH it carries and whether npm has moved on', async () => {
+  const { ctx, out } = context('/dsh', '', 'en');
+  await handleDshCommands(ctx, deps({ kind: 'app' }));
+  assert.match(out[0], /DSH 0\.2\.1-rc\.3 · latest 0\.2\.1-rc\.5/, 'both versions, not a shrug');
+  assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; npm already has 0\.2\.1-rc\.5/);
+  assert.match(out[0], /Updating the app brings the newer one with it/);
+});
+
+test('an app already on the published version says there is nothing to update', async () => {
+  const { ctx, out } = context('/dsh', '', 'en');
+  await handleDshCommands(ctx, deps({ kind: 'app', installed: () => '0.2.1-rc.5' }));
+  assert.match(out[0], /carries DSH 0\.2\.1-rc\.5/);
+  assert.match(out[0], /nothing to update/);
+});
+
+test('when npm cannot be reached the app still says whose CLI it is', async () => {
+  const { ctx, out } = context('/dsh', '', 'en');
+  await handleDshCommands(ctx, deps({ kind: 'app', latest: async () => '' }));
+  assert.match(out[0], /npm did not say which is latest/);
+  assert.match(out[0], /belongs to the DeepSeek Harness app/);
+});
+
+test('with no dsh on PATH the app archive is what gets read', () => {
+  assert.equal(installedVersion({
+    kind: 'app',
+    exe: 'C:/Apps/DeepSeek Harness/DeepSeek Harness.exe',
+    installed: () => '',
+    appVersion: () => '0.2.1-rc.3',
+  }), '0.2.1-rc.3');
+  assert.equal(installedVersion({ kind: 'cli', installed: () => '', appVersion: () => '0.2.1-rc.3' }), '', 'npm installs have no archive to read');
+  assert.equal(installedVersion({ kind: 'app', installed: () => '0.2.2', appVersion: () => '0.2.1-rc.3' }), '0.2.2', 'the CLI wins when it answers');
 });
 
 test('updating an app-owned CLI refuses instead of installing a copy nobody runs', async () => {

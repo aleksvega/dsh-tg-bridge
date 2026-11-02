@@ -4,6 +4,8 @@
 export default {
   'ctrl.dsh.noInstalled': 'I could not read `dsh --version` — the harness may not be installed where the bridge looks for it. /doctor says which binary a turn would start.',
   'ctrl.dsh.appNoVersion': '🔧 A turn starts DSH from the desktop app, so there is no `dsh` on PATH to ask. The app knows its own version, and the bridge CLI updates with it — npm is not involved.',
+  'ctrl.dsh.appBehind': 'The app carries DSH {installed}; npm already has {latest}. Updating the app brings the newer one with it.',
+  'ctrl.dsh.appCurrent': 'The app carries DSH {latest} — the same version npm publishes, so there is nothing to update.',
   'ctrl.dsh.head': '🔧 DSH {installed} · latest {latest}',
   'ctrl.dsh.headUnknown': '🔧 DSH {installed} · npm did not say which is latest',
   'ctrl.dsh.tested': 'Tested with this bridge: {range}',

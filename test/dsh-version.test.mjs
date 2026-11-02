@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  appDshVersion,
+  asarJson,
   compareVersions,
   dshStatus,
   installedDsh,
@@ -13,6 +15,7 @@ import {
   satisfies,
   testedRange,
 } from '../core/dsh-version.mjs';
+import { fakeApp, fakeAsar } from './helpers/fake-asar.mjs';
 
 const RANGE = '>=0.2.1-rc.2 <0.3.0-0 || >=0.2.2-rc.1 <0.3.0-0';
 
@@ -73,4 +76,20 @@ test('installedDsh reads once and can be told to re-read', () => {
   assert.equal(installedDsh({ run, fresh: true }), '0.2.1-rc.3');
   assert.equal(calls, 2);
   assert.equal(installedDsh({ run: () => 'not a version', fresh: true }), '');
+});
+test('the DSH the app carries is readable from its archive, not guessed', () => {
+  const exe = fakeApp('0.2.1-rc.3');
+  assert.equal(appDshVersion(exe), '0.2.1-rc.3', 'the version npm cannot see');
+  assert.equal(appDshVersion(''), '');
+  assert.equal(appDshVersion('C:/nowhere/DeepSeek Harness.exe'), '', 'no archive, no claim');
+});
+
+test('an archive with the entry missing or the bytes cut reads as unknown, not as a crash', () => {
+  const exe = fakeApp('0.2.1-rc.5');
+  const archive = exe.replace('DeepSeek Harness.exe', 'resources/app.asar');
+  assert.equal(asarJson(archive, 'dsh/nothing/here/package.json'), null);
+  // A text file is not an archive: the header read must fail closed.
+  const broken = fakeAsar(archive.replace('app.asar', 'broken.asar'), { 'a.json': '{}' });
+  assert.deepEqual(asarJson(broken, 'a.json'), {});
+  assert.equal(asarJson(archive, 'main.js'), null, 'not JSON is not a package');
 });

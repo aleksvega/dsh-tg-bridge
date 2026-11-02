@@ -257,6 +257,7 @@ export default {
   'ctrl.version.stale': 'Files are newer than this process ({when}) — /restart confirm loads them.',
   'ctrl.version.hint': 'The new code loads after /restart confirm; the current chat keeps running until then.',
   'ctrl.update.current': 'Already on {v} — the latest published version.',
+  'ctrl.update.dshHint': 'The harness itself (DSH) is a different question: /dsh names the version the app carries or PATH has, next to what npm publishes.',
   'ctrl.update.offline': 'npm is unreachable, so no version check is possible. Try again in a minute.',
   'ctrl.update.running': 'Installing {v} into the bridge directory…',
   'ctrl.update.done': 'Installed {v}. Load it: /restart confirm',

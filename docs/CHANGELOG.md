@@ -1,5 +1,19 @@
 # CHANGELOG — DSH Telegram bridge
 
+## Unreleased
+
+- **`/dsh` reads the DSH the desktop app carries.** The app keeps its CLI inside
+  `app.asar`, where `dsh --version` cannot reach it, so the one screen about
+  versions answered "unknown" on the platform where "am I current" is the
+  question. Its package manifest is now read straight out of the archive: the
+  card names the version the app has next to the one npm publishes, and says
+  plainly when the app is behind.
+- **`/update` points at `/dsh`.** Someone looking for updates finds the bridge's
+  updater first and had no way to learn that the harness has its own answer.
+- **A long task list keeps its finished work.** The goal block dropped the oldest
+  ticked tasks past sixty lines, so a month-old plan silently shrank whenever one
+  more task arrived; the bound is 120 now.
+
 ## 1.45.0
 
 - **A restart marker no longer outlives its restart.** The minute supervisor

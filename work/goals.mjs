@@ -9,6 +9,12 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFile
 import { join } from 'node:path';
 
 export const MAX_TASKS = 30;
+// Total lines kept, ticked ones included. This was 60, and it dropped the two
+// oldest ticked tasks the moment a month-long goal took one more: finished work
+// vanished from a list the person had been reading daily, and nothing said so.
+// The cap stays — the block is re-read every turn — but it sits where a goal of
+// this size never reaches it.
+export const MAX_LINES = 120;
 export const MAX_GOAL_CHARS = 500;
 
 export function goalsOf(state) {
@@ -75,12 +81,12 @@ export function addTask(state, key, text) {
   // open ones are capped.
   if (goal.tasks.filter((task) => !task.done).length >= MAX_TASKS) return null;
   goal.tasks.push({ text: clean, done: false });
-  // Bound the history without touching the work: past 60 lines the oldest ticked
-  // entries go, so a goal that runs for months does not carry every closed task
-  // in every prompt. A trim renumbers the rest — the block is re-read each turn,
-  // so the numbers in front of the agent are always the current ones.
-  if (goal.tasks.length > MAX_TASKS * 2) {
-    let excess = goal.tasks.length - MAX_TASKS * 2;
+  // Bound the history without touching the work: past MAX_LINES the oldest ticked
+  // entries go, so a goal that runs for years does not carry every closed task in
+  // every prompt. A trim renumbers the rest — the block is re-read each turn, so
+  // the numbers in front of the agent are always the current ones.
+  if (goal.tasks.length > MAX_LINES) {
+    let excess = goal.tasks.length - MAX_LINES;
     goal.tasks = goal.tasks.filter((task) => {
       if (excess > 0 && task.done) { excess -= 1; return false; }
       return true;
