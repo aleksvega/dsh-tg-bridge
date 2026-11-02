@@ -10,8 +10,6 @@ export default {
   'ctrl.dsh.hint': 'Update: /dsh update',
   'ctrl.dsh.fromApp': 'This CLI belongs to the DeepSeek Harness app: `npm i -g` never touches it, it updates with the app.',
   'ctrl.dsh.appPlan': 'Running nothing: `npm i -g` installs a second copy of the CLI, while a turn launches the one inside the app. Update the app — its CLI comes with it. The version the bridge sees appears here afterwards.',
-  'ctrl.dsh.appCli': 'CLI from the app',
-  'ctrl.dsh.npmCli': 'CLI from npm',
   'ctrl.dsh.running': 'Installing {version} through npm. It can take minutes — the bridge keeps answering, and I will say when it is done.',
   'ctrl.dsh.noLatest': 'npm did not answer, so there is nothing to install. Try again in a minute.',
   'ctrl.dsh.plan': 'This will run:\n{cmd}\nIt replaces DSH for every profile. Send /dsh update confirm to go ahead.',

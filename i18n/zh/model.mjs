@@ -27,7 +27,6 @@ export default {
   'ctrl.model.pickHidden': '还有 {n} 条线路没放下；任意一条都可以用 /model <提供方>/<模型> 指定。',
   'ctrl.model.pickLong': '配置档 {profile} 的每条线路名字都太长，放不进按钮；仍然可以用 /model <提供方>/<模型> 切换。',
   'ctrl.model.pickNone': '配置档 {profile} 没有可选的模型。',
-  'ctrl.model.pickSwitched': '线路 {name} → {route}。下一轮生效。',
   'ctrl.model.pickStale': '配置档 {name} 里已经没有线路 {route} —— 画卡片之后配置档变了。/model 可以看现在的线路。',
   'ctrl.model.scopeAllOn': '🌍 全局切换 ▸ 点此改为仅本话题',
   'ctrl.model.scopeTopicOn': '💬 仅本话题 ▸ 点此改为全局',

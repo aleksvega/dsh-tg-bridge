@@ -29,7 +29,6 @@ export default {
   'ctrl.model.pickHidden': '{n} more route(s) do not fit; /model <provider>/<model> names any of them.',
   'ctrl.model.pickLong': 'Every route of profile {profile} has a name too long to fit on a button; /model <provider>/<model> still switches to any of them.',
   'ctrl.model.pickNone': 'Profile {profile} declares no models to choose from.',
-  'ctrl.model.pickSwitched': 'Route {name} → {route}. Applies from the next turn.',
   'ctrl.model.pickStale': 'Profile {name} does not declare {route} any more — the profile changed since the card was drawn. /model to see the routes it has now.',
   'ctrl.model.scopeAllOn': '🌍 Changing everywhere ▸ tap for this topic only',
   'ctrl.model.scopeTopicOn': '💬 Changing this topic ▸ tap for everywhere',

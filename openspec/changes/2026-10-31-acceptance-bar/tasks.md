@@ -39,9 +39,21 @@
 ## 2. Three locales
 
 - [x] 2.1 Parity is enforced by the i18n test.
-- [ ] 2.2 Add a test that every key has a consumer, so a removed control cannot
+- [x] 2.2 Add a test that every key has a consumer, so a removed control cannot
   leave its words behind. Today the dead `ctrl.model.pickGroup` was removed by
   hand.
+  → The rule needed no hand list after all. A key is consumed if the shipped code
+  mentions it literally or builds it from a prefix it spells out — `settings.${row}.label`
+  and `'ctrl.cmd.' + name` both count — so `test/i18n-consumers.test.mjs` checks
+  reachability mechanically and needs a written reason for an exemption.
+  It found thirty keys in all three languages: the `/model` grouping step, the
+  whole `ctrl.cmd.*` command-card family, `btn.stop`, `btn.logs`, `err.timeout`,
+  `err.generic`, `msg.stateOn`, `msg.stateOff`, `cmd.help.title`, `cmd.help.hint`,
+  `goal.default`, `ctrl.ls.usage`, `ctrl.settings.opened`, `ctrl.model.usage`,
+  `ctrl.plugin.updateNone`, `ctrl.version.backup`, `ctrl.update.available`,
+  `ctrl.model.pickSwitched`, `ctrl.dsh.appCli`, `ctrl.dsh.npmCli`. Ninety strings
+  deleted; nothing referenced them, and the suite stayed green.
+  Proved non-vacuous by adding one unreachable key and watching it fail by name.
 
 ## 3. A claim is measured
 

@@ -8,8 +8,6 @@ export default {
   'ctrl.dsh.hint': '更新：/dsh update',
   'ctrl.dsh.fromApp': '这个 CLI 属于 DeepSeek Harness 应用：`npm i -g` 不会碰它，它随应用一起更新。',
   'ctrl.dsh.appPlan': '没有执行任何操作：`npm i -g` 会装第二份 CLI，而每一轮和启动用的是应用内的那一份。请更新应用——它的 CLI 会随之更新。之后这里会显示桥看到的新版本。',
-  'ctrl.dsh.appCli': 'CLI 来自应用',
-  'ctrl.dsh.npmCli': 'CLI 来自 npm',
   'ctrl.dsh.running': '正在通过 npm 安装 {version}。可能需要几分钟——桥会继续响应，完成后我会说。',
   'ctrl.dsh.noLatest': 'npm 没有回答，暂时没有可安装的版本。请过一分钟再试。',
   'ctrl.dsh.plan': '将执行：\n{cmd}\n这会替换所有配置档的 DSH。发送 /dsh update confirm 继续。',
