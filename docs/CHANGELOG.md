@@ -1,5 +1,18 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.41.1
+
+- **A note cannot land in General while its turn is elsewhere.** `say.mjs
+  --chat <id>` without `--thread` meant thread 0, and thread 0 is a group's
+  General topic: a session that knew only the chat wrote its working notes there
+  while its card named another topic, and nothing said so. The live marker for
+  the folder completes the half a flag carries and prints `--thread missing:
+  using topic N of the turn running in this folder`; a caller that passes both
+  keeps its own topic, and no target at all is still a refusal.
+- Reported from a real group. The markers and files on disk were consistent when
+  checked, so this closes the hole the symptom needs rather than claiming the
+  exact line that produced it.
+
 ## 1.41.0
 
 - **`/start` opens a five-step tour.** The command list answers "what is the

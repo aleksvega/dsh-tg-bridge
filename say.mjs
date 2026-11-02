@@ -183,6 +183,15 @@ async function main() {
       threadId = active.threadId;
     }
   }
+  // `--chat` without `--thread` used to mean thread 0, and thread 0 is the
+  // group's General topic: a note written from a session that only knew the
+  // chat landed in "General" while it was talking about another topic's work.
+  // The live marker for this folder knows both halves, so it wins over half a
+  // flag — and says so, because a silent correction is its own mystery later.
+  if (chatId && !threadId && !args.steer && marker && marker.chatId === chatId && marker.threadId) {
+    threadId = marker.threadId;
+    console.error(`--thread missing: using topic ${threadId} of the turn running in this folder`);
+  }
   if (args.steer) {
     const found = jobOf(args.steer);
     if (!found) {
