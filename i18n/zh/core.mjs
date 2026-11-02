@@ -319,4 +319,8 @@ export default {
   'ctrl.find.stale': "这是上一次搜索的列表 —— 重新运行 /find",
   'ctrl.find.opened': "已打开第 {line} 行",
   'ctrl.help.about.find': "/find <文字> [路径] —— 在话题目录里按字面查找，结果以按钮显示，点开即跳到该行。二进制或过大的文件会被跳过并计数。",
+  'start.body': "这个机器人是 Telegram 里的 DeepSeek Harness。每个话题都是独立会话，有自己的目录、模型和历史。\n\n三条必备命令：\n/cd <项目> —— 把话题绑定到目录\n/model —— 选择模型（按钮，先选端点）\n/menu —— 所有命令都以按钮呈现；/help 按组说明\n\n其他任何消息都是一次回合：代理在话题目录里工作并在这里回答。",
+
+  'ctrl.help.about.start': "/start —— 欢迎卡片：这个机器人是什么，以及开始用的三条命令。有人打开机器人时 Telegram 会发送它。",
+
 };

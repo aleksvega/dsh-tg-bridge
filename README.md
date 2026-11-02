@@ -60,6 +60,29 @@ that answers, one step at a time.
   and home paths removed before the file is written.
 - **`dsh-tg check`.** Diagnostics in one command, changing nothing on the system.
 
+## First run
+
+`setup.mjs` leaves a working bridge with these defaults, and none of them need
+a decision before the first message:
+
+| Setting | Default | Where to change it |
+|---|---|---|
+| profile | `headless` | `/profile` |
+| folder | the workspace you ran setup in | `/cd` |
+| idle limit | 2 minutes without output stops the turn | `/settings` |
+| hard ceiling | none — a long turn runs until it ends | `/settings` |
+| parallel turns | 3 | `/settings` |
+| plain text | off (Markdown answers) | `/settings` |
+| model fallback | on, empty chain | `/fallback` |
+| voice messages | off | `/voice` |
+| topic log | on | `/settings` |
+| command menu | installed for this bot | `node bot-menu.mjs` |
+
+The first three commands are enough to be productive: `/cd <project>` binds the
+topic to a folder, `/model` picks the model with buttons, `/menu` is every
+command as a card, grouped. `/start` answers with the same three; `/help`
+explains any command in one message; `/settings` holds the switches above.
+
 ## Requirements
 
 - Node.js ≥ 24 (the version DeepSeek Harness ships; sessions are zstd-compressed)
@@ -291,6 +314,8 @@ Error replies end with a code, which tells you what to fix:
 |---|---|
 | `INSUFFICIENT_QUOTA` | provider balance is empty: top up or stay on free models (`/prices`, `/model`) |
 | `TG_CONFLICT` | a second process is polling the same bot: `/doctor`, then `/restart` |
+| `TG_POLL` | Telegram did not answer a long poll inside its own clock. The bridge retried by itself; one line is nothing, a run of them for minutes is VPN/DNS or a route that died |
+| `TG_NET` | no network to Telegram at all: the bridge keeps retrying, nothing was lost |
 | `MISSING_CREDENTIAL` | no provider key in the profile: add it in the DSH app |
 | `NO_DSH_CLI` | DeepSeek Harness CLI not found: check the app installation |
 | `NETWORK` | no network to the provider: retry, check VPN/DNS |
@@ -299,6 +324,29 @@ Error replies end with a code, which tells you what to fix:
 | `EMPTY_RESPONSE` | the model returned nothing: retry or switch model (`/model`) |
 | `TURN_TIME_CAP` | the turn hit its own time ceiling: the work is saved, press Continue |
 | `TURN_FAILED` | cause not recognized: `/doctor` and `/logs errors` |
+
+### Lines in the bridge log
+
+Not every line is an error, and the ones that are usually name their own cause.
+These are the phrases people actually ask about — the first word of each is what
+to search for in `/logs`:
+
+| The line | What happened | What to do |
+|---|---|---|
+| `poll error [TG_POLL]: The operation was aborted due to timeout — retry in 5s` | Telegram held the long poll past its own timeout. The bridge dropped it and asked again, which is the normal way to poll | nothing, if it is one line; if it repeats for minutes, check VPN/DNS |
+| `poll error [TG_NET]: fetch failed` | no route to Telegram | it keeps retrying; fix the network |
+| `Conflict: terminated by other getUpdates request` | two processes poll the same token — a second bridge, or `dsh web` started its own | `/doctor` shows the pid; `/restart confirm` or stop the other copy |
+| `no activity for 2 min — turn interrupted` | the model went silent past the idle limit; the turn was stopped | `/stop` if it is still marked busy, then resend. `/settings` moves the limit |
+| `the CLI exited with code 1 and printed nothing` | DSH itself did not start, so the turn never existed | `/doctor`, then `/logs errors`; `/dsh` shows the installed version |
+| `[DSH] is not at <path>` | the topic's profile points at a path with no DSH | install DSH, or `/dsh` for the check |
+| `could not start the DSH turn` | spawn failed — permissions, disk, antivirus | the message carries the system reason |
+| `The button failed — /logs errors has the reason` | the card outlived the state it pointed at, usually after a restart | `/menu` draws a fresh card |
+| `the provider cut the request off at its own 60-second ceiling` | the provider closed the stream, not the bridge | the fallback chain takes over; `/fallback` shows it |
+| `turn ended without an answer` | the stream finished with no text and no error | retry; if it repeats, `/model` another route |
+
+A turn that fails on purpose says so in words — "the sandbox refused", "the
+provider ran out of its own clock" — because a person reading it is deciding
+what to do next, not debugging.
 
 ## Checks
 

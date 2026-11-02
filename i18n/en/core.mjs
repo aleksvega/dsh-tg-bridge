@@ -14,7 +14,7 @@ export default {
   'settings.state.on': 'on',
   'settings.state.off': 'off',
   'settings.state.auto': 'auto',
-  'help.body': "Write the task as plain text. Each forum topic is its own session:\n\nWork: /cd \u003cproject\u003e · /new · /stop · /send \u003cfile\u003e · /seed \u003ctext\u003e · /diff [stat] · /find \u003ctext\u003e\nGoals: /goal · /tasks [\u003ctext\u003e|done N] · /tasks (tap to tick)\nSessions: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003cname\u003e\nAgents: /agents · /agents set model|depth|filter … @tool\nModels per topic: /model · /model \u003cid\u003e · /model \u003cid\u003e all · /endpoint [list|add|rm] · /fallback · /load · /prices · /cost · /thoughts · /card\nTuning: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind · /every\nExtensions: /skills · /plugins [add|remove] · /soul\nVersions: /update [confirm|on|off|auto] · /subscribe on|off · /dsh · /compact\nOther: /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\nPanels: /menu — the same commands as buttons, page by page. /menu on puts four keys under the message field.",
+  'help.body': "Write the task as plain text. Each forum topic is its own session:\n\nWork: /cd \u003cproject\u003e · /new · /stop · /send \u003cfile\u003e · /seed \u003ctext\u003e · /diff [stat] · /find \u003ctext\u003e\nGoals: /goal · /tasks [\u003ctext\u003e|done N] · /tasks (tap to tick)\nSessions: /status · /sessions [\u003cid\u003e] · /rewind [n|undo|fork [n]|branches] · /new · /profile \u003cname\u003e\nAgents: /agents · /agents set model|depth|filter … @tool\nModels per topic: /model · /model \u003cid\u003e · /model \u003cid\u003e all · /endpoint [list|add|rm] · /fallback · /load · /prices · /cost · /thoughts · /card\nTuning: /effort · /permissions · /preset · /crew [use|show|off|new] · /plan · /jobs [n] · /remind · /every\nExtensions: /skills · /plugins [add|remove] · /soul\nVersions: /update [confirm|on|off|auto] · /subscribe on|off · /dsh · /compact\nOther: /start · /settings · /lang · /reasoning · /pin · /doctor · /logs [errors|N] · /report · /app · /restart · /help\nPanels: /menu — the same commands as buttons, page by page. /menu on puts four keys under the message field.",
   'settings.reply.title': 'What the bot says',
   'settings.agent.title': 'Who answers, and how hard it works',
   'settings.updates.title': 'New releases (this install, not this topic)',
@@ -319,4 +319,8 @@ export default {
   'ctrl.find.stale': "That list is from an older search — run /find again",
   'ctrl.find.opened': "Opened at line {line}",
   'ctrl.help.about.find': "/find <text> [path] — searches this topic's folder for a literal string and shows every match as a button; pressing one opens the file at that line. Binary files and files over 512 KB are skipped and counted.",
+  'start.body': "This bot is DeepSeek Harness in Telegram. Every topic is its own session, with its own folder, model and history.\n\nThree commands make it usable:\n/cd <project> — bind this topic to a folder\n/model — pick the model (buttons, endpoint first)\n/menu — every command as buttons; /help groups them\n\nAnything else you type is a turn: the agent works in the folder of this topic and answers here.",
+
+  'ctrl.help.about.start': "/start — the welcome card: what this bot is and the three commands to begin with. Telegram sends it when somebody opens the bot.",
+
 };

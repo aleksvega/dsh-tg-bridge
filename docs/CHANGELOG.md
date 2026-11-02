@@ -1,5 +1,21 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.40.1
+
+- **`/start` answers.** Telegram sends it when somebody opens the bot — the
+  first thing a new person presses — and the bridge knew no such command, so a
+  beginner's first sentence was "unknown command". It now answers with what the
+  bot is and the three commands that make it usable, and appears in `/help` and
+  the button panel like any other command.
+- **README: `First run`** — the defaults `setup.mjs` leaves behind in one table
+  (profile, folder, idle limit, ceiling, parallelism, fallback, voice, log) with
+  where to change each, and the three commands to start with.
+- **README: `Lines in the bridge log`** — the phrases people paste when
+  something looks broken, each with what happened and what to do: the long-poll
+  timeout that was simply retried, the 409 conflict of two pollers, the idle
+  interrupt, a CLI that printed nothing, a stale button card. `TG_POLL` and
+  `TG_NET` join the reply-code table.
+
 ## 1.40.0
 
 - **`/find <text> [path]` — where a string lives in this project.** The chat could
