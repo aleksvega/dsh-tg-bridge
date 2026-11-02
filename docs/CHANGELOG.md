@@ -1,5 +1,16 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.38.8
+
+- **A 💭 line is no longer lost when the sandbox forbids the write.** A turn that
+  runs in a project folder may have `~/.dsh` outside its writable area: the note
+  file refused the append with `EPERM`, `say.mjs --thought` exited 6, and the
+  decision never reached the chat. It now falls back to sending the line as a
+  real `💭` message — the person sees it, the stderr line says why it did not go
+  into the card, and the exit code is a failure only when both paths fail.
+- `DSH_TG_THOUGHTS` overrides the thoughts directory, so the fallback is
+  testable without breaking a real installation.
+
 ## 1.38.7
 
 - **The turn card is now a choice, not a wall.** Every turn ends with one card,

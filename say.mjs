@@ -26,7 +26,7 @@ import { join } from 'node:path';
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 const STEER = join(DSH_HOME, 'tg-bridge', 'steer');
 const ACKS = join(STEER, 'acks');
-const THOUGHTS = join(DSH_HOME, 'tg-bridge', 'thoughts');
+const THOUGHTS = (process.env.DSH_TG_THOUGHTS || '').trim() || join(DSH_HOME, 'tg-bridge', 'thoughts');
 
 function findToken() {
   const env = (process.env.DSH_TELEGRAM_BOT_TOKEN || '').trim();
@@ -85,6 +85,31 @@ function activeThoughtFile() {
   return { chatId, threadId: Number(base.slice(cut + 1)) || 0 };
 }
 
+/**
+ * Send one plain chat line and report the message id, or null.
+ *
+ * Used by the thought fallback: a 💭 line that cannot be written into the card
+ * file still has to arrive somewhere, and a failed send must not look like a
+ * successful one.
+ */
+async function sendLine(chatId, threadId, text) {
+  const token = findToken();
+  if (!token) return null;
+  const body = { chat_id: chatId, text, disable_web_page_preview: true };
+  if (threadId > 0) body.message_thread_id = threadId;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return data.ok ? data.result.message_id : null;
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const args = parse(process.argv.slice(2));
   if (!args.text) usage();
@@ -121,6 +146,11 @@ async function main() {
   if (!chatId) usage();
 
   if (args.thought) {
+    const explicit = (process.env.DSH_TG_THOUGHT || '').trim();
+    const own = explicit && explicit.split(/[\\/]/).pop()?.startsWith(`${chatId}_${threadId || 0}_`)
+      ? explicit
+      : '';
+    const file = own || join(THOUGHTS, `${chatId}_${threadId || 0}.jsonl`);
     try {
       mkdirSync(THOUGHTS, { recursive: true });
       // The turn's own file when the bridge exported one: two turns in the same
@@ -128,18 +158,22 @@ async function main() {
       // per-topic name stays the fallback for a shell that lost the env, and the
       // panel reads both — so a note never lands in a file nobody reads, which
       // is exactly what made 💭 stay empty while the file on disk kept growing.
-      const explicit = (process.env.DSH_TG_THOUGHT || '').trim();
-      const own = explicit && explicit.split(/[\\/]/).pop()?.startsWith(`${chatId}_${threadId || 0}_`)
-        ? explicit
-        : '';
-      const file = own || join(THOUGHTS, `${chatId}_${threadId || 0}.jsonl`);
       appendFileSync(file, `${JSON.stringify({ at: Date.now(), text: args.text })}\n`, 'utf8');
       console.log(file);
+      return;
     } catch (error) {
-      console.error(String(error?.message ?? error));
-      process.exit(6);
+      // A workspace sandbox can forbid writes under ~/.dsh while the turn runs
+      // in a project folder. The line must still reach the person: fall back to
+      // a real 💭 message and say why, instead of losing the decision silently.
+      const why = String(error?.message ?? error).replace(/\s+/g, ' ').slice(0, 120);
+      const sent = await sendLine(chatId, threadId, `💭 ${args.text}`);
+      if (!sent) {
+        console.error(`${why}; and the fallback message did not go through`);
+        process.exit(6);
+      }
+      console.error(`${why}; sent as a 💭 message instead of a card line`);
+      return;
     }
-    return;
   }
 
   const token = findToken();
@@ -159,8 +193,7 @@ async function main() {
   if (!data.ok) {
     console.error(`telegram: ${data.description || res.status}`);
     process.exit(4);
-  }
-  if (args.steer) {
+  }  if (args.steer) {
     try {
       mkdirSync(ACKS, { recursive: true });
       writeFileSync(join(ACKS, `${args.steer}.json`), JSON.stringify({ at: Date.now(), messageId: data.result.message_id, job: jobPath }), 'utf8');
