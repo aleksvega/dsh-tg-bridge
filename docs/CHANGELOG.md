@@ -1,5 +1,31 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.45.0
+
+- **A restart marker no longer outlives its restart.** The minute supervisor
+  clears `restart.pending` when the bridge is alive and the marker is more than
+  ten minutes old. Left behind, it made a much later start announce an interrupted
+  turn that had ended weeks earlier.
+- **`/doctor` says whether anything is still watching.** Two new rows: the restart
+  marker with its age, and how long ago the supervisor last ticked. A supervisor
+  that stopped is invisible otherwise — the bot looks idle until the next crash,
+  which then becomes permanent.
+- **A corrupt `state.json` is kept, not silently dropped.** Goals, schedules and
+  sessions used to vanish with no trace; the file is now copied to
+  `state.json.bad`, the parse error goes to the log, and the bridge starts empty.
+  The limit: only the first corrupt copy is kept, so a second corruption is
+  logged but not saved.
+- **An unhandled rejection ends the bridge instead of being logged.** It used to
+  keep running in a state nobody designed for, with `/doctor` reporting a healthy
+  process. The tick starts a clean one; a running turn is announced as
+  interrupted, as with any restart.
+- **`/every` help states its limit** in all three languages: a schedule fires only
+  while the bridge runs, and a missed time fires once on the next start, not once
+  per missed day.
+- **No provider name in the public tree.** The routing service this bridge was
+  developed against was named in 81 places — comments, fixtures, specs. Replaced
+  with a deliberately fake name; the pre-release scan is clean again.
+
 ## 1.44.0
 
 - **Change a file from the chat: `/edit`.** `/edit app.mjs:12` shows line 12 and
