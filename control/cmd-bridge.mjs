@@ -15,6 +15,7 @@ import { setRowConfig, unsetRowConfig } from '../profile/profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from '../work/reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from '../profile/agentsets.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
+import { supervisionRows } from './doctor-rows.mjs';
 import { applyFork, planFork, planRewind } from '../work/rewind.mjs';
 import { cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from '../work/rewind-card.mjs';
@@ -245,6 +246,10 @@ export async function handleBridgeCommands(ctx) {
         add(t(lang, 'ctrl.doctor.netErrors'), String(net));
         add(t(lang, 'ctrl.doctor.logLines'), String(lines.length - start));
       } catch {}
+
+      // Is anything still watching? A dead supervisor looks exactly like an idle
+      // bot until the next crash, which then becomes permanent.
+      rows.push(...supervisionRows(lang, DSH_HOME));
 
       // Disk space: the silent killer of model downloads and OCR. This used to
       // shell out to `powershell (Get-PSDrive C)`, so on macOS and Linux the row

@@ -111,7 +111,12 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
+  // Logging alone left the process running in a state nobody had designed: the
+  // turn that rejected is gone, the loop keeps polling, and the next /doctor
+  // shows a healthy bridge. Exit instead — the minute tick starts a clean one,
+  // and the interruption notice tells the topics what happened.
   log(`FATAL unhandled rejection: ${reason && reason.stack ? reason.stack : reason}`);
+  process.exit(1);
 });
 process.on('exit', (code) => {
   log(`bridge exiting code=${code}`);

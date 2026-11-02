@@ -16,7 +16,7 @@
 // Exit codes: 0 = nothing to do or started, 2 = start failed.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, openSync, closeSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, openSync, closeSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -43,6 +43,8 @@ const CRASH_STARTS = 2;
 // LOCK_MAX_AGE_MS here so even a genuinely wedged holder cannot wedge the guard.
 const LOCK = join(DIR, 'restart.lock');
 const LOCK_MAX_AGE_MS = 180_000;
+// A restart marker older than this is a leftover, not a restart in progress.
+const MARKER_MAX_AGE_MS = 600_000;
 
 function acquireLock(owner) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -86,6 +88,32 @@ function log(line) {
   try {
     appendFileSync(KICK_LOG, `${new Date().toISOString()} ${line}\n`, 'utf8');
   } catch {}
+}
+
+/**
+ * Forget a restart marker that outlived its restart.
+ *
+ * The bridge reads the marker on start to tell other topics their turn was cut,
+ * then clears it. If it is still there with a live bridge, the process that
+ * should have cleared it did not run — and every later start would read this
+ * stale marker as "the previous process died mid-turn". Ten minutes is well past
+ * any start, so the marker is a leftover, not news.
+ */
+function clearStaleMarker(marker) {
+  let age = Number.POSITIVE_INFINITY;
+  try {
+    age = Date.now() - statSync(marker).mtimeMs;
+  } catch {}
+  if (age < MARKER_MAX_AGE_MS) {
+    log('marker present and bridge alive, restart still in progress');
+    return;
+  }
+  try {
+    unlinkSync(marker);
+    log(`cleared stale restart marker (${Math.round(age / 1000)}s old, bridge alive)`);
+  } catch (error) {
+    log(`could not clear the restart marker: ${String(error?.message ?? error).slice(0, 120)}`);
+  }
 }
 
 function pidFromFile() {
@@ -193,7 +221,8 @@ async function main() {
   if (!acquireLock('kick')) {
     log('restart in progress (setup holds the lock), skipping this tick');
     return 0;
-  }  if (!existsSync(BRIDGE)) {
+  }
+  if (!existsSync(BRIDGE)) {
     log('bridge.mjs missing');
     return 2;
   }
@@ -206,7 +235,7 @@ async function main() {
   // Cheap path first: a live pid file is authoritative for a healthy bridge, so
   // the minute tick costs one kill(0) instead of a PowerShell process scan.
   if (filePid && alive(filePid)) {
-    if (restartPending) log(`marker present but pid ${filePid} alive`);
+    if (restartPending) clearStaleMarker(marker);
     // A live bridge proves the release can start: forget the crash history.
     writeStarts([]);
     return 0;

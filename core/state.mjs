@@ -5,7 +5,7 @@
 // message was mid-flight: `offset` advanced before the turn ran, so nothing ever
 // replayed it. An update is written here BEFORE the offset moves and deleted
 // only after the answer reached Telegram — the one order that survives a crash.
-import { appendFileSync, existsSync, mkdirSync, openSync, fsyncSync, closeSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync as writeFd } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, openSync, fsyncSync, closeSync, copyFileSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync as writeFd } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import { DONE_FILE, DONE_TTL_MS, DIR, HOME, LOG, PENDING_DIR, STATE } from './paths.mjs';
 
@@ -29,7 +29,14 @@ export const state = (() => {
   try {
     // Strip a UTF-8 BOM: PowerShell's Set-Content adds one and JSON.parse rejects it.
     return JSON.parse(readFileSync(STATE, 'utf8').replace(/^\uFEFF/, ''));
-  } catch {
+  } catch (error) {
+    // Unreadable state used to become an empty one in silence: goals, schedules
+    // and sessions were gone and the only trace was that they stopped working.
+    // Keep the file that caused it, say why, and start empty.
+    try {
+      if (!existsSync(`${STATE}.bad`)) copyFileSync(STATE, `${STATE}.bad`);
+    } catch {}
+    log(`state unreadable: ${String(error?.message ?? error).slice(0, 160)} — kept as state.json.bad, starting empty`);
     return { offset: 0, sessions: {} };
   }
 })();

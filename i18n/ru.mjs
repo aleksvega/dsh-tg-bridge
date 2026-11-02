@@ -13,4 +13,5 @@ import model from './ru/model.mjs';
 import endpoint from './ru/endpoint.mjs';
 import every from './ru/every.mjs';
 import dsh from './ru/dsh.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...dsh };
+import supervision from './ru/supervision.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...dsh, ...supervision };

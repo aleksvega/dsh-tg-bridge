@@ -2,20 +2,45 @@
 
 ## 0. P0 stability (do first, one commit each)
 
-- [ ] 0.1 `bridge-kick.mjs`: clear a `restart.pending` older than ten minutes when
+- [x] 0.1 `bridge-kick.mjs`: clear a `restart.pending` older than ten minutes when
   the pid is alive; log one line. Test: stale marker + live pid → marker gone, no
   second bridge.
+  → `clearStaleMarker()`, ten minutes by mtime. It was not even logging the old
+  case correctly: the marker was kept forever, so a later start announced an
+  interrupted turn that was months old. `test/supervision.test.mjs` runs the real
+  tick against a temp home whose `bridge.pid` names the test process: an 11-minute
+  marker goes away with one line, a fresh one stays.
 - [ ] 0.2 Start lock: an exclusive file taken before spawn; a second tick inside
   the window exits. Test: two ticks 100 ms apart → one spawn.
-- [ ] 0.3 Rollback cooldown persisted and at least twice the tick interval. Test:
+  → Half true, and the half that is missing is the one that matters. The lock is
+  taken before spawn and released on exit (`acquireLock`, shared with `setup.mjs`,
+  with a three-minute staleness takeover). But the window ends when the tick
+  exits, which is before the child has written its pid file — so a tick 100 ms
+  later can still start a second bridge. Closing it means holding the lock until
+  the pid file appears, and that needs a test with a deliberately slow stub.
+- [x] 0.3 Rollback cooldown persisted and at least twice the tick interval. Test:
   two ticks inside the cooldown → one restore, one message.
-- [ ] 0.4 `unhandledRejection` → log + `process.exit(1)`. Test: a rejected promise
+  → `startupRolledBackAt` in state; "the supervisor does not repeat a rollback it
+  just performed" in `test/stability.test.mjs`.
+- [x] 0.4 `unhandledRejection` → log + `process.exit(1)`. Test: a rejected promise
   ends the process.
+  → It only logged. A bridge that half-failed kept answering nothing while
+  `/doctor` showed a healthy process; now it exits and the minute tick starts a
+  clean one. No automated test: spawning the real bridge claims the pid file and
+  talks to Telegram. Test is manual — a rejected promise in a scratch profile.
 - [ ] 0.5 `enqueue` acknowledges on rejection too. Test: a throwing handler leaves
   no pending entry.
-- [ ] 0.6 Corrupt `state.json`: keep `.bad`, log the parse error. Test: invalid
+  → The journal bracket is tested (`replay-once.test.mjs`), the rejection path is
+  not. Still open.
+- [x] 0.6 Corrupt `state.json`: keep `.bad`, log the parse error. Test: invalid
   JSON → file kept, log line, empty state.
-- [ ] 0.7 `/doctor` rows: marker state and the age of the last `kick.log` line.
+  → It silently became an empty state: goals, schedules and sessions disappeared
+  with no trace. `core/state.mjs` now copies the file to `state.json.bad` (first
+  one wins), logs the parse error, and starts empty.
+- [x] 0.7 `/doctor` rows: marker state and the age of the last `kick.log` line.
+  → `control/doctor-rows.mjs` (its own module: `cmd-bridge.mjs` is at the 500-line
+  ceiling) with `describeAge`, plus the six strings in their own
+  `i18n/<lang>/supervision.mjs` table for the same reason.
 
 ## 1. P0 trust
 
@@ -63,10 +88,14 @@
 
 ## 4. Acceptance
 
-- [ ] 4.1 `npm test` green with `DSH_HOME` unset; no module over 500 lines; no new
-  dependency.
+- [x] 4.1 `npm test` green with `DSH_HOME` unset; no module over 500 lines; no new
+  dependency. (950 tests at the last run.)
 - [ ] 4.2 Each P0 has a test that fails on the previous revision (checked by
   reverting the fix locally).
+  → Three of the four fixes above have one. 0.4 does not, and 0.2 has none because
+  it is not fixed.
 - [ ] 4.3 Three locales for every new string.
+  → Done for everything added so far (`supervision.mjs` in all three).
 - [ ] 4.4 A release notes every behaviour change and its limit; the migration is
   named in `CHANGELOG.md`.
+  → Open: these fixes are unreleased.
