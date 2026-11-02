@@ -15,7 +15,7 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
  * a panel that hides half the bot sends people back to typing.
  */
 const SECTIONS = {
-  work: ['cd', 'seed', 'send', 'diff'],
+  work: ['cd', 'ls', 'view', 'seed', 'send', 'diff'],
   session: ['sessions', 'rewind', 'profile', 'agents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind', 'every'],
   talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'lang', 'endpoint', 'fallback'],

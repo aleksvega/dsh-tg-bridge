@@ -1,5 +1,29 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.43.0
+
+- **Read the folder from the chat: `/ls` and `/view`.** Until now the only way
+  to see what a turn had to work with was `/find` — which answers "where is this
+  string", not "what is in here". `/ls [folder]` lists one folder of the topic as
+  buttons, folders first, and `/view <file>[:line]` opens a file with line
+  numbers, forty lines at a time with a «More» button for the next page.
+  `app.mjs:412` and `app.mjs 412` both open at line 412, because a path pasted
+  out of another app carries a colon and a path typed on a phone carries a space.
+  Both commands read through the same fence `/find` uses: nothing outside the
+  topic folder, nothing binary, nothing over 512 KB, and `/ls <file>` opens the
+  file instead of complaining that it is not a folder.
+- **A card outlives the folder it was drawn from.** Pressing a folder replaces
+  the card with that folder, so walking back is `/ls ..` rather than a growing
+  stack of messages; pressing a file opens it under the folder card. Rows carry a
+  number, not a path — callback data is capped at 64 bytes and a path is longer
+  than that — so a card from an older listing answers "run /ls again" instead of
+  opening whatever moved into that place.
+- **The topic's own folder, and no other.** `/ls` and `/view` do not fall back to
+  the install folder the way `/find` does: a topic with no `/cd` is told to bind
+  one, rather than listing the bridge's own directory.
+- `/ls` and `/view` are in `/help`, `/menu` (the work section), the panel, and
+  all three locales.
+
 ## 1.42.0
 
 - **The workspace group is written by the host that owns it.** 1.39.0 closed
