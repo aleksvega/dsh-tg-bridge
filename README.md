@@ -80,7 +80,7 @@ a decision before the first message:
 
 The first three commands are enough to be productive: `/cd <project>` binds the
 topic to a folder, `/model` picks the model with buttons, `/menu` is every
-command as a card, grouped. `/start` answers with the same three; `/help`
+command as a card, grouped. `/start` answers with the same three and offers a five-step tour — folder, model, files, the turn and the way back, the switches — each step naming one command as a button; `/help`
 explains any command in one message; `/settings` holds the switches above.
 
 ## Requirements

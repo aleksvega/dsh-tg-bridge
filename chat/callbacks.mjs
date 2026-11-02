@@ -19,6 +19,7 @@ import { runCommandFromButton } from '../core/run-command.mjs';
 import { handleCardPress } from '../profile/settings-press.mjs';
 import { cardBlocks, cardKeyboard, renderCardSettings, toggleCardBlock } from '../turn/card.mjs';
 import { handleFilePress } from './file-press.mjs';
+import { handleTourPress } from './tour-press.mjs';
 import { config, done, log, saveState, state } from '../core/state.mjs';
 import { inlineKeyboard, send, sendFile, tg, tgFast } from './telegram.mjs';
 import { sessionFile } from './thoughts.mjs';
@@ -344,6 +345,8 @@ export async function handleCallback(query) {
   if (data.startsWith(MODEL_PREFIX)) {
     if (await modelPressRouter({ chatId, threadId, messageId, key, lang, answer, log })(data)) return;
   }
+
+  if (await handleTourPress({ data, lang, chatId, threadId, messageId, answer })) return;
 
   if (await handleFilePress({ data, key, lang, chatId, threadId, messageId, answer })) return;
 

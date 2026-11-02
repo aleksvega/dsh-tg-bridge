@@ -323,4 +323,20 @@ export default {
 
   'ctrl.help.about.start': "/start — the welcome card: what this bot is and the three commands to begin with. Telegram sends it when somebody opens the bot.",
 
+  'tour.start': "What it can do",
+  'tour.page': "Step {n} of {total}",
+  'tour.back': "< Back",
+  'tour.next': "Next >",
+  'tour.done': "Done",
+  'tour.try': "Try /{cmd}",
+  'tour.1.title': "Topics are sessions",
+  'tour.1.body': "Every topic in Telegram is its own session: its own folder, its own model, its own history.\n\n/cd <project> binds this topic to a folder; /new starts a fresh conversation in the same folder.",
+  'tour.2.title': "Model and price",
+  'tour.2.body': "/model picks the endpoint first, then the model — all buttons.\n\n/prices says what the current model costs and whose price that is. /model auto lets the fallback chain take over when a provider refuses.",
+  'tour.3.title': "Files",
+  'tour.3.body': "/send hands over a file from this topic folder.\n\n/find <text> searches for a string and opens the file at the matched line. /diff shows what a turn changed and can revert a single hunk.",
+  'tour.4.title': "The turn and the way back",
+  'tour.4.body': "Anything you type without a command is a turn: the agent works in this folder and answers here.\n\n/stop stops it, /rewind steps the conversation back, /sessions lists the past ones.",
+  'tour.5.title': "Settings and rhythm",
+  'tour.5.body': "/settings is the switches, as buttons.\n\n/every 9:00 <text> runs a turn on a schedule in this topic, /remind is a nudge, /menu draws every command, /help <command> explains one.",
 };

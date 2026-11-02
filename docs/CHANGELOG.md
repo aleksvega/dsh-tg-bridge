@@ -1,5 +1,16 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.41.0
+
+- **`/start` opens a five-step tour.** The command list answers "what is the
+  syntax"; it never answered "which of these do I need today". Five cards —
+  the topic is a session, the model and its price, files, the turn and the way
+  back, the switches and the rhythm — each naming one command and carrying it as
+  a button, so the tour hands the person to the real command instead of
+  describing it. The step lives in the callback data, so a card survives a
+  restart, a stale button is clamped to a real step, and the last card ends at
+  `/menu` and `/help`.
+
 ## 1.40.1
 
 - **`/start` answers.** Telegram sends it when somebody opens the bot — the

@@ -323,4 +323,20 @@ export default {
 
   'ctrl.help.about.start': "/start —— 欢迎卡片：这个机器人是什么，以及开始用的三条命令。有人打开机器人时 Telegram 会发送它。",
 
+  'tour.start': "能做什么",
+  'tour.page': "第 {n} 步，共 {total} 步",
+  'tour.back': "< 上一步",
+  'tour.next': "下一步 >",
+  'tour.done': "完成",
+  'tour.try': "试试 /{cmd}",
+  'tour.1.title': "话题就是会话",
+  'tour.1.body': "Telegram 里每个话题都是独立会话：自己的目录、模型和历史。\n\n/cd <项目> 把话题绑定到目录；/new 在同一目录里开新对话。",
+  'tour.2.title': "模型与价格",
+  'tour.2.body': "/model 先选端点，再选模型，全部用按钮。\n\n/prices 说明当前模型的费用以及是谁的价格。/model auto 让提供商拒绝时自动切换。",
+  'tour.3.title': "文件",
+  'tour.3.body': "/send 发送话题目录里的文件。\n\n/find <文字> 查找字符串并在该行打开文件。/diff 显示一次回合改了什么，还能只回退一段。",
+  'tour.4.title': "回合与退路",
+  'tour.4.body': "不带命令的任何消息都是一次回合：代理在这个目录里工作并在这里回答。\n\n/stop 停止，/rewind 往回退一步，/sessions 列出过去的会话。",
+  'tour.5.title': "设置与节奏",
+  'tour.5.body': "/settings 是开关，全部按钮化。\n\n/every 9:00 <文字> 在这个话题里定时跑一次回合，/remind 提醒，/menu 画出所有命令，/help <命令> 解释一条。",
 };
