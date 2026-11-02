@@ -2,8 +2,10 @@
 export default {
   'ctrl.dsh.noInstalled': 'Не смог прочитать `dsh --version` — возможно, DSH стоит не там, где его ищет мост. /doctor покажет, какой бинарник запускает ход.',
   'ctrl.dsh.appNoVersion': '🔧 Ход запускает DSH из приложения, поэтому `dsh` в PATH нет и спрашивать некого. Версию знает само приложение, а CLI моста обновляется вместе с ним — npm тут ни при чём.',
-  'ctrl.dsh.appBehind': 'В приложении DSH {installed}, а в npm уже {latest}. Обновление приложения привезёт его с собой.',
-  'ctrl.dsh.appCurrent': 'В приложении DSH {latest} — та же версия, что публикует npm. Обновлять нечего.',
+  'ctrl.dsh.appBehind': 'В приложении DSH {installed}, а самое новое — {latest}. Обновление приложения привезёт его с собой.',
+  'ctrl.dsh.appCurrent': 'В приложении DSH {latest} — это и есть самое новое. Обновлять нечего.',
+  'ctrl.dsh.appSource': 'Это число — из канала обновлений приложения ({channel}), а не из npm.',
+  'ctrl.dsh.appSourceNpm': 'Канал обновлений приложения прочитать не удалось, поэтому число взято из npm.',
   'ctrl.dsh.head': '🔧 DSH {installed} · последняя {latest}',
   'ctrl.dsh.headUnknown': '🔧 DSH {installed} · npm не ответил, какая последняя',
   'ctrl.dsh.tested': 'Проверена с этим мостом: {range}',

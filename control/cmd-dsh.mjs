@@ -10,9 +10,26 @@ import { spawn } from 'node:child_process';
 
 import { t } from '../core/i18n.mjs';
 import { dshLaunch } from '../core/dsh-launch.mjs';
+import { appUpdateInfo } from '../core/app-feed.mjs';
 import { appDshVersion, dshStatus, forgetInstalledDsh, installedDsh, latestDsh } from '../core/dsh-version.mjs';
 
-function card(lang, status, kind) {
+/**
+ * Which version is "the newest", and where that number came from.
+ *
+ * For a CLI on PATH that is npm. For the app it is the app's own update channel:
+ * npm publishes the CLI the app happens to bundle, but the build the app will
+ * actually pull is the one its feed names, and a card that quotes npm instead can
+ * be right about the number and wrong about the update.
+ */
+export async function latestFor({ kind = '', exe = '', readLatest = latestDsh, readFeed = appUpdateInfo } = {}) {
+  const npm = String((await readLatest()) || '');
+  if (kind !== 'app') return { version: npm, source: 'npm', channel: '' };
+  const info = await readFeed({ exe }).catch(() => null);
+  if (!info?.version) return { version: npm, source: 'npm', channel: '' };
+  return { version: info.version, source: 'app', channel: info.channel || '' };
+}
+
+function card(lang, status, kind, latest = {}) {
   // An app-owned CLI has no `dsh` on PATH to ask, and that is not a misplaced
   // install: the sentence a person reads here must name the app, or they go
   // looking in /doctor for a problem that does not exist.
@@ -36,6 +53,13 @@ function card(lang, status, kind) {
     if (status.outdated) lines.push(t(lang, 'ctrl.dsh.appBehind', { installed: status.installed, latest: status.latest }));
     else if (status.latest && status.installed) lines.push(t(lang, 'ctrl.dsh.appCurrent', { latest: status.latest }));
     else lines.push(t(lang, 'ctrl.dsh.fromApp'));
+    // Where the number came from, so the person knows whether "latest" means the
+    // app's own channel or npm's, and can check it themselves.
+    if (latest.source === 'app' && status.latest) {
+      lines.push(t(lang, 'ctrl.dsh.appSource', { channel: latest.channel || 'latest' }));
+    } else if (status.latest) {
+      lines.push(t(lang, 'ctrl.dsh.appSourceNpm'));
+    }
   }
   // "Update available" and "could not ask" must not read the same: an unknown
   // latest is not an up-to-date install. An app-owned CLI gets no update hint at
@@ -117,6 +141,7 @@ export async function handleDshCommands(ctx, deps = {}) {
   if (effective !== '/dsh') return false;
   const words = String(arg || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   const readLatest = deps.latest || latestDsh;
+  const readFeed = deps.feed || appUpdateInfo;
   const run = deps.run || null;
   const forget = deps.forget || forgetInstalledDsh;
   // Which CLI the bridge measured, and therefore which one an update would have
@@ -141,8 +166,8 @@ export async function handleDshCommands(ctx, deps = {}) {
       await reply(t(lang, 'ctrl.dsh.usage'));
       return true;
     }
-    const latest = await readLatest();
-    const status = dshStatus({ installed: readInstalled(), latest });
+    const latest = await latestFor({ kind, exe: launch.exe, readLatest, readFeed });
+    const status = dshStatus({ installed: readInstalled(), latest: latest.version });
     // The two presses are the two words of the command, so nothing here has a
     // second path into npm: `ds:update` types `/dsh update`, `ds:confirm` types
     // the confirm. A card that only says "type /dsh update" costs the person the
@@ -150,7 +175,7 @@ export async function handleDshCommands(ctx, deps = {}) {
     const buttons = status.outdated && kind !== 'app'
       ? [[{ text: t(lang, 'ctrl.dsh.button', { latest: status.latest }), data: 'ds:update' }]]
       : [];
-    await reply(card(lang, status, kind), buttons.length ? { keyboard: buttons } : undefined);
+    await reply(card(lang, status, kind, latest), buttons.length ? { keyboard: buttons } : undefined);
     return true;
   }
 

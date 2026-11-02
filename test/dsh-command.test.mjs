@@ -30,6 +30,9 @@ function context(command, arg = '', lang = 'en') {
 const deps = (overrides = {}) => ({
   installed: () => '0.2.1-rc.3',
   latest: async () => '0.2.1-rc.5',
+  // No app feed unless a test asks for one: the real feed is a network call, and
+  // a unit test that reaches the internet is a test that fails on a plane.
+  feed: async () => null,
   forget: () => {},
   // These tests describe an install whose CLI belongs to npm, which is what
   // Linux and a user-set DSH_BIN look like. The app-owned case is a separate
@@ -146,7 +149,8 @@ test('an unknown word gets the usage line, in every language', async () => {
 test('a CLI owned by the app names both versions and offers no npm button', async () => {
   const { ctx, out, extras } = context('/dsh');
   await handleDshCommands(ctx, deps({ kind: 'app' }));
-  assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; npm already has 0\.2\.1-rc\.5/);
+  assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; the newest build is 0\.2\.1-rc\.5/);
+  assert.match(out[0], /newest number here is npm’s|newest number is npm/);
   assert.doesNotMatch(out[0], /Update: \/dsh update/, 'the npm route cannot help this CLI');
   assert.equal(extras[0].keyboard, undefined, 'a button that cannot do the job is a lie');
 });
@@ -159,12 +163,12 @@ test('an app-owned CLI with no readable version names the app, not a bad install
   assert.doesNotMatch(out[0], /could not read|may not be installed/, 'nothing is misplaced here');
 });
 
-test('the app card says which DSH it carries and whether npm has moved on', async () => {
+test('the app card says which DSH it carries and what the newest is', async () => {
   const { ctx, out } = context('/dsh', '', 'en');
   await handleDshCommands(ctx, deps({ kind: 'app' }));
   assert.match(out[0], /DSH 0\.2\.1-rc\.3 · latest 0\.2\.1-rc\.5/, 'both versions, not a shrug');
-  assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; npm already has 0\.2\.1-rc\.5/);
-  assert.match(out[0], /Updating the app brings the newer one with it/);
+  assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; the newest build is 0\.2\.1-rc\.5/);
+  assert.match(out[0], /Updating the app brings it with it/);
 });
 
 test('an app already on the published version says there is nothing to update', async () => {
@@ -172,6 +176,23 @@ test('an app already on the published version says there is nothing to update', 
   await handleDshCommands(ctx, deps({ kind: 'app', installed: () => '0.2.1-rc.5' }));
   assert.match(out[0], /carries DSH 0\.2\.1-rc\.5/);
   assert.match(out[0], /nothing to update/);
+});
+
+test('the app’s own update feed decides what "latest" means', async () => {
+  const { ctx, out } = context('/dsh', '', 'en');
+  await handleDshCommands(ctx, deps({
+    kind: 'app',
+    feed: async () => ({ version: '0.2.2', installer: 'https://x.test/h.exe', channel: 'nightly' }),
+  }));
+  assert.match(out[0], /newest build is 0\.2\.2/, 'the feed wins over npm, even downward');
+  assert.match(out[0], /update channel \(nightly\)/);
+  assert.doesNotMatch(out[0], /npm’s/);
+});
+
+test('when the feed is unreadable the card says the number is npm’s', async () => {
+  const { ctx, out } = context('/dsh', '', 'en');
+  await handleDshCommands(ctx, deps({ kind: 'app' }));
+  assert.match(out[0], /number here is npm’s/);
 });
 
 test('when npm cannot be reached the app still says whose CLI it is', async () => {

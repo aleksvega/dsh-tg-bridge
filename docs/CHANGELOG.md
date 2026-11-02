@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **The app's own update feed is what "latest" means there.** `resources/app-update.yml`
+  names a feed and a channel, and the channel's manifest names the build the app
+  would install. `/dsh` now reads both, so on a desktop install the number comes
+  from the same place the app's updater looks — with a line saying which channel
+  it came from, and a different line when the feed was unreadable and the number
+  fell back to npm.
 - **`/dsh` reads the DSH the desktop app carries.** The app keeps its CLI inside
   `app.asar`, where `dsh --version` cannot reach it, so the one screen about
   versions answered "unknown" on the platform where "am I current" is the
