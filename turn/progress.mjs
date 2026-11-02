@@ -13,7 +13,7 @@ import { sessionKey } from '../core/keys.mjs';
 import { tg } from '../chat/telegram.mjs';
 import { topicName } from '../chat/topics.mjs';
 import { t } from '../core/i18n.mjs';
-import { addStep, progressPanel, stepLine } from '../chat/panel.mjs';
+import { addStep, isSubagentTool, progressPanel, stepLine, subagentStep } from '../chat/panel.mjs';
 import { reasoningMode, thoughtRows } from '../chat/notes.mjs';
 import { cardBlocks } from './card.mjs';
 import { cardPin } from '../profile/settings-card.mjs';
@@ -55,6 +55,10 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   const started = Date.now();
   const panelKey = sessionKey(chatId, threadId);
   const steps = [];
+  // Subagent calls in flight, by callId, with the index of their step line and
+  // the moment they started: the stream says nothing about them except a call
+  // and a later result, so the wall clock is the only duration there is.
+  const subagents = new Map();
   const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
   // `totalTokens` is the provider's own sum of the prompt it just sent, which is
@@ -321,8 +325,32 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     },
     handle(event) {
       if (event.type === 'tool_call') {
-        addStep(steps, stepLine(event));
+        if (isSubagentTool(event.tool)) {
+          // The line goes in when the call starts, so a subagent that runs for
+          // two minutes is visible as running rather than appearing at the end.
+          const input = event.input ?? {};
+          const label = String(input.description ?? input.prompt ?? '').replace(/\s+/g, ' ').trim();
+          subagents.set(String(event.callId || ''), { index: steps.length, at: Date.now(), tool: event.tool, label });
+          steps.push(subagentStep(event));
+        } else {
+          addStep(steps, stepLine(event));
+        }
         schedule();
+        return;
+      }
+      if (event.type === 'tool_result') {
+        const waiting = subagents.get(String(event.callId || ''));
+        if (waiting) {
+          subagents.delete(String(event.callId || ''));
+          if (steps[waiting.index] !== undefined) {
+            // The label comes from the call; the result adds the one thing it
+            // knows and the call did not — how long the subagent actually ran,
+            // and whether it failed.
+            const done = subagentStep({ tool: waiting.tool, input: { description: waiting.label } }, Date.now() - waiting.at);
+            steps[waiting.index] = `${done}${event.status === 'error' ? ' ✖' : ''}`;
+            schedule();
+          }
+        }
         return;
       }
       // The CLI emits one `thinking` event per committed assistant step, so the

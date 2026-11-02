@@ -115,6 +115,31 @@ export function stepLine(event) {
   return `${tool}: ${text.slice(0, 64)}`;
 }
 
+/** Is this tool call a subagent, i.e. a whole turn running on the side? */
+export function isSubagentTool(tool) {
+  return /^subagent/i.test(String(tool || ''));
+}
+
+/**
+ * A subagent as one step line, with how long it took when that is known.
+ *
+ * The headless stream has no event type for subagents — no who, no tokens, no
+ * live progress — so a subagent reaches the bridge as an ordinary tool call and
+ * result. That is still enough to say the honest part: which task ran, and how
+ * long it took between its call and its result. The duration is measured, not
+ * reported, and a line without it means the result never came.
+ */
+export function subagentStep(event, ms = null) {
+  const input = event?.input ?? {};
+  const label = String(input.description ?? input.prompt ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 52);
+  const head = label ? `${event?.tool || 'subagent'}: ${label}` : `${event?.tool || 'subagent'}`;
+  if (!Number.isFinite(ms) || ms < 0) return head;
+  return `${head} · ${Math.max(1, Math.round(ms / 1000))}s`;
+}
+
 /** Push a step, folding a repeat into the line above it: `×3`, not three rows. */
 export function addStep(steps, line) {
   if (!line) return steps;

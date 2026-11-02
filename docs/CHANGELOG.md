@@ -1,5 +1,16 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.39.1
+
+- **A subagent is visible in the card as one honest line.** The headless stream
+  has no event type for subagents — a scan of its JSON stream found seven types,
+  and `subagent` is not one of them — so a subagent reaches the bridge as an
+  ordinary tool call plus a later result. The card now shows the task it was
+  given when the call starts, and adds the measured duration when the result
+  arrives (`subagent: Проверить релиз · 42s`), with a `✖` when it failed. The
+  duration is wall clock between the two events, because that is the only source
+  the stream offers; token counts and live progress would need a DSH plugin.
+
 ## 1.39.0
 
 - **A Telegram session now appears under its folder in the desktop sidebar**
