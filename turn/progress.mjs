@@ -291,7 +291,10 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       lastView = view ? view.html : text;
       lastEdit = Date.now();
     } catch (error) {
-      // "message is not modified" and rate limits are expected: ignore quietly.
+      // "message is not modified" and rate limits are expected, so the edit is
+      // skipped — but a silent catch is how a panel that never updates hides for
+      // weeks. One line names the reason; the turn itself is never failed by it.
+      log(`panel edit skipped [${error?.error_code || error?.code || 'error'}]`);
       dirty = false;
     }
   };
