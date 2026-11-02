@@ -5,10 +5,11 @@
 - [x] 0.1 Name the one command the bar is measured by.
   → `Remove-Item Env:DSH_HOME` then `node --test test/*.test.mjs` from the
   repository root. 751 tests, 12 s, no network.
-- [ ] 0.2 Write the same command into `docs/` where a new contributor looks first,
+- [x] 0.2 Write the same command into `docs/` where a new contributor looks first,
   next to the run instructions.
   The gate is judged by review: no test can assert that a human ran the whole
   suite.
+  → `docs/DEV-LOOP.md` already had it at line 37, `DSH_HOME` unset and all.
 
 ## 1. A fix carries its failing-on-the-old-revision test
 
@@ -19,11 +20,21 @@
   exactly one failure.
 - [x] 1.2 The dropped heading: a test asserts every button the card draws
   survives `inlineKeyboard`, and another asserts no two route labels collide.
-- [ ] 1.3 Extend `test/unresolved-calls.test.mjs` so a bare shorthand reference
+- [x] 1.3 Extend `test/unresolved-calls.test.mjs` so a bare shorthand reference
   (`{ t }`) to an exported name is checked too, not only a call (`t(`).
   It is the guard that should have caught 1.1 and cannot: its `visibleNames()` is
   file-wide, so a parameter of any function counts as visible module-wide.
   Needs scope tracking, so it is its own change.
+  → Rewritten around `missingRefs(code, exported)`: module-level names are imports
+  and top-level declarations, and a parameter only counts inside its own body
+  (destructured `{ t }` signatures included, expression-bodied arrows included).
+  Four fixtures pin the scoping — a neighbour's parameter does not leak, a
+  shorthand property is checked like a call, a destructured parameter binds, an
+  import is visible file-wide — and the tree-wide test was proved non-vacuous by
+  adding one unbound `t(` to `core/paths.mjs` and watching it fail with the line
+  number.
+  The per-file list of every exported name is still the candidate set, so a typo
+  in a name the bot never exported from anywhere is out of scope.
 
 ## 2. Three locales
 

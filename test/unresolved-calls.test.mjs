@@ -5,13 +5,16 @@
 // replayed the same command after every restart. `node --check` and the unit
 // tests both miss it, because neither runs that branch.
 //
-// This file used to check a hand-written list of helper names, and the list is
-// what failed: when the 500-line split moved `cardKeyboard` out of `control.mjs`
-// into `aset-schema.mjs`, the call inside `agentsetKeyboard` kept the old name
-// and the list did not mention it. The rule needs no list. A name exported by any
-// module here, called without a member access, must be imported, declared
-// locally, or bound as a parameter of the function that calls it — otherwise that
-// line throws the moment it runs.
+// The first version of this file collected every parameter name in a file into
+// one set, so a `t` that some other function happened to take as an argument made
+// `t` visible everywhere — which is exactly how `/model` shipped calling `t`
+// without importing it. The check is scope-aware now: a name is visible because
+// this module imports it, declares it at the top, binds it in an enclosing
+// function, or declares it anywhere in that function. A parameter of a neighbour
+// no longer counts.
+//
+// Shorthand properties are checked too: `{ t }` fails the same way `t(...)` does,
+// and a card that builds its rows as objects is where that shape lives.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -45,6 +48,10 @@ function startsRegex(src, i) {
  * Source with comments, strings and regex literals blanked out. Prose is not a
  * call, a string is not a call, and a pattern like `/running \(/` is not one
  * either — all three used to produce false hits.
+ *
+ * Newlines survive blanking, so a reported line number is the real one: a block
+ * comment is many lines long, and collapsing it into one space shifted every
+ * line after it.
  */
 function codeOnly(src) {
   let out = '';
@@ -52,7 +59,17 @@ function codeOnly(src) {
     const c = src[i];
     const n = src[i + 1];
     if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i += 1; out += '\n'; continue; }
-    if (c === '/' && n === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i += 1; i += 1; out += ' '; continue; }
+    if (c === '/' && n === '*') {
+      i += 2;
+      let blanks = ' ';
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
+        if (src[i] === '\n') blanks += '\n';
+        i += 1;
+      }
+      i += 1;
+      out += blanks;
+      continue;
+    }
     if (c === '/' && startsRegex(src, i)) {
       i += 1;
       while (i < src.length && src[i] !== '/') {
@@ -66,9 +83,14 @@ function codeOnly(src) {
     }
     if (c === "'" || c === '"' || c === '`') {
       const q = c;
+      let blanks = ' "" ';
       i += 1;
-      while (i < src.length && src[i] !== q) { if (src[i] === '\\') i += 1; i += 1; }
-      out += ' "" ';
+      while (i < src.length && src[i] !== q) {
+        if (src[i] === '\\') i += 1;
+        else if (src[i] === '\n' && q === '`') blanks += '\n';
+        i += 1;
+      }
+      out += blanks;
       continue;
     }
     out += c;
@@ -76,14 +98,134 @@ function codeOnly(src) {
   return out;
 }
 
-const FILES = shippedFiles().map((path) => ({ path, code: codeOnly(readFileSync(path, 'utf8')) }));
+/** Index of the brace that closes the one at `open`, or -1. */
+function matchBrace(code, open) {
+  let depth = 0;
+  for (let i = open; i < code.length; i += 1) {
+    if (code[i] === '{') depth += 1;
+    else if (code[i] === '}') { depth -= 1; if (depth === 0) return i; }
+  }
+  return -1;
+}
 
-/** Every name any module exports: the candidates a bare call could resolve to. */
-function exportedNames() {
+/** Index of the paren that closes the one at `open`, or -1. */
+function matchParen(code, open) {
+  let depth = 0;
+  for (let i = open; i < code.length; i += 1) {
+    if (code[i] === '(') depth += 1;
+    else if (code[i] === ')') { depth -= 1; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+/** Identifiers a parameter list binds, defaults and destructuring included. */
+function parameterNames(list) {
+  return [...list.matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0]);
+}
+
+/**
+ * Function scopes: where a body starts and ends, and which names its parameters
+ * bind inside it. Expression-bodied arrows end at the next semicolon, which is
+ * enough to cover `(row, value, t) => (… t(…) …)`.
+ */
+function functionScopes(code) {
+  const out = [];
+  for (const m of code.matchAll(/\bfunction\s*[A-Za-z_$]*\s*\(/g)) {
+    const open = code.indexOf('(', m.index);
+    const close = matchParen(code, open);
+    if (close < 0) continue;
+    const body = code.indexOf('{', close);
+    if (body < 0) continue;
+    const end = matchBrace(code, body);
+    if (end < 0) continue;
+    out.push({ start: body, end, params: new Set(parameterNames(code.slice(open + 1, close))), paramOpen: open, paramClose: close });
+  }
+  for (const m of code.matchAll(/\(([^()]*)\)\s*=>\s*\{/g)) {
+    const body = code.indexOf('{', m.index);
+    const end = matchBrace(code, body);
+    if (end < 0) continue;
+    out.push({ start: body, end, params: new Set(parameterNames(m[1])), paramOpen: m.index, paramClose: code.indexOf(')', m.index) });
+  }
+  for (const m of code.matchAll(/\(([^()]*)\)\s*=>\s*(?!\{)/g)) {
+    const start = code.indexOf('=>', m.index);
+    let end = code.indexOf(';', start);
+    if (end < 0) end = code.length;
+    out.push({ start, end, params: new Set(parameterNames(m[1])), paramOpen: m.index, paramClose: code.indexOf(')', m.index) });
+  }
+  return out;
+}
+
+/** Names this module binds at its own top level: imports and declarations. */
+function moduleNames(code) {
   const names = new Set();
-  for (const { code } of FILES) {
-    for (const m of code.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
-    for (const m of code.matchAll(/export\s+(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of code.matchAll(/import\s+([\s\S]*?)\s+from/g)) {
+    for (const part of m[1].replace(/[{}]/g, ' ').split(',')) {
+      const name = part.trim().split(/\s+as\s+/).pop().trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) names.add(name);
+    }
+  }
+  for (const m of code.matchAll(/^(?:export\s+)?(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm)) names.add(m[1]);
+  return names;
+}
+
+/** Names declared anywhere in the file, at any depth. */
+function declaredNames(code) {
+  const names = new Set();
+  for (const m of code.matchAll(/\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of code.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}/g)) {
+    for (const part of m[1].split(',')) {
+      const name = part.split(':').pop().replace(/=.*/, '').trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) names.add(name);
+    }
+  }
+  for (const m of code.matchAll(/\bcatch\s*\(\s*([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  return names;
+}
+
+/**
+ * Bare references to `exported` names that nothing in this module binds.
+ *
+ * `code` must already be blanked by `codeOnly`. Returns `{ line, kind, name }`
+ * for each hit so a failure reads as "line 42 uses `t` as a shorthand property".
+ */
+export function missingRefs(blanked, exported) {
+  const mod = moduleNames(blanked);
+  const declared = declaredNames(blanked);
+  const spans = functionScopes(blanked);
+  const hits = [];
+  const lines = blanked.split('\n');
+  const lineOf = (at) => blanked.slice(0, at).split('\n').length;
+
+  const patterns = [
+    // A call, or `new Foo(`: not a member access, not a definition.
+    { re: /(?<![.\w$'"`])([A-Za-z_$][\w$]*)\s*\(/g, kind: 'call' },
+    // A shorthand property: `{ t }` or `{ t, other }`.
+    { re: /(?<![.\w$])\{\s*([A-Za-z_$][\w$]*)\s*[,}]/g, kind: 'shorthand' },
+  ];
+  for (const { re, kind } of patterns) {
+    for (const m of blanked.matchAll(re)) {
+      const name = m[1];
+      if (!exported.has(name)) continue;
+      if (mod.has(name) || declared.has(name)) continue;
+      const at = m.index;
+      // Inside a signature, `{ t }` binds the parameter rather than using it.
+      if (spans.some((s) => s.paramOpen < at && at < s.paramClose)) continue;
+      if (spans.some((s) => s.start < at && at < s.end && s.params.has(name))) continue;
+      // An object literal method `name(...) {` defines a property; it is not a
+      // reference to a function of that name.
+      const open = blanked.indexOf('(', at);
+      if (kind === 'call' && open >= 0 && /^\s*\([^()]*\)\s*\{/.test(blanked.slice(open))) continue;
+      hits.push({ line: lineOf(at), kind, name, text: (lines[lineOf(at) - 1] || '').trim().slice(0, 80) });
+    }
+  }
+  return hits;
+}
+
+/** Names any module exports: the candidates a bare reference could resolve to. */
+function exportedNames(files) {
+  const names = new Set();
+  for (const { code } of files) {
+    for (const m of code.matchAll(/export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
     for (const m of code.matchAll(/export\s*\{([^}]*)\}/g)) {
       for (const part of m[1].split(',')) {
         const name = part.trim().split(/\s+as\s+/).pop().trim();
@@ -94,80 +236,57 @@ function exportedNames() {
   return names;
 }
 
-/** Identifiers a parameter list binds, defaults and destructuring included. */
-function parameterNames(list) {
-  const names = [];
-  let depth = 0;
-  let part = '';
-  const parts = [];
-  for (const ch of list) {
-    if ('({['.includes(ch)) depth += 1;
-    if (')}]'.includes(ch)) depth -= 1;
-    if (ch === ',' && depth === 0) { parts.push(part); part = ''; continue; }
-    part += ch;
-  }
-  parts.push(part);
+// ------------------------------------------------------------ the guard itself
 
-  for (const raw of parts) {
-    // Cut the default value at depth 0: `permission = null` binds permission.
-    let d = 0;
-    let cut = raw.length;
-    for (let i = 0; i < raw.length; i += 1) {
-      if ('({['.includes(raw[i])) d += 1;
-      if (')}]'.includes(raw[i])) d -= 1;
-      if (raw[i] === '=' && d === 0) { cut = i; break; }
-    }
-    for (const m of raw.slice(0, cut).matchAll(/[A-Za-z_$][\w$]*/g)) names.push(m[0]);
-  }
-  return names;
-}
+test('a parameter of one function does not make the name visible in another', () => {
+  const code = codeOnly(`
+    function one(t) { return t('a'); }
+    function two() { return t('b'); }
+  `);
+  const hits = missingRefs(code, new Set(['t']));
+  assert.equal(hits.length, 1, 'only the second function is broken');
+  assert.equal(hits[0].name, 't');
+  assert.equal(hits[0].kind, 'call');
+});
 
-/** Names a module can legitimately call: imports, declarations, parameters. */
-function visibleNames(code) {
-  const names = new Set();
-  const add = (name) => { if (/^[A-Za-z_$][\w$]*$/.test(name)) names.add(name); };
+test('a shorthand property is checked as well as a call', () => {
+  const code = codeOnly(`
+    function one(t) { return t('a'); }
+    function two() { return { t }; }
+  `);
+  const hits = missingRefs(code, new Set(['t']));
+  assert.equal(hits.length, 1, 'the shorthand reference has no binding either');
+  assert.equal(hits[0].kind, 'shorthand');
+});
 
-  for (const m of code.matchAll(/import\s+(?:([\w$]+)\s*,?\s*)?(?:\{([^}]*)\})?\s*from/g)) {
-    add(m[1] || '');
-    for (const part of (m[2] || '').split(',')) add(part.split(/\s+as\s+/).pop().trim());
-  }
-  for (const m of code.matchAll(/(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)) add(m[1]);
-  for (const m of code.matchAll(/(?:const|let|var)\s*\{([^}]*)\}/g)) {
-    for (const part of m[1].split(',')) add(part.split(':').pop().replace(/=.*/, '').trim());
-  }
-  // Every parenthesised list that is followed by a body or an arrow, plus the
-  // parameter list of a `function` — a call never binds a name.
-  for (let i = 0; i < code.length; i += 1) {
-    if (code[i] !== '(') continue;
-    let depth = 0;
-    let j = i;
-    for (; j < code.length; j += 1) {
-      if (code[j] === '(') depth += 1;
-      else if (code[j] === ')') { depth -= 1; if (depth === 0) break; }
-    }
-    const after = code.slice(j + 1, j + 12);
-    const before = code.slice(Math.max(0, i - 40), i);
-    const signature = /^\s*(?:=>|\{)/.test(after) || /function\s*[\w$]*\s*$/.test(before);
-    if (!signature) continue;
-    for (const name of parameterNames(code.slice(i + 1, j))) add(name);
-  }
-  return names;
-}
+test('a destructured parameter binds the name inside its own body', () => {
+  const code = codeOnly(`
+    function render({ t }) { return { text: t('k') }; }
+    const arrow = (t) => t('k');
+    const expression = (row, value, t) => (row ? t('k') : value);
+  `);
+  assert.deepEqual(missingRefs(code, new Set(['t'])), []);
+});
+
+test('a module-level import or declaration is visible everywhere in the file', () => {
+  const code = codeOnly(`
+    import { t } from './i18n.mjs';
+    const label = () => { const nested = t('k'); return { nested }; };
+    function other() { return { t }; }
+  `);
+  assert.deepEqual(missingRefs(code, new Set(['t'])), []);
+});
+
+// ------------------------------------------------------------ the whole tree
 
 test('no module calls a name exported elsewhere without importing or declaring it', () => {
-  const exported = exportedNames();
+  const files = shippedFiles().map((path) => ({ path, code: codeOnly(readFileSync(path, 'utf8')) }));
+  const exported = exportedNames(files);
   const broken = [];
-  for (const { path, code } of FILES) {
-    const visible = visibleNames(code);
-    for (const name of exported) {
-      if (visible.has(name)) continue;
-      const call = new RegExp(`(?<![.\\w$])${name}\\s*\\(`);
-      const hit = code.split('\n').find((line) => call.test(line)
-        // `name() {}` in an object literal defines a method; it does not call one.
-        && !/^\s*[A-Za-z_$][\w$]*\s*\([^()]*\)\s*\{[^{}]*\},?\s*$/.test(line)
-        && !new RegExp(`(?:function|const|let|var|class)\\s+${name}\\b`).test(line));
-      if (hit) broken.push(`${relative(ROOT, path)} calls ${name}()`);
+  for (const { path, code } of files) {
+    for (const hit of missingRefs(code, exported)) {
+      broken.push(`${relative(ROOT, path)}:${hit.line} ${hit.kind} ${hit.name} — ${hit.text}`);
     }
   }
-  assert.deepEqual(broken, [], `calls with no import:\n${broken.join('\n')}`);
+  assert.deepEqual(broken, [], `names with no binding in this module:\n${broken.join('\n')}`);
 });
