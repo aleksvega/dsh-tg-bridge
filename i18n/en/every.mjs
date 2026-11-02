@@ -5,7 +5,7 @@
 // agree in three languages. It also keeps `ctrl.mjs` under the 500-line
 // ceiling, which adding thirteen strings to it would have broken.
 export default {
-  'ctrl.help.about.every': 'One repeating schedule: /every 09:00 text runs that text as a normal turn every day at that time. /every list shows this chat\'s schedules, /every rm 2 removes one.',
+  'ctrl.help.about.every': 'One repeating schedule: /every 09:00 text runs that text as a normal turn every day at that time. /every list shows this chat\'s schedules, /every rm 2 removes one. It fires only while the bridge is running; a time that passed while it was down fires once on the next start, not once per missed day.',
   'ctrl.every.usage': 'Usage: /every 09:00 text — repeats every day at that time · /every list · /every rm 1.',
   'ctrl.every.title': '🔁 Every day',
   'ctrl.every.empty': 'No schedules in this chat yet.',

@@ -5,7 +5,7 @@
 // word appeared twice and neither row said where the answers would come from.
 // `/model deepseek-v4.1-flash` then kept whichever provider the patch already
 // had, which is the trap this card exists to close: the person asked for "the
-// unorouter one" and got "the same name on the host you were already on".
+// acme one" and got "the same name on the host you were already on".
 //
 // The tests below are about that confusion, not about pixels: a route is a
 // provider AND a model, a press names both, and a press that names a route the
@@ -27,9 +27,9 @@ const PATCH = `- id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:
     providers:
-      unorouter:
+      acme:
         displayName: Unorouter
-        baseURL: https://api.unorouter.com/v1
+        baseURL: https://api.acme-llm.test/v1
         models:
           - id: deepseek-v4.1-flash
             name: deepseek-v4.1-flash
@@ -65,7 +65,7 @@ test('a route carries its provider, and the same model under two providers is tw
   const routes = routesOf(PROFILE);
   assert.equal(routes.length, 4, 'every model of every provider is one route');
   const flash = routes.filter((route) => route.model === 'deepseek-v4.1-flash');
-  assert.deepEqual(flash.map((route) => route.provider), ['unorouter', 'wikivibe']);
+  assert.deepEqual(flash.map((route) => route.provider), ['acme', 'wikivibe']);
   // Exactly one of them is what the patch runs, and it is the same-name one on
   // wikivibe — the trap: the id alone could not tell these two apart.
   assert.equal(flash.filter((route) => route.current).length, 1);
@@ -79,27 +79,27 @@ test('the profile header is what marks the current route', () => {
 });
 
 test('a press names the provider and the model, never an index', () => {
-  assert.deepEqual(modelPress('md:unorouter:deepseek-v4.1-flash'), {
+  assert.deepEqual(modelPress('md:acme:deepseek-v4.1-flash'), {
     kind: 'route',
     scope: 'topic',
-    provider: 'unorouter',
+    provider: 'acme',
     model: 'deepseek-v4.1-flash',
   });
   // A model id may carry a colon of its own; the first colon is the split, so
   // `glm-5.3:free` stays one model rather than becoming two fields.
-  assert.deepEqual(modelPress('md:unorouter:glm-5.3:free'), {
+  assert.deepEqual(modelPress('md:acme:glm-5.3:free'), {
     kind: 'route',
     scope: 'topic',
-    provider: 'unorouter',
+    provider: 'acme',
     model: 'glm-5.3:free',
   });
   assert.deepEqual(modelPress('md:list'), { kind: 'list' });
   // The two steps and the scope row that keeps its step.
   assert.deepEqual(modelPress('md:!p'), { kind: 'providers' });
-  assert.deepEqual(modelPress('md:!p:unorouter'), { kind: 'provider', provider: 'unorouter' });
-  assert.deepEqual(modelPress('md:!s:all:unorouter'), { kind: 'scope', scope: 'all', provider: 'unorouter' });
+  assert.deepEqual(modelPress('md:!p:acme'), { kind: 'provider', provider: 'acme' });
+  assert.deepEqual(modelPress('md:!s:all:acme'), { kind: 'scope', scope: 'all', provider: 'acme' });
   assert.deepEqual(modelPress('md:!s:topic'), { kind: 'scope', scope: 'topic' });
-  assert.deepEqual(modelPress('md:list:unorouter'), { kind: 'list', provider: 'unorouter' });
+  assert.deepEqual(modelPress('md:list:acme'), { kind: 'list', provider: 'acme' });
 });
 
 test('junk is not a route', () => {
@@ -120,15 +120,15 @@ test('every routable model round-trips through its own button data', () => {
 });
 
 test('a route too long for 64 bytes gets no button rather than a wrong one', () => {
-  assert.equal(routeData('unorouter', 'x'.repeat(80)), '');
+  assert.equal(routeData('acme', 'x'.repeat(80)), '');
   const card = modelCard({
     profile: PROFILE,
     routes: [
-      { provider: 'unorouter', model: 'deepseek-v4.1-flash', current: true },
-      { provider: 'unorouter', model: 'x'.repeat(80), current: false },
+      { provider: 'acme', model: 'deepseek-v4.1-flash', current: true },
+      { provider: 'acme', model: 'x'.repeat(80), current: false },
     ],
     t: tr('en'),
-    provider: 'unorouter',
+    provider: 'acme',
   });
   const data = card.keyboard.flat().map((button) => button.data).filter(Boolean);
   // The one model that fits, "back", "refresh" and the scope toggle. The long
@@ -156,7 +156,7 @@ test('the card opens on endpoints, and the endpoint is what carries the tick', (
 });
 
 test('two endpoints serving one model can no longer make two identical buttons', () => {
-  // The fixture has unorouter and wikivibe both serving `deepseek-v4.1-flash`.
+  // The fixture has acme and wikivibe both serving `deepseek-v4.1-flash`.
   // A flat list drawn those two as `deepseek-v4.1-flash` twice with different
   // actions — the person cannot tell them apart, which is the whole reason they
   // opened the route picker. Two steps removes the collision structurally: the
@@ -166,7 +166,7 @@ test('two endpoints serving one model can no longer make two identical buttons',
   const endpoints = modelCard({ profile: PROFILE, routes, t: tr('en') });
   const labels = endpoints.keyboard.flat().map((button) => button.text.replace(/^✓ /, ''));
   assert.equal(new Set(labels).size, labels.length, `two endpoints share a label: ${labels.join(' | ')}`);
-  for (const provider of ['unorouter', 'wikivibe']) {
+  for (const provider of ['acme', 'wikivibe']) {
     const models = modelCard({ profile: PROFILE, routes, t: tr('en'), provider });
     const names = models.keyboard.flat().map((button) => button.text.replace(/^✓ /, ''));
     assert.equal(new Set(names).size, names.length, `${provider} repeated a name: ${names.join(' | ')}`);
@@ -207,7 +207,7 @@ test('a press switches this topic, and the profile is left alone', async () => {
   const live = { route: {} };
   const before = readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8');
   const claimed = await handleModelPress({
-    data: 'md:unorouter:deepseek-v4.1-flash',
+    data: 'md:acme:deepseek-v4.1-flash',
     profile: PROFILE,
     key: '1:7',
     state: live,
@@ -219,14 +219,14 @@ test('a press switches this topic, and the profile is left alone', async () => {
     redraw: async (card) => redrawn.push(card),
   });
   assert.equal(claimed, true);
-  assert.deepEqual(live.route['1:7'], { provider: 'unorouter', model: 'deepseek-v4.1-flash' });
+  assert.deepEqual(live.route['1:7'], { provider: 'acme', model: 'deepseek-v4.1-flash' });
   // The whole point of the per-topic switch: the file every other topic boots is
   // byte-for-byte what it was before the press.
   assert.equal(readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8'), before);
   assert.deepEqual(modelOf(PROFILE), { provider: 'wikivibe', model: 'deepseek-v4.1-flash' });
   // The answer names both scopes, because "route → x" alone reads as a change
   // to the whole install.
-  assert.match(said[0], /unorouter\/deepseek-v4\.1-flash/);
+  assert.match(said[0], /acme\/deepseek-v4\.1-flash/);
   assert.match(said[0], /wikivibe\/deepseek-v4\.1-flash/, 'the profile default is named too');
   assert.equal(redrawn.length, 1, 'the card is redrawn so the tick moves');
   // The redraw lands back on the endpoint list, where the tick belongs now: the
@@ -234,7 +234,7 @@ test('a press switches this topic, and the profile is left alone', async () => {
   // not take".
   assert.equal(redrawn[0].step, 'providers');
   const tick = redrawn[0].keyboard.flat().find((button) => button.text.startsWith('✓'));
-  assert.equal(tick.data, 'md:!p:unorouter');
+  assert.equal(tick.data, 'md:!p:acme');
   // And the tick is the topic's, not the profile's: one button is marked.
   assert.equal(redrawn[0].keyboard.flat().filter((button) => button.text.startsWith('✓')).length, 1);
 });
@@ -245,7 +245,7 @@ test('a press for a route the profile no longer has is refused, not written', as
   const redrawn = [];
   const live = { route: {} };
   const claimed = await handleModelPress({
-    data: 'md:taynik:opus-5-5',
+    data: 'md:beta:opus-5-5',
     profile: PROFILE,
     key: '1:7',
     state: live,
@@ -259,7 +259,7 @@ test('a press for a route the profile no longer has is refused, not written', as
   assert.equal(claimed, true, 'a known prefix is still this card’s press');
   assert.equal(readFileSync(join(HOME, 'profiles', PROFILE, 'cordis.patch.yml'), 'utf8'), before);
   assert.deepEqual(live.route, {}, 'a refused route is not stored either');
-  assert.match(said[0], /taynik\/opus-5-5/);
+  assert.match(said[0], /beta\/opus-5-5/);
   assert.match(said[0], /\/model/, 'the refusal points at the way to see what is real');
   assert.equal(redrawn.length, 1, 'and the card is redrawn from the truth');
 });
@@ -420,23 +420,23 @@ test('the card can change every topic at once, not only the one it was opened in
   assert.deepEqual(modelPress('md:@topic'), { kind: 'scope', scope: 'topic' });
   // A global route press carries the scope, and the `@` cannot be a provider id,
   // so a provider legitimately named `all` is still reachable.
-  assert.deepEqual(modelPress('md:@unorouter:deepseek-v4.1-flash'), {
+  assert.deepEqual(modelPress('md:@acme:deepseek-v4.1-flash'), {
     kind: 'route',
     scope: 'all',
-    provider: 'unorouter',
+    provider: 'acme',
     model: 'deepseek-v4.1-flash',
   });
   assert.equal(modelPress('md:@'), null);
   assert.equal(modelPress('md:@:model'), null);
   assert.equal(modelPress('md:@prov:'), null);
-  assert.deepEqual(modelPress('md:unorouter:deepseek-v4.1-flash').scope, 'topic',
+  assert.deepEqual(modelPress('md:acme:deepseek-v4.1-flash').scope, 'topic',
     'a plain route press stays this topic\u2019s');
 });
 
 test('a global route button is drawn for the global scope, and says so', () => {
   const routes = routesOf(PROFILE);
-  const topicCard = modelCard({ profile: PROFILE, routes, t: tr('en'), provider: 'unorouter' });
-  const allCard = modelCard({ profile: PROFILE, routes, t: tr('en'), scope: 'all', provider: 'unorouter' });
+  const topicCard = modelCard({ profile: PROFILE, routes, t: tr('en'), provider: 'acme' });
+  const allCard = modelCard({ profile: PROFILE, routes, t: tr('en'), scope: 'all', provider: 'acme' });
   // The model buttons carry different data in the two modes, which is what makes
   // the same tap mean "this topic" or "everywhere". `md:list:<provider>` is the
   // refresh button, not a model, so it is excluded by name.
@@ -452,12 +452,12 @@ test('a global route button is drawn for the global scope, and says so', () => {
   assert.match(allCard.keyboard.flat().map((b) => b.text).join('\n'), /this topic/i);
   // The toggle keeps the step it was pressed on, so switching the scope while
   // choosing a model does not send the person back to the endpoint list.
-  assert.ok(topicCard.keyboard.flat().some((b) => b.data === 'md:!s:all:unorouter'));
-  assert.ok(allCard.keyboard.flat().some((b) => b.data === 'md:!s:topic:unorouter'));
+  assert.ok(topicCard.keyboard.flat().some((b) => b.data === 'md:!s:all:acme'));
+  assert.ok(allCard.keyboard.flat().some((b) => b.data === 'md:!s:topic:acme'));
   // The header agreement: in the global mode it must not claim to describe this
   // topic, because that is the line a person checks before tapping.
   assert.match(allCard.text, /everywhere/i);
-  const zh = modelCard({ profile: PROFILE, routes, t: tr('zh'), scope: 'all', provider: 'unorouter' });
+  const zh = modelCard({ profile: PROFILE, routes, t: tr('zh'), scope: 'all', provider: 'acme' });
   assert.doesNotMatch(zh.text, /ctrl\.model\./, 'the global header leaked a key');
 });
 
@@ -471,7 +471,7 @@ test('a global press writes the profile default and leaves the topic alone', asy
   // different for every test after it.
   const before = readFileSync(patchFile, 'utf8');
   const claimed = await handleModelPress({
-    data: 'md:@unorouter:glm-5.3:free',
+    data: 'md:@acme:glm-5.3:free',
     profile: PROFILE,
     key: '1:7',
     state: live,
@@ -484,11 +484,11 @@ test('a global press writes the profile default and leaves the topic alone', asy
   });
   assert.equal(claimed, true);
   // The whole install moved...
-  assert.deepEqual(modelOf(PROFILE), { provider: 'unorouter', model: 'glm-5.3:free' });
+  assert.deepEqual(modelOf(PROFILE), { provider: 'acme', model: 'glm-5.3:free' });
   // ...and this topic was NOT given a route of its own, so it follows the new
   // default like every other topic without one.
   assert.deepEqual(live.route, {}, 'a global switch must not pin this topic');
-  assert.match(said[0], /unorouter\/glm-5\.3:free/);
+  assert.match(said[0], /acme\/glm-5\.3:free/);
   // The redrawn card is still in the global mode, so the next tap stays global:
   // dropping back to per-topic would silently undo the mode after one use.
   assert.equal(redrawn.length, 1);
@@ -520,12 +520,12 @@ function cardPress(first) {
 }
 
 test('step one opens one endpoint, and back returns to the list', async () => {
-  const press = cardPress('md:!p:unorouter');
+  const press = cardPress('md:!p:acme');
   assert.equal(await press.call(), true);
   const models = press.redrawn[0];
   assert.equal(models.step, 'models');
-  assert.equal(models.provider, 'unorouter');
-  assert.match(models.text, /Endpoint unorouter/);
+  assert.equal(models.provider, 'acme');
+  assert.match(models.text, /Endpoint acme/);
   const labels = models.keyboard.flat().map((button) => button.text);
   assert.ok(labels.includes('deepseek-v4.1-flash') && labels.includes('glm-5.3:free'));
   assert.ok(!labels.some((label) => label.includes('kimi-k3')), 'another endpoint’s model leaked in');
@@ -543,10 +543,10 @@ test('choosing a model for this topic is acknowledged, so the spinner stops', as
   // message, but never acknowledged the press: on 2026-11-01 at 17:34 the log
   // read "nothing answered in 45s" for exactly this tap, and the person read the
   // late confirmation as the answer to the press they had already made.
-  const press = cardPress('md:unorouter:deepseek-v4.1-flash');
+  const press = cardPress('md:acme:deepseek-v4.1-flash');
   assert.equal(await press.call(), true);
   assert.equal(press.answers.length, 1, 'one acknowledgement');
-  assert.match(press.answers[0], /unorouter\/deepseek-v4\.1-flash/, 'and it names the route that took');
+  assert.match(press.answers[0], /acme\/deepseek-v4\.1-flash/, 'and it names the route that took');
   assert.equal(press.live.route['1:7'].model, 'deepseek-v4.1-flash', 'the topic really moved');
 });
 

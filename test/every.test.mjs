@@ -126,6 +126,32 @@ test('several missed days are one firing, not one per day', () => {
   assert.ok(claimed[0].at > NOON);
 });
 
+test('two ticks overlap: the second one sees the advanced row and claims nothing', () => {
+  // The tick claims and persists synchronously, so a second tick that starts
+  // while the first one's delivery is still in flight reads the row the first
+  // tick already advanced. That is the whole safety argument for a schedule that
+  // delivers asynchronously, and it has to hold at a later instant too, not only
+  // at the same millisecond.
+  const due = row({ id: 'a', at: NOON - 1_000 });
+  const first = claimRows([due], NOON);
+  assert.equal(first.claimed.length, 1);
+  assert.deepEqual(claimRows(first.rows, NOON + 5_000).claimed, []);
+  // Nor does the advance look due again minutes later: it points at tomorrow.
+  assert.deepEqual(claimRows(first.rows, NOON + 60_000).claimed, []);
+});
+
+test('a stale copy of the rows is still claimable, so the caller must persist in one step', () => {
+  // This is the failure the synchronous claim exists to prevent: handed the rows
+  // from *before* the first claim, a second tick claims the same row again. The
+  // test documents the hazard rather than pretending the pure function can see
+  // it — `claimRows` cannot know that its input was stale.
+  const due = row({ id: 'a', at: NOON - 1_000 });
+  const first = claimRows([due], NOON);
+  const stale = [due];
+  assert.equal(claimRows(stale, NOON + 1).claimed.length, 1);
+  assert.equal(first.claimed[0].id, claimRows(stale, NOON + 1).claimed[0].id);
+});
+
 test('the next occurrence is derived from hh/mm even when at is in the past', () => {
   const old = row({ at: new Date(2026, 9, 20, 9, 0).getTime(), hh: 9, mm: 0 });
   assert.equal(nextAt(old, NOON), new Date(2026, 9, 26, 9, 0).getTime());

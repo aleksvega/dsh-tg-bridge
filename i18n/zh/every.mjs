@@ -4,7 +4,7 @@
 // （四个动词和五种拒绝），它的句子要在三种语言里保持一致。这也让 `ctrl.mjs`
 // 保持在 500 行上限之下 —— 再加十三行就会超过。
 export default {
-  'ctrl.help.about.every': '一个重复的定时任务：/every 09:00 文本 每天这个时间把文本当成普通轮次执行。/every list 显示这个聊天里的定时任务，/every rm 2 删除一个。',
+  'ctrl.help.about.every': '一个重复的定时任务：/every 09:00 文本 每天这个时间把文本当成普通轮次执行。/every list 显示这个聊天里的定时任务，/every rm 2 删除一个。只在桥接运行时触发；停机期间错过的时间会在下次启动时补触发一次，而不是每错过一天补一次。',
   'ctrl.every.usage': '用法：/every 09:00 文本 —— 每天这个时间重复 · /every list · /every rm 1。',
   'ctrl.every.title': '🔁 每天',
   'ctrl.every.empty': '这个聊天还没有定时任务。',

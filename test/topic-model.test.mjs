@@ -22,8 +22,8 @@ const PATCH = `- id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:
     providers:
-      unorouter:
-        baseURL: https://api.unorouter.com/v1
+      acme:
+        baseURL: https://api.acme-llm.test/v1
         models:
           - id: deepseek-v4.1-flash
             name: deepseek-v4.1-flash
@@ -32,7 +32,7 @@ const PATCH = `- id: llm-pi-ai
 - id: agent-default-model
   name: "@deepseek-ai/dsh-agent-default-model"
   config:
-    provider: unorouter
+    provider: acme
     model: deepseek-v4.1-flash
     reasoningEffort: max
 `;
@@ -64,21 +64,21 @@ const run = async (arg, { state = {}, config = { profile: 'headless', lang: 'en'
 
 test('a topic with no route follows the profile, and says so', () => {
   const route = topicRoute({ state: {}, config: { profile: 'headless' }, key: '1:7' });
-  assert.deepEqual(route, { provider: 'unorouter', model: 'deepseek-v4.1-flash', base: 'headless', source: 'profile' });
+  assert.deepEqual(route, { provider: 'acme', model: 'deepseek-v4.1-flash', base: 'headless', source: 'profile' });
 });
 
 test('a route written for one topic is not read by another', () => {
   const state = {};
-  setTopicRoute(state, '1:7', { provider: 'unorouter', model: 'glm-5.3:free' });
+  setTopicRoute(state, '1:7', { provider: 'acme', model: 'glm-5.3:free' });
   assert.equal(topicRoute({ state, config: { profile: 'headless' }, key: '1:7' }).model, 'glm-5.3:free');
   assert.equal(topicRoute({ state, config: { profile: 'headless' }, key: '1:9' }).source, 'profile');
 });
 
 test('`/model <route>` moves this topic and leaves the file alone', async () => {
   const state = {};
-  const said = await run('unorouter/glm-5.3:free', { state });
-  assert.deepEqual(state.route['1:7'], { provider: 'unorouter', model: 'glm-5.3:free' });
-  assert.deepEqual(modelOf('headless'), { provider: 'unorouter', model: 'deepseek-v4.1-flash' });
+  const said = await run('acme/glm-5.3:free', { state });
+  assert.deepEqual(state.route['1:7'], { provider: 'acme', model: 'glm-5.3:free' });
+  assert.deepEqual(modelOf('headless'), { provider: 'acme', model: 'deepseek-v4.1-flash' });
   // Both scopes in one answer: the topic moved, the profile did not.
   assert.match(said, /glm-5\.3:free/);
   assert.match(said, /deepseek-v4\.1-flash/, 'the default is named so the difference is visible');
@@ -86,9 +86,9 @@ test('`/model <route>` moves this topic and leaves the file alone', async () => 
 
 test('`/model <route> all` moves the default, and the topic that chose keeps its own', async () => {
   const state = {};
-  setTopicRoute(state, '1:7', { provider: 'unorouter', model: 'deepseek-v4.1-flash' });
+  setTopicRoute(state, '1:7', { provider: 'acme', model: 'deepseek-v4.1-flash' });
   const said = await run('glm-5.3:free all', { state, key: '1:7' });
-  assert.deepEqual(modelOf('headless'), { provider: 'unorouter', model: 'glm-5.3:free' });
+  assert.deepEqual(modelOf('headless'), { provider: 'acme', model: 'glm-5.3:free' });
   assert.equal(topicRoute({ state, config: { profile: 'headless' }, key: '1:7' }).model, 'deepseek-v4.1-flash');
   assert.equal(topicRoute({ state, config: { profile: 'headless' }, key: '1:9' }).model, 'glm-5.3:free');
   assert.match(said, /keep it/i, 'a default that does not reach every topic must say so');
@@ -96,7 +96,7 @@ test('`/model <route> all` moves the default, and the topic that chose keeps its
 
 test('`/model auto` hands the topic back to the profile', async () => {
   const state = {};
-  setTopicRoute(state, '1:7', { provider: 'unorouter', model: 'glm-5.3:free' });
+  setTopicRoute(state, '1:7', { provider: 'acme', model: 'glm-5.3:free' });
   await run('auto', { state });
   assert.deepEqual(state.route, {});
   assert.equal(topicRoute({ state, config: { profile: 'headless' }, key: '1:7' }).source, 'profile');
@@ -108,7 +108,7 @@ test('`/model auto` hands the topic back to the profile', async () => {
 test('a route the profile does not declare is refused in every language', async () => {
   for (const lang of ['en', 'ru', 'zh']) {
     const state = {};
-    const said = await run('unorouter/no-such-model', { state, lang });
+    const said = await run('acme/no-such-model', { state, lang });
     assert.deepEqual(state.route ?? {}, {}, `${lang} stored a route that cannot boot`);
     assert.doesNotMatch(said, /ctrl\.model\./, `${lang} leaked a key`);
     assert.match(said, /no-such-model/);
@@ -119,7 +119,7 @@ test('a route profile is a copy with one row moved, not a rewrite of the profile
   // Earlier tests moved the default, so the file is put back: this test is about
   // what a copy contains, not about what the previous test left behind.
   writeFileSync(join(HOME, 'profiles', 'headless', 'cordis.patch.yml'), PATCH, 'utf8');
-  const name = routeProfile('headless', { provider: 'unorouter', model: 'glm-5.3:free' });
+  const name = routeProfile('headless', { provider: 'acme', model: 'glm-5.3:free' });
   assert.ok(name, 'no profile was materialised');
   const copy = readFileSync(join(HOME, 'profiles', name, 'cordis.patch.yml'), 'utf8');
   assert.match(copy, /model: glm-5\.3:free/);
@@ -127,14 +127,14 @@ test('a route profile is a copy with one row moved, not a rewrite of the profile
   // `reasoningEffort` turns a model change into a behaviour change.
   assert.match(copy, /reasoningEffort: max/);
   // And the providers are the same list, or the turn cannot boot.
-  assert.match(copy, /baseURL: https:\/\/api\.unorouter\.com\/v1/);
-  assert.deepEqual(modelOf('headless'), { provider: 'unorouter', model: 'deepseek-v4.1-flash' });
+  assert.match(copy, /baseURL: https:\/\/api\.acme-llm\.test\/v1/);
+  assert.deepEqual(modelOf('headless'), { provider: 'acme', model: 'deepseek-v4.1-flash' });
 });
 
 test('the same route twice is the same profile, and the copy tracks the profile', () => {
   writeFileSync(join(HOME, 'profiles', 'headless', 'cordis.patch.yml'), PATCH, 'utf8');
-  const first = routeProfile('headless', { provider: 'unorouter', model: 'glm-5.3:free' });
-  const second = routeProfile('headless', { provider: 'unorouter', model: 'glm-5.3:free' });
+  const first = routeProfile('headless', { provider: 'acme', model: 'glm-5.3:free' });
+  const second = routeProfile('headless', { provider: 'acme', model: 'glm-5.3:free' });
   assert.equal(first, second, 'two names for one route would leave one of them stale');
 
   // The profile gains a provider later; the topic's copy has to see it, or the
@@ -148,29 +148,29 @@ test('the same route twice is the same profile, and the copy tracks the profile'
             name: late-model
 - id: agent-default-model`,
   ), 'utf8');
-  const name = routeProfile('headless', { provider: 'unorouter', model: 'glm-5.3:free' });
+  const name = routeProfile('headless', { provider: 'acme', model: 'glm-5.3:free' });
   const copy = readFileSync(join(HOME, 'profiles', name, 'cordis.patch.yml'), 'utf8');
   assert.match(copy, /late-model/, 'the copy stopped tracking the profile it came from');
   assert.match(copy, /model: glm-5\.3:free/, 'and the topic still runs the model it chose');
 });
 
 test('a route for a profile that does not exist materialises nothing', () => {
-  assert.equal(routeProfile('no-such-profile', { provider: 'unorouter', model: 'glm-5.3:free' }), '');
-  assert.equal(routeProfile('headless', { provider: 'unorouter', model: '' }), '');
+  assert.equal(routeProfile('no-such-profile', { provider: 'acme', model: 'glm-5.3:free' }), '');
+  assert.equal(routeProfile('headless', { provider: 'acme', model: '' }), '');
   assert.equal(existsSync(join(HOME, 'profiles', 'no-such-profile')), false);
 });
 
 test('routeExists checks the model and the provider it is offered on', () => {
-  assert.equal(routeExists('headless', { provider: 'unorouter', model: 'glm-5.3:free' }), true);
+  assert.equal(routeExists('headless', { provider: 'acme', model: 'glm-5.3:free' }), true);
   // The same model on a provider the profile does not declare is not a route.
   assert.equal(routeExists('headless', { provider: 'wikivibe', model: 'glm-5.3:free' }), false);
   assert.equal(routeExists('headless', { provider: '', model: 'glm-5.3:free' }), true);
-  assert.equal(routeExists('headless', { provider: 'unorouter', model: '' }), false);
+  assert.equal(routeExists('headless', { provider: 'acme', model: '' }), false);
 });
 
 test('clearing a route that was never set is reported, not invented', () => {
   const state = {};
   assert.equal(clearTopicRoute(state, '1:7'), false);
-  setTopicRoute(state, '1:7', { provider: 'unorouter', model: 'glm-5.3:free' });
+  setTopicRoute(state, '1:7', { provider: 'acme', model: 'glm-5.3:free' });
   assert.equal(clearTopicRoute(state, '1:7'), true);
 });

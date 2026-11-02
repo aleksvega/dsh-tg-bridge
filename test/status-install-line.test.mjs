@@ -1,5 +1,5 @@
 // The status card printed "UI: desktop (wikivibe/deepseek-v4.1-flash) — plugins
-// 22" four lines under "Profile: headless (unorouter/...)". Both facts were true
+// 22" four lines under "Profile: headless (acme/...)". Both facts were true
 // and both were about the install, so the card read as if this topic answered on
 // a desktop route -- the question it raised in the chat was exactly that. The
 // card is per topic; the desktop app has no business in it.

@@ -20,9 +20,9 @@ const PATCH = `- id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:
     providers:
-      unorouter:
+      acme:
         displayName: Unorouter
-        baseURL: https://api.unorouter.com/v1
+        baseURL: https://api.acme-llm.test/v1
         models:
           - id: deepseek-v4.1-flash
             name: deepseek-v4.1-flash
@@ -35,7 +35,7 @@ const PATCH = `- id: llm-pi-ai
 - id: agent-default-model
   name: "@deepseek-ai/dsh-agent-default-model"
   config:
-    provider: unorouter
+    provider: acme
     model: deepseek-v4.1-flash
 `;
 mkdirSync(join(HOME, 'profiles', PROFILE), { recursive: true });

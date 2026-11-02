@@ -62,7 +62,7 @@ export function modelOf(profile) {
  *
  * `modelsOf` answers "which model ids exist", and that is the wrong question to
  * put on a screen: the same id is declared by several providers — `deepseek-v4.1-flash`
- * exists on wikivibe and on unorouter — so a list of ids shows the same name
+ * exists on wikivibe and on acme — so a list of ids shows the same name
  * twice and neither row says where the answers would come from. Picking a model
  * and picking a route is one decision, so the list is made of routes.
  *

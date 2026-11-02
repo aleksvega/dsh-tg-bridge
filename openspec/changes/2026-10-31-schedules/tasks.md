@@ -35,10 +35,18 @@
 
 - [x] 3.1 Suite green with the change in the tree (751 tests).
 - [x] 3.2 Three locales, no raw key in any answer.
-- [ ] 3.3 State the limit in the help page: a schedule fires only while the bridge
+- [x] 3.3 State the limit in the help page: a schedule fires only while the bridge
   runs, and a missed one fires once on the next start. The CHANGELOG says it; the
   `/help every` page does not yet.
-- [ ] 3.4 A test that the tick does not run twice for one row when two ticks
+  → `ctrl.help.about.every` in all three locales now says it: fires only while the
+  bridge runs, and a missed time fires once on the next start, not once per missed
+  day.
+- [x] 3.4 A test that the tick does not run twice for one row when two ticks
   overlap (the claim is synchronous, the delivery is not). Today the claim is
   asserted, the overlap is not.
+  → Two tests in `test/every.test.mjs`: a second tick handed the rows the first one
+  persisted claims nothing — at the same instant and minutes later — and the hazard
+  itself is written down, because handed a *stale* copy `claimRows` would claim the
+  same row again. That is why the claim and the save are one step, and the test
+  says so instead of pretending a pure function can see staleness.
 - [x] 3.5 Release 1.37.0 with the CHANGELOG entry already written.

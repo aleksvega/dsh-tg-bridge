@@ -116,7 +116,7 @@ export async function handleViewCommands(ctx) {
       lines.push(t(lang, 'ctrl.status.skills', { n: skillsOf().length }));
       // This line used to print the desktop profile's route and bundle count.
       // Both facts were true and both were about the install, printed inside a
-      // card about one topic: the card said "Профиль: headless (unorouter/...)"
+      // card about one topic: the card said "Профиль: headless (acme/...)"
       // four lines up and then named a wikivibe desktop route, which reads as if
       // the topic answered there. Nothing about the desktop app belongs in a
       // per-topic card; the count is the one this topic's own profile has.

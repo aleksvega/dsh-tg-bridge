@@ -38,9 +38,11 @@
 ## 2. Acceptance
 
 - [x] 2.1 Suite green (751 tests) with both fixes in the tree.
-- [x] 2.2 The card renders five endpoints and eight unorouter models on the live
-  profile, checked by rendering it, not by review.
-- [ ] 2.3 Extend the `unresolved-calls` guard to shorthand references, so the
+- [x] 2.2 The card renders five endpoints and eight models on the live profile,
+  checked by rendering it, not by review. (The provider's name is deliberately not
+  written here: a spec ships in the package, and the pre-release scan rejects it.)
+- [x] 2.3 Extend the `unresolved-calls` guard to shorthand references, so the
   missing-import class is caught by governance rather than by a card's own test.
-  Belongs to the acceptance-bar change; tracked there.
+  Belongs to the acceptance-bar change; tracked there as 1.3, which is where it is
+  still open. Nothing is left to do under this change.
 - [x] 2.4 Release 1.37.1 with the CHANGELOG entry already written.

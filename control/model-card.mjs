@@ -3,12 +3,12 @@
 // The flat list this replaces was one tap shorter and two problems worse. A
 // profile with seventeen routes does not fit on a phone, and two endpoints that
 // both serve `deepseek-v4.1-flash` made two buttons with the same name — the
-// person looking for "the unorouter one" had nothing to tell them apart, and
+// person looking for "the acme one" had nothing to tell them apart, and
 // `/model deepseek-v4.1-flash` silently kept whichever provider the patch
 // already had. A model and the endpoint that serves it are one choice, so the
 // choice is made in two steps and the second screen cannot repeat the first.
 //
-// A press names its subject in full (`md:!p:unorouter`, `md:unorouter:model`),
+// A press names its subject in full (`md:!p:acme`, `md:acme:model`),
 // never an index: an index would mean "the fourth model" and would switch to the
 // wrong route the moment the profile gained or lost one between drawing the card
 // and the tap. Telegram caps callback data at 64 bytes, so a name too long to

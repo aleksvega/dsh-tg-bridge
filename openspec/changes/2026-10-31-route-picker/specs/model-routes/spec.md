@@ -32,8 +32,8 @@ the endpoint list, and SHALL carry the scope it was opened in.
 
 #### Scenario: A model screen is read
 
-- **WHEN** the endpoint step is opened for `unorouter`
-- **THEN** the header names `unorouter`, the buttons are that endpoint's models,
+- **WHEN** the endpoint step is opened for `acme`
+- **THEN** the header names `acme`, the buttons are that endpoint's models,
   and a back row returns to the endpoint list
 
 #### Scenario: The choice is made

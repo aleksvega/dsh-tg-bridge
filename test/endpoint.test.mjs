@@ -21,11 +21,11 @@ const BASE = `- id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:
     providers:
-      unorouter:
+      acme:
         displayName: Unorouter
         apiKeyEnv: UNOROUTER_API_KEY
         api: openai-responses
-        baseURL: https://api.unorouter.com/v1
+        baseURL: https://api.acme-llm.test/v1
         defaultContextWindow: 1000000
         models:
           - id: deepseek-v4.1-flash
@@ -133,14 +133,14 @@ test('removing the last provider leaves the entries below it alone', () => {
   assert.match(result.text, /- id: agent-default-model/);
   assert.match(result.text, /- id: sandbox-policy/);
   // And the first provider is untouched.
-  assert.match(result.text, /unorouter:/);
+  assert.match(result.text, /acme:/);
 });
 
 test('the list reads the patch, not a second copy of it', () => {
   const rows = endpointRows('headless');
-  assert.deepEqual(rows.map((row) => row.id), ['unorouter', 'wikivibe']);
+  assert.deepEqual(rows.map((row) => row.id), ['acme', 'wikivibe']);
   assert.deepEqual(rows[0].models, ['deepseek-v4.1-flash']);
-  assert.equal(rows[0].baseURL, 'https://api.unorouter.com/v1');
+  assert.equal(rows[0].baseURL, 'https://api.acme-llm.test/v1');
   assert.equal(rows[0].keyEnv, 'UNOROUTER_API_KEY');
 });
 
@@ -200,7 +200,7 @@ test('three languages answer in their own words', async () => {
   for (const lang of ['en', 'ru', 'zh']) {
     const { said } = await run('list', lang);
     assert.doesNotMatch(said, /ctrl\.endpoint\./, `${lang} leaked a key`);
-    assert.match(said, /unorouter/, `${lang} list does not name the endpoints`);
+    assert.match(said, /acme/, `${lang} list does not name the endpoints`);
   }
 });
 

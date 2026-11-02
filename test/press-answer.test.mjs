@@ -64,7 +64,7 @@ test('a tab press names its page, so the redraw is not the page already shown', 
   // The bug this pins: `{ tab }` without `page` made the press redraw `reply`
   // whatever tab was pressed. Telegram answered "message is not modified" and the
   // menu looked dead — for every tab, on every card, with nothing in the log.
-  const current = { reasoning: 'card', reasoningAll: 'card', pin: 'off', model: 'unorouter/x', effort: 'high' };
+  const current = { reasoning: 'card', reasoningAll: 'card', pin: 'off', model: 'acme/x', effort: 'high' };
   const t = (key, vars) => (vars ? `${key}:${Object.values(vars).join(',')}` : key);
 
   for (const page of ['reply', 'agent', 'updates', 'health']) {
