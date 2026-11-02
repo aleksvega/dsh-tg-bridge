@@ -5,7 +5,7 @@
 // file, rewritten between two other moves. Its inputs are the language, the
 // topic and the task; everything Telegram-facing comes from `telegram.mjs`, and
 // the layout from `panel.mjs` (a pure renderer, still untouched).
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config, log, state } from '../core/state.mjs';
 import { THOUGHT_DIR } from '../core/paths.mjs';
@@ -417,6 +417,14 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
           // An unreadable file leaves the last known lines in place: the card is
           // worth more than an empty promise of a trail.
         }
+      }
+      // A turn that wrote no note leaves an empty file behind, and every turn
+      // creates one: 269 of 285 files in one real folder were 0 bytes. The card
+      // is finished by the time this runs, so nothing reads it again.
+      if (thoughtFile && notes === thoughtFile) {
+        try {
+          if (statSync(notes).size === 0) unlinkSync(notes);
+        } catch {}
       }
       if (result?.stopped) {
         // The person pressed Стоп. The card says so in their words, not with a
