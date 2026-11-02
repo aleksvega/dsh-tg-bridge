@@ -42,7 +42,9 @@ function shippedModules() {
 test('every module in the repo is published, or is not code', () => {
   const named = shippedModules();
   const missing = [];
-  const skip = new Set(['node_modules', '.git', 'test', 'openspec', 'docs', 'tools']);
+  // `scripts/` holds the generator behind docs/COMMANDS.md: a contributor runs
+  // it from the checkout, and the page it writes ships instead.
+  const skip = new Set(['node_modules', '.git', 'test', 'openspec', 'docs', 'tools', 'scripts']);
   const walk = (rel) => {
     for (const entry of readdirSync(join(root, rel), { withFileTypes: true })) {
       if (skip.has(entry.name)) continue;

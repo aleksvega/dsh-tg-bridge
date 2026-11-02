@@ -29,6 +29,7 @@ test('every row has a label and a hint in all three languages', () => {
 test('every page has a title and a tab word in all three languages', () => {
   for (const page of SETTINGS_PAGES) {
     assert.equal(inEachLanguage(`settings.${page}.title`), true, `title ${page}`);
+    assert.equal(inEachLanguage(`settings.${page}.intro`), true, `intro ${page}`);
     assert.equal(inEachLanguage(`settings.tab.${page}`), true, `tab ${page}`);
   }
   for (const key of ['settings.row.toggle', 'settings.row.action', 'settings.notSet', 'settings.state.on', 'settings.state.off', 'settings.state.auto', 'settings.card.foot']) {
@@ -129,7 +130,10 @@ test('only the value in force is marked, in the text and on the button', () => {
   // pin rows each come in a pair — this topic and every other — and both read
   // the same value on a fresh install, because the default is what an untouched
   // topic and an untouched chat have.
-  const dots = view.text.match(/●/g) || [];
+  // The foot line explains what ● means, so it carries a dot of its own; the rows
+  // are what has to agree with the buttons.
+  const rows = view.text.split('\n').filter((line) => !line.includes('The buttons below'));
+  const dots = rows.join('\n').match(/●/g) || [];
   const marked = view.keyboard.flat().filter((b) => b.text.startsWith('●'));
   assert.deepEqual(marked.map((b) => b.data), ['m:reasoning:card', 'm:reasoningAll:card', 'm:pin:off', 'm:pinAll:off']);
   assert.equal(dots.length, marked.length, 'the text and the buttons disagree about what is on');

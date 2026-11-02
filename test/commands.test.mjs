@@ -10,17 +10,23 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, MENU_COMMANDS } from '../chat/control.mjs';
+import { helpLines, sectionFor, duplicatedCommands, uncoveredCommands } from '../chat/help-sections.mjs';
 import { LANGS, t } from '../core/i18n.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const known = new Set(CONTROL_COMMANDS);
 
+/** The /help text as the chat receives it, for one language. */
+const helpText = (lang) => helpLines((k, vars) => t(lang, k, vars)).join('\n');
+
 /** `/model` → `model`; the trailing text of `/logs errors` is not a command. */
-const names = (text) => [...new Set([...text.matchAll(/\/([a-z][a-z-]{1,20})\b/g)].map((m) => m[1]))];
+// Only a slash in command position counts: the help text now ends with a GitHub
+// URL, and its path segments are not commands.
+const names = (text) => [...new Set([...text.matchAll(/(?:^|[\s([«"—·])\/([a-z][a-z-]{1,20})\b/gm)].map((m) => m[1]))];
 
 test('every command /help advertises is a command the dispatcher knows', () => {
   for (const lang of LANGS) {
-    const missing = names(t(lang, 'help.body')).filter((name) => !known.has(name));
+    const missing = names(helpText(lang)).filter((name) => !known.has(name));
     assert.deepEqual(missing, [], `${lang}/help mentions commands the bot would reject: ${missing.join(', ')}`);
   }
 });
@@ -35,7 +41,7 @@ test('every command in the menu is a command the dispatcher knows', () => {
 test('every documented command is listed in /help', () => {
   // Old spellings (`/tasks`, `/models`, `/plugin`, `/agentset`) are accepted and
   // deliberately undocumented: a name in the help text is a name to mistype.
-  const documented = new Set(LANGS.flatMap((lang) => names(t(lang, 'help.body'))));
+  const documented = new Set(LANGS.flatMap((lang) => names(helpText(lang))));
   const silent = DOCUMENTED_COMMANDS.filter((name) => !documented.has(name));
   assert.deepEqual(silent, [], `commands a person cannot discover: ${silent.join(', ')}`);
   assert.ok(CONTROL_COMMANDS.length >= DOCUMENTED_COMMANDS.length);
@@ -47,7 +53,7 @@ test('every documented command is listed in /help', () => {
 
 test('/settings is reachable, in all three languages', () => {
   assert.ok(known.has('settings'));
-  for (const lang of LANGS) assert.ok(names(t(lang, 'help.body')).includes('settings'), lang);
+  for (const lang of LANGS) assert.ok(names(helpText(lang)).includes('settings'), lang);
 });
 
 test('every documented command explains itself when asked', () => {
@@ -66,13 +72,17 @@ test('every documented command explains itself when asked', () => {
 });
 
 test('every documented command sits in a /help group', () => {
-  // A hint with no group is a command that explains itself and cannot be found
-  // by scrolling `/help` — `/endpoint` was in the list and in no section.
-  const src = readFileSync(join(ROOT, 'chat', 'help-explain.mjs'), 'utf8');
-  const block = src.slice(src.indexOf('const SECTION = {'), src.indexOf('};', src.indexOf('const SECTION = {')));
-  const grouped = new Set([...block.matchAll(/([a-z][a-z-]*)\s*:/g)].map((m) => m[1]));
-  const orphans = DOCUMENTED_COMMANDS.filter((name) => !grouped.has(name));
+  // The list is a table now, not a paragraph edited by hand: a command the
+  // registry knows and the table forgets is a command a person cannot find by
+  // scrolling /help.
+  const orphans = DOCUMENTED_COMMANDS.filter((name) => !sectionFor(name));
   assert.deepEqual(orphans, [], `not in any /help group: ${orphans.join(', ')}`);
+});
+
+test('the /help table lists every documented command once', () => {
+  assert.deepEqual(duplicatedCommands(), [], 'a command in two sections means neither section is trustworthy');
+  const missing = uncoveredCommands().filter((name) => !COMMAND_ALIASES[name]);
+  assert.deepEqual(missing, [], `registry commands missing from /help: ${missing.join(', ')}`);
 });
 
 test('advice never names a command the bot would refuse', () => {

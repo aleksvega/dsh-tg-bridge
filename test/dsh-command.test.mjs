@@ -152,7 +152,8 @@ test('a CLI owned by the app names both versions and offers no npm button', asyn
   assert.match(out[0], /carries DSH 0\.2\.1-rc\.3; the newest build is 0\.2\.1-rc\.5/);
   assert.match(out[0], /newest number here is npm’s|newest number is npm/);
   assert.doesNotMatch(out[0], /Update: \/dsh update/, 'the npm route cannot help this CLI');
-  assert.equal(extras[0].keyboard, undefined, 'a button that cannot do the job is a lie');
+  assert.equal(extras[0].keyboard[0][0].data, 'ds:update', 'the app press leads to the installer plan');
+  assert.match(extras[0].keyboard[0][0].text, /app|приложение|应用/i);
 });
 
 test('an app-owned CLI with no readable version names the app, not a bad install', async () => {
@@ -213,10 +214,10 @@ test('with no dsh on PATH the app archive is what gets read', () => {
   assert.equal(installedVersion({ kind: 'app', installed: () => '0.2.2', appVersion: () => '0.2.1-rc.3' }), '0.2.2', 'the CLI wins when it answers');
 });
 
-test('updating an app-owned CLI refuses instead of installing a copy nobody runs', async () => {
+test('updating an app-owned CLI still refuses npm, in every language', async () => {
   for (const lang of ['en', 'ru', 'zh']) {
     let ran = 0;
-    const { ctx, out, extras } = context('/dsh', 'update confirm', lang);
+    const { ctx, out } = context('/dsh', 'update confirm', lang);
     await handleDshCommands(ctx, deps({
       kind: 'app',
       run: () => {
@@ -225,9 +226,62 @@ test('updating an app-owned CLI refuses instead of installing a copy nobody runs
       },
     }));
     assert.equal(ran, 0, `${lang}: npm must not run for the app's own CLI`);
-    assert.equal(out.length, 1, `${lang}: one message, and it is the refusal`);
-    assert.equal(extras[0].keyboard, undefined, `${lang} must not offer a confirm button`);
+    assert.equal(out.length, 1, `${lang}: one message, and it is not a success`);
   }
+});
+
+test('the app update is a plan first, and it names the installer size', async () => {
+  const { ctx, out, extras } = context('/dsh', 'update', 'en');
+  await handleDshCommands(ctx, deps({
+    kind: 'app',
+    feed: async () => ({ version: '0.2.1-rc.5', installer: 'https://x.test/h.exe', sha512: 'abc', size: 289_408_544, channel: 'nightly' }),
+  }));
+  assert.match(out[0], /0\.2\.1-rc\.3/, 'what is installed');
+  assert.match(out[0], /0\.2\.1-rc\.5/, 'what will be installed');
+  assert.match(out[0], /289 MB/, 'the person agrees to a size, not a surprise');
+  assert.equal(extras[0].keyboard[0][0].data, 'ds:confirm');
+});
+
+test('the app update downloads, checks the hash, and opens what it verified', async () => {
+  const { ctx, out } = context('/dsh', 'update confirm', 'en');
+  const seen = [];
+  await handleDshCommands(ctx, deps({
+    kind: 'app',
+    feed: async () => ({ version: '0.2.1-rc.5', installer: 'https://x.test/h.exe', sha512: 'abc', size: 289_408_544, channel: 'nightly' }),
+    download: async ({ info }) => {
+      seen.push(info.installer);
+      return { ok: true, path: 'C:/Downloads/h.exe', size: 289_408_544, verified: true };
+    },
+    installer: (file) => {
+      seen.push(file);
+      return true;
+    },
+  }));
+  assert.deepEqual(seen, ['https://x.test/h.exe', 'C:/Downloads/h.exe'], 'the opened file is the checked one');
+  assert.match(out[0], /Downloading/);
+  assert.match(out[1], /opened: 0\.2\.1-rc\.5/);
+});
+
+test('a bad hash is deleted and never opened', async () => {
+  const { ctx, out } = context('/dsh', 'update confirm', 'en');
+  let opened = 0;
+  await handleDshCommands(ctx, deps({
+    kind: 'app',
+    feed: async () => ({ version: '0.2.1-rc.5', installer: 'https://x.test/h.exe', sha512: 'abc' }),
+    download: async () => ({ ok: false, error: 'sha512 mismatch' }),
+    installer: () => {
+      opened += 1;
+      return true;
+    },
+  }));
+  assert.equal(opened, 0, 'a mismatched installer is not a warning to scroll past');
+  assert.match(out[1], /file was deleted/);
+});
+
+test('with no feed the app update says why it cannot fetch anything', async () => {
+  const { ctx, out } = context('/dsh', 'update', 'en');
+  await handleDshCommands(ctx, deps({ kind: 'app', latest: async () => '', feed: async () => null }));
+  assert.match(out[0], /feed did not answer/);
 });
 
 test('a real install says it is running before it says it is done', async () => {

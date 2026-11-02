@@ -6,9 +6,13 @@ import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from "../chat/control.mjs";
+import { helpLines } from "../chat/help-sections.mjs";
 import { LANGS, t } from "../core/i18n.mjs";
 
-const names = (text) => [...new Set([...text.matchAll(/\/([a-z][a-z-]{1,20})\b/g)].map((m) => m[1]))];
+const names = (text) => [...new Set([...text.matchAll(/(?:^|[\s([«"—·])\/([a-z][a-z-]{1,20})\b/gm)].map((m) => m[1]))];
+
+/** The /help text as the chat receives it, for one language. */
+const helpText = (lang) => helpLines((k, vars) => t(lang, k, vars)).join("\n");
 
 test("every alias points at a command that exists, and is not itself documented", () => {
   for (const [alias, canonical] of Object.entries(COMMAND_ALIASES)) {
@@ -20,14 +24,14 @@ test("every alias points at a command that exists, and is not itself documented"
 
 test("/help advertises no alias, in any language", () => {
   for (const lang of LANGS) {
-    const shown = names(t(lang, "help.body"));
+    const shown = names(helpText(lang));
     const leaked = shown.filter((name) => COMMAND_ALIASES[name]);
     assert.deepEqual(leaked, [], `${lang}/help teaches these aliases back: ${leaked.join(", ")}`);
   }
 });
 
 test("every documented command is in /help and in the accepted list", () => {
-  const shown = new Set(LANGS.flatMap((lang) => names(t(lang, "help.body"))));
+  const shown = new Set(LANGS.flatMap((lang) => names(helpText(lang))));
   const silent = DOCUMENTED_COMMANDS.filter((name) => !shown.has(name));
   assert.deepEqual(silent, [], `commands a person cannot discover: ${silent.join(", ")}`);
   const unknown = [...shown].filter((name) => !CONTROL_COMMANDS.includes(name));

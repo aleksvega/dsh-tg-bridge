@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **`/dsh` installs the app update it finds.** The card used to stop at a version
+  number and a link. It now downloads the installer the feed names, checks it
+  against the feed's SHA-512, and only then opens it — a hash that does not match
+  deletes the file and says so, because an installer is the one download a person
+  double-clicks. The size is shown before the download starts.
+- **`/help` is a list by topic, not a paragraph.** Every command in the registry
+  appears exactly once under one of eleven topics, with `/help <command>` for one
+  and a link to `docs/COMMANDS.md` — a page generated from the same table and the
+  same translations, so the list, the sections and the sentences cannot drift from
+  the bot. Asking about a command that had no sentence of its own used to answer
+  with a heading and nothing under it in Russian and Chinese; it now quotes its
+  topic.
+- **`/settings` says what it is before it shows switches.** Each page opens with a
+  line about what the page is for, every row reads as label, current value and a
+  plain sentence about what it changes, and the foot line says that the buttons
+  below are the same list. The two "reasoning" rows that both said "notes along
+  the way" are now the live trail and the last answer's thoughts.
 - **The app's own update feed is what "latest" means there.** `resources/app-update.yml`
   names a feed and a channel, and the channel's manifest names the build the app
   would install. `/dsh` now reads both, so on a desktop install the number comes

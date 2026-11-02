@@ -8,6 +8,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from '../core/i18n.mjs';
+import { helpLines } from '../chat/help-sections.mjs';
 import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from '../work/goals.mjs';
 import { lastTurnReasoning, lastTurnReasoningSteps, lastTurnText, reasoningMarkdown, sessionFile, sessionReasoningSteps, sessionStats } from '../chat/thoughts.mjs';
 import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseReasoningEfforts, parseSubagentFleet, parseSubagentRows } from '../profile/agents.mjs';
@@ -475,7 +476,7 @@ export async function handleViewCommands(ctx) {
         say(t(helpLang, 'ctrl.help.unknown', { name: about }));
         return true;
       }
-      say(t(helpLang, 'help.body'));
+      say(helpLines((k, vars) => t(helpLang, k, vars)).join('\n'));
       return true;
     }
     default:

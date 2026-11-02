@@ -37,7 +37,8 @@ export function parseFeed(text) {
     || /^\s*(?:-\s*)?url:\s*(\S+)/m.exec(body)?.[1]
     || '';
   const sha512 = /^\s*sha512:\s*>?-?\s*\n?\s*(\S+)/m.exec(body)?.[1] || '';
-  return { version, installer, sha512 };
+  const size = Number(/^\s*size:\s*(\d+)/m.exec(body)?.[1] || 0);
+  return { version, installer, sha512, size };
 }
 
 function configFor(exe = '') {

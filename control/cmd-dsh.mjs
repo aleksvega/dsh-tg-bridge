@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import { t } from '../core/i18n.mjs';
 import { dshLaunch } from '../core/dsh-launch.mjs';
 import { appUpdateInfo } from '../core/app-feed.mjs';
+import { downloadDir, downloadInstaller, formatSize, launchInstaller } from '../core/app-install.mjs';
 import { appDshVersion, dshStatus, forgetInstalledDsh, installedDsh, latestDsh } from '../core/dsh-version.mjs';
 
 /**
@@ -171,20 +172,58 @@ export async function handleDshCommands(ctx, deps = {}) {
     // The two presses are the two words of the command, so nothing here has a
     // second path into npm: `ds:update` types `/dsh update`, `ds:confirm` types
     // the confirm. A card that only says "type /dsh update" costs the person the
-    // one thing buttons are for.
-    const buttons = status.outdated && kind !== 'app'
-      ? [[{ text: t(lang, 'ctrl.dsh.button', { latest: status.latest }), data: 'ds:update' }]]
+    // one thing buttons are for. The app press leads to a different plan (an
+    // installer, not npm), which is why the plan, not the card, says what runs.
+    const buttons = status.outdated
+      ? [[{ text: t(lang, kind === 'app' ? 'ctrl.dsh.appButton' : 'ctrl.dsh.button', { latest: status.latest }), data: 'ds:update' }]]
       : [];
     await reply(card(lang, status, kind, latest), buttons.length ? { keyboard: buttons } : undefined);
     return true;
   }
 
-  // The app's CLI is not npm's copy, so this branch is not "an update that needs
-  // a restart" — it is an operation that would install something a turn never
-  // launches. Doing it and reporting success is the one outcome nobody can see
-  // through, so it is refused with the reason instead.
+  // The app's CLI is not npm's copy: updating it means replacing the desktop
+  // build, which is the one operation here that closes the app it updates. The
+  // bridge can still do it — it has the feed, the installer URL and the hash —
+  // but it says so first, because "installed successfully" is not a claim a
+  // person can check while the window they were using has disappeared.
   if (kind === 'app') {
-    await reply(t(lang, 'ctrl.dsh.appPlan'));
+    const newest = await latestFor({ kind, exe: launch.exe, readLatest, readFeed });
+    const installed = readInstalled();
+    const status = dshStatus({ installed, latest: newest.version });
+    if (!status.latest) {
+      await reply(t(lang, 'ctrl.dsh.appNoFeed'));
+      return true;
+    }
+    if (!status.outdated) {
+      await reply(t(lang, 'ctrl.dsh.appNothing', { latest: status.latest }));
+      return true;
+    }
+    const info = await readFeed({ exe: launch.exe }).catch(() => null);
+    if (!info?.installer) {
+      await reply(t(lang, 'ctrl.dsh.appNoFeed'));
+      return true;
+    }
+    const size = info.size ? formatSize(info.size) : t(lang, 'ctrl.dsh.appSizeUnknown');
+    if (!words.includes('confirm')) {
+      await reply(t(lang, 'ctrl.dsh.appPlan', { installed, latest: status.latest, size }), {
+        keyboard: [[{ text: t(lang, 'ctrl.dsh.confirmButton'), data: 'ds:confirm' }]],
+      });
+      return true;
+    }
+    log(`/dsh update: installing the app ${status.latest}`);
+    await reply(t(lang, 'ctrl.dsh.appDownloading', { size }));
+    const download = deps.download || downloadInstaller;
+    const got = await download({ info, dir: (deps.downloadDir || downloadDir)() });
+    if (!got.ok) {
+      await reply(t(lang, got.error === 'sha512 mismatch' ? 'ctrl.dsh.appBadHash' : 'ctrl.dsh.appError', { error: got.error }));
+      return true;
+    }
+    const open = deps.installer || launchInstaller;
+    if (!open(got.path)) {
+      await reply(t(lang, 'ctrl.dsh.appSaved', { version: status.latest, path: got.path }));
+      return true;
+    }
+    await reply(t(lang, 'ctrl.dsh.appDone', { version: status.latest, path: got.path }));
     return true;
   }
 

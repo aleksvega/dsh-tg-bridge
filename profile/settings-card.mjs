@@ -235,7 +235,13 @@ function rowLine(button, group, t) {
  */
 export function renderSettingsCard({ page = 'reply', t, current = {}, updateMode = 'check', bound = null, note = '' }) {
   const buttons = settingsButtons({ t, current, updateMode }).filter((b) => b.page === page);
-  const lines = [t(`settings.${page}.title`), ''];
+  const lines = [t(`settings.${page}.title`)];
+  // One sentence saying what the page is for, before the rows: the buttons are
+  // always at the bottom of a Telegram message, so the text has to say that the
+  // rows and the buttons below are the same list, in the same order.
+  const intro = t(`settings.${page}.intro`);
+  if (intro && intro !== `settings.${page}.intro`) lines.push(intro);
+  lines.push('');
   // What the last tap did, in one line above the rows: the card stays, so the
   // change needs somewhere to be said, and the top is where the eye lands.
   if (note) lines.push(note, '');

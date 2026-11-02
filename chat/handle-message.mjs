@@ -6,6 +6,7 @@
 // it calls lives in a module of its own.
 
 import { commandParts, GENERAL_SAFE } from './commands.mjs';
+import { helpLines } from './help-sections.mjs';
 import { CONTROL_COMMANDS, handleControl, modelOf } from './control.mjs';
 import { takeEditText } from '../control/cmd-edit.mjs';
 import { reasoningMode } from './notes.mjs';
@@ -209,7 +210,7 @@ export async function handleMessage(msg, album = null) {
       chatId,
       `${t(lang, 'msg.unknownCommand', { cmd: head })}
 
-${t(lang, 'help.body')}`,
+${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
       threadId,
       msg.message_id
     );
