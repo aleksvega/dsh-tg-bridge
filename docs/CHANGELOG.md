@@ -1,5 +1,21 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.42.0
+
+- **The workspace group is written by the host that owns it.** 1.39.0 closed
+  issue #3 by editing `workspace.json` from the bridge process, with the
+  caveat that a running `dsh web` holds that file in memory and can drop the id
+  on its next write. The addendum on the issue named the better place: the
+  shipped DSH plugin runs inside the host, so it can call
+  `workspace.attachSession` itself. `plugin-bridge.mjs` now reconciles once at
+  boot and every 30 s: every persisted session that no workspace lists and whose
+  folder matches one gets attached through the public API, and a folder that
+  matches nothing stays Ungrouped. Subagents and child sessions are never grouped
+  on their own, an id already listed is untouched, and a host without
+  `workspaceRegistry` / `sessionPersistence` is left quiet rather than broken.
+  Seven tests drive `reconcileOnce` with a fake context, so the grouping itself
+  is checked without booting a desktop.
+
 ## 1.41.2
 
 - **An empty note file is removed when its turn ends.** Every turn creates a

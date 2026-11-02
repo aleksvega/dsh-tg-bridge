@@ -103,6 +103,87 @@ export function startBridge({
 }
 
 export function apply(ctx, config = {}) {
-  if (config.autoStart === false) return { started: false, reason: 'disabled' };
-  return startBridge({ ctx });
+  const started = config.autoStart === false ? { started: false, reason: 'disabled' } : startBridge({ ctx });
+  // The membership list is the host's to write. Issue #3 pointed at the right
+  // shape: the bridge edits `workspace.json` from a separate process, and a live
+  // host holds that file in memory, so its next write can drop the id the bridge
+  // just added. This runs inside the host, so it can attach what the headless
+  // turns created without racing anyone.
+  reconcileSessions(ctx);
+  return started;
 }
+
+/** How often an id created by a headless turn is looked for, in ms. */
+const RECONCILE_MS = 30000;
+
+/**
+ * Attach the sessions nobody grouped, from inside the host that owns the list.
+ *
+ * `sessionPersistence.list()` re-reads the artifacts on every call, so a session
+ * written by the spawned `dsh --profile headless` is visible here even though it
+ * was never live in this process. `attachSession` rejects an id whose folder is
+ * not the workspace's path, which is the check — a wrong group is worse than
+ * Ungrouped, because it claims the session ran somewhere it never did.
+ *
+ * Exported so a test can drive it with a fake context: booting a desktop to
+ * check "does the group follow the folder" would test the desktop, not this.
+ *
+ * @returns {{ attached: number, skipped: number, reason?: string }}
+ */
+export async function reconcileOnce(ctx) {
+  const listRaw = ctx?.workspaceRegistry?.list;
+  const persistRaw = ctx?.sessionPersistence?.list;
+  if (typeof listRaw !== 'function' || typeof persistRaw !== 'function') {
+    return { attached: 0, skipped: 0, reason: 'no-services' };
+  }
+  const spaces = (await listRaw.call(ctx.workspaceRegistry)) ?? [];
+  const sessions = (await persistRaw.call(ctx.sessionPersistence)) ?? [];
+  const known = new Set(spaces.flatMap((space) => space?.sessionIds ?? []));
+  let attached = 0;
+  let skipped = 0;
+  for (const entry of sessions) {
+    const header = entry?.header ?? entry;
+    const id = String(header?.id ?? '');
+    // Subagents and children belong to their parent's story, not to a group of
+    // their own; an id with no folder cannot be matched, so it is left alone.
+    if (!id || known.has(id) || !header?.cwd) continue;
+    if (header.origin === 'subagent' || header.parentSession !== undefined) {
+      skipped += 1;
+      continue;
+    }
+    let done = false;
+    for (const space of spaces) {
+      if (typeof space?.attachSession !== 'function') continue;
+      try {
+        await space.attachSession(id);
+        done = true;
+        break;
+      } catch {
+        // The folder is not this workspace's: try the next one.
+      }
+    }
+    if (done) {
+      attached += 1;
+      known.add(id);
+    } else {
+      skipped += 1;
+    }
+  }
+  return { attached, skipped };
+}
+
+/** Run `reconcileOnce` on a timer while the host lives; quiet when it cannot. */
+function reconcileSessions(ctx) {
+  if (typeof ctx?.workspaceRegistry?.list !== 'function') return;
+  if (typeof ctx?.sessionPersistence?.list !== 'function') return;
+  const tick = () => {
+    void reconcileOnce(ctx).catch(() => {});
+  };
+  tick();
+  const timer = setInterval(tick, RECONCILE_MS);
+  timer?.unref?.();
+  if (typeof ctx?.on === 'function') {
+    ctx.on('dispose', () => clearInterval(timer));
+  }
+}
+
