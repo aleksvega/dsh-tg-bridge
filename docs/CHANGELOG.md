@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.46.0
+
 - **`@bot rew` answers inline with the commands that start with `rew`.** The bot
   has had a command menu for a while, and it only appears after you half-type a
   command — the spelling this repo spent a release making unique was still a thing

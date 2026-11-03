@@ -144,7 +144,8 @@ test('a calm machine, a guard that is off, and a broken reading all let the turn
 test('the disk is taken from the path the turn writes to', () => {
   // Drive letters are a Windows idea; on macOS and Linux the only disk that
   // matters is `/`, and asking for `C:\` there would read nothing at all.
-  assert.equal(driveOf('C:\\Users\\x', 'win32'), 'C:\\');
+  // `C:\work\x` is a placeholder, not a real user path: pick a fake folder.
+  assert.equal(driveOf('C:\\work\\x', 'win32'), 'C:\\');
   assert.equal(driveOf('d:/work', 'win32'), 'd:\\');
   // A relative cwd has no drive of its own: the system one is the honest guess.
   assert.match(driveOf('work/sub', 'win32'), /^[A-Za-z]:\\$/);

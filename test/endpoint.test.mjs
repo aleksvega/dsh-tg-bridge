@@ -22,8 +22,8 @@ const BASE = `- id: llm-pi-ai
   config:
     providers:
       acme:
-        displayName: Unorouter
-        apiKeyEnv: UNOROUTER_API_KEY
+        displayName: Acme
+        apiKeyEnv: ACME_API_KEY
         api: openai-responses
         baseURL: https://api.acme-llm.test/v1
         defaultContextWindow: 1000000
@@ -141,7 +141,7 @@ test('the list reads the patch, not a second copy of it', () => {
   assert.deepEqual(rows.map((row) => row.id), ['acme', 'wikivibe']);
   assert.deepEqual(rows[0].models, ['deepseek-v4.1-flash']);
   assert.equal(rows[0].baseURL, 'https://api.acme-llm.test/v1');
-  assert.equal(rows[0].keyEnv, 'UNOROUTER_API_KEY');
+  assert.equal(rows[0].keyEnv, 'ACME_API_KEY');
 });
 
 const run = async (arg, lang = 'en') => {

@@ -28,7 +28,7 @@ const PATCH = `- id: llm-pi-ai
   config:
     providers:
       acme:
-        displayName: Unorouter
+        displayName: Acme
         baseURL: https://api.acme-llm.test/v1
         models:
           - id: deepseek-v4.1-flash
