@@ -8,7 +8,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-import { reconcileOnce } from '../plugin-bridge.mjs';
+import { apply, reconcileOnce } from '../plugin-bridge.mjs';
 
 const space = (id, path, attachable = true) => ({
   id,
@@ -94,4 +94,24 @@ test('a persistence entry with no header shape is skipped, not crashed on', asyn
   const out = await reconcileOnce(ctx);
   assert.deepEqual(out, { attached: 0, skipped: 0 });
   assert.deepEqual(home.sessionIds, []);
+});
+
+test('a host that refuses an undeclared service does not fail the plugin', async () => {
+  // Cordis only answers for the names an entry declares in `inject`, and throws
+  // on the rest: a live boot failed exactly this way ("cannot get property
+  // workspaceRegistry without inject") and the entry never activated, so the
+  // bridge was not started at all. The guard has to survive the throw.
+  const strict = () => {
+    const ctx = {};
+    for (const name of ['workspaceRegistry', 'sessionPersistence']) {
+      Object.defineProperty(ctx, name, {
+        get() {
+          throw new Error(`cannot get property "${name}" without inject`);
+        },
+      });
+    }
+    return ctx;
+  };
+  assert.deepEqual(await reconcileOnce(strict()), { attached: 0, skipped: 0, reason: 'no-services' });
+  assert.doesNotThrow(() => apply(strict(), { autoStart: false }));
 });

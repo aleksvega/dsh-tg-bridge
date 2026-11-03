@@ -117,6 +117,24 @@ export function apply(ctx, config = {}) {
 const RECONCILE_MS = 30000;
 
 /**
+ * A host service, or `undefined` when this host does not have one.
+ *
+ * Cordis defines a service on the context only for the names an entry declares
+ * in `inject`, and reading an undeclared one throws instead of answering. The
+ * plugin is optional by design — it has to load in a headless profile that has
+ * no workspaces at all — so the read itself is what needs the guard: a real boot
+ * failed here with "cannot get property workspaceRegistry without inject", and
+ * the plugin never activated.
+ */
+function service(ctx, name) {
+  try {
+    return ctx?.[name];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Attach the sessions nobody grouped, from inside the host that owns the list.
  *
  * `sessionPersistence.list()` re-reads the artifacts on every call, so a session
@@ -131,13 +149,15 @@ const RECONCILE_MS = 30000;
  * @returns {{ attached: number, skipped: number, reason?: string }}
  */
 export async function reconcileOnce(ctx) {
-  const listRaw = ctx?.workspaceRegistry?.list;
-  const persistRaw = ctx?.sessionPersistence?.list;
+  const registry = service(ctx, 'workspaceRegistry');
+  const persistence = service(ctx, 'sessionPersistence');
+  const listRaw = registry?.list;
+  const persistRaw = persistence?.list;
   if (typeof listRaw !== 'function' || typeof persistRaw !== 'function') {
     return { attached: 0, skipped: 0, reason: 'no-services' };
   }
-  const spaces = (await listRaw.call(ctx.workspaceRegistry)) ?? [];
-  const sessions = (await persistRaw.call(ctx.sessionPersistence)) ?? [];
+  const spaces = (await listRaw.call(registry)) ?? [];
+  const sessions = (await persistRaw.call(persistence)) ?? [];
   const known = new Set(spaces.flatMap((space) => space?.sessionIds ?? []));
   let attached = 0;
   let skipped = 0;
@@ -174,8 +194,8 @@ export async function reconcileOnce(ctx) {
 
 /** Run `reconcileOnce` on a timer while the host lives; quiet when it cannot. */
 function reconcileSessions(ctx) {
-  if (typeof ctx?.workspaceRegistry?.list !== 'function') return;
-  if (typeof ctx?.sessionPersistence?.list !== 'function') return;
+  if (typeof service(ctx, 'workspaceRegistry')?.list !== 'function') return;
+  if (typeof service(ctx, 'sessionPersistence')?.list !== 'function') return;
   const tick = () => {
     void reconcileOnce(ctx).catch(() => {});
   };

@@ -1,6 +1,6 @@
 # CHANGELOG — DSH Telegram bridge
 
-## Unreleased
+## 1.47.1
 
 - **`/subagents` — the panel the turn card could not keep.** The live panel showed
   each subagent while a turn ran, and forgot it the moment the turn ended, because
@@ -16,6 +16,13 @@
   disk the card said "run `/cost` again to fetch one", and `/cost` only ever read
   the file: `/prices` is the one command that touches the network. The sentence
   now names `/prices`, and a test keeps it that way in all three locales.
+
+- **The plugin activates again in a live host.** Cordis answers only for the
+  services an entry declares in `inject` and throws on the rest, so the
+  `workspaceRegistry` read in `apply` failed with "cannot get property
+  workspaceRegistry without inject": the entry never activated and the bridge was
+  never started. The read is guarded now, and a scratch profile booted with a live
+  DSH shows the entry activating and the bridge child polling.
 
 ## 1.47.0
 
