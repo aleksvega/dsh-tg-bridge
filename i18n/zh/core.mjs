@@ -231,7 +231,7 @@ export default {
   'card.cbOn': '已开启',
   'card.cbOff': '已关闭',
   'msg.voiceOff': '🎤 这里还没有配置语音转写。`voice` 可以接任意引擎：本地脚本（`voice.python` + `voice.script`）、任意命令行（`voice.command` + `voice.args`），或 OpenAI 兼容接口（`voice.baseUrl` + `voice.model` + 密钥）。现成配置见 docs/VOICE.md。',
-  'prompt.photo': '查看路径 {path} 的图片并详细描述：文字（逐字，保留原语言）、界面元素、物体。',
+  'prompt.photo': '图片位于路径 {path}。用 read_image 工具打开并详细描述：文字（逐字，保留原语言）、界面元素、物体。不要以没有视觉能力为由拒绝：文件由工具读取，若打不开就显示工具的错误。',
   'prompt.file': '用户发来文件：{path}（{type}，{size} 字节）。',
   'prompt.voice': '🎤 这是语音消息的转写文本，由语音识别生成。人名、拉丁字母、文件名和生僻词可能听错。如果某个词看起来没有意义，请询问本意，不要自行猜测：下面是被听到的内容，不一定是原话。\n\n{text}',
   'prompt.note': '请求：{note}',

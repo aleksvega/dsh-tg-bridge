@@ -9,7 +9,7 @@
 //
 // Extracted from `handle-message.mjs`, which is at its size ceiling and whose
 // subject is "one incoming message becomes one turn", not "what a reply is".
-import { scrubReply } from './answer-shape.mjs';
+import { languageRequest, scrubReply } from './answer-shape.mjs';
 import { LANG_NUDGE, looksLikeReasoning, REPLY_NUDGE, stripThinkingBlocks } from './panel.mjs';
 import { turnAttempt } from '../turn/turn.mjs';
 
@@ -36,7 +36,13 @@ export function isReasoningEcho(value, reasoning) {
  * @returns {Promise<{ text: string, echoed: boolean }>} `echoed` means nothing
  *   the person should read was produced, and the caller sends its own sentence
  */
-export async function replyText({ result, reasoning, key, turnOptions, sessionId, where, lang = 'en', log, retryTurn = turnAttempt }) {
+export async function replyText({ result, reasoning, key, turnOptions, sessionId, where, lang = 'en', asked = '', log, retryTurn = turnAttempt }) {
+  // The person's own words can override the topic's language: "ответь
+  // по-английски" is an instruction, not a mistake, and the scrub must not
+  // translate it back or ask for a second answer.
+  const wanted = languageRequest(asked);
+  const allowForeign = Boolean(wanted && wanted !== lang);
+  if (allowForeign) log(`reply in ${where} may be in ${wanted}: the person asked for it`);
   const echoed = (value) => isReasoningEcho(value, reasoning());
   if (echoed(result.text)) {
     log(`reasoning echo for ${where} (${String(result.text).length} chars) — asking once more`);
@@ -56,16 +62,16 @@ export async function replyText({ result, reasoning, key, turnOptions, sessionId
   // person reads a plan in a language they never asked for. The scrub is
   // deterministic — it removes lines that are not in the conversation's language
   // and announce what the model is about to do, and never empties an answer.
-  let shaped = scrubReply(clean, lang);
+  let shaped = scrubReply(clean, lang, { allowForeign });
   // Whole reply in the wrong language is the one case stripping cannot repair:
   // there is no answer left to keep. Ask once more, in the same session, and only
   // fall back to the mistranslated text if the second attempt is just as foreign —
   // a wrong-language answer still beats silence.
-  if (shaped.foreign && !shaped.dropped && String(clean).trim().length > 80) {
+  if (shaped.foreign && !shaped.dropped && !allowForeign && String(clean).trim().length > 80) {
     log(`reply in ${where} is in the wrong language — asking once more`);
     const retry = await retryTurn(LANG_NUDGE(lang), key, turnOptions)(sessionId);
     if (!retry.error && !echoed(retry.text)) {
-      const again = scrubReply(stripThinkingBlocks(retry.text), lang);
+      const again = scrubReply(stripThinkingBlocks(retry.text), lang, { allowForeign });
       if (!again.foreign) {
         log(`second attempt for ${where} answered in ${lang}`);
         shaped = again;

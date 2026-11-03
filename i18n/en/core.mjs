@@ -231,7 +231,7 @@ export default {
   'card.cbOn': 'On',
   'card.cbOff': 'Off',
   'msg.voiceOff': '🎤 Voice transcription is not set up here. `voice` takes any engine: a local script (`voice.python` + `voice.script`), any CLI (`voice.command` + `voice.args`), or an OpenAI-compatible API (`voice.baseUrl` + `voice.model` + a key). Ready-made blocks are in docs/VOICE.md.',
-  'prompt.photo': 'Look at the image at {path} and describe it in detail: text (verbatim, keeping its language), interface elements, objects.',
+  'prompt.photo': 'The image is at {path}. Open it with the read_image tool and describe it in detail: text (verbatim, keeping its language), interface elements, objects. Do not refuse by claiming you cannot see images: the file is read by the tool, and if it failed, show the tool error.',
   'prompt.file': 'The user sent a file: {path} ({type}, {size} bytes).',
   'prompt.voice': '🎤 This is a transcript of a voice message, produced by speech recognition. Names, Latin words, file names and rare terms may be misheard. If a word makes no sense, ask what was meant instead of guessing — the text below is what was heard, not what was said.\n\n{text}',
   'prompt.note': 'The request: {note}',

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **The reply scrub is smart, not a language filter.** The first version caught
+  every line that began with "now", "so", "also" or "next", which in a Russian
+  conversation is also how a quoted English sentence, a library name or a list
+  entry begins. It now needs the planning *shape* — a first person ("Should I",
+  "Let me"), a label ("Final answer", "Keep ~5 lines"), or a sentence about the
+  answer itself — and it never touches a line that carries a quote, a link, a
+  bullet or a numbered item. When the person asks for another language outright
+  ("ответь по-английски", "in Chinese, please", "用英语"), the reply is left alone
+  and no second attempt is made: their instruction outranks the topic.
+- **A photo now says how to open it.** The turn is handed a path, not image bytes,
+  and reads the file with `read_image`; a model that answered "I cannot see
+  images" had simply not tried the tool. The prompt in all three languages names
+  the tool and asks for the tool's own error instead of a refusal.
 - **A reply that carries the model's plan is cleaned before the chat sees it.**
   The reasoning guard caught the turn that sent *only* its notes; it stayed quiet
   when a real answer arrived with the notes stuck on top — "Now the answer",

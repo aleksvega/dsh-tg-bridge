@@ -478,6 +478,8 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
     sessionId: sessionAtStart,
     where,
     lang,
+    // The person's own words: "ответь по-английски" outranks the topic language.
+    asked: text,
     log,
   });
   if (reply.echoed) {

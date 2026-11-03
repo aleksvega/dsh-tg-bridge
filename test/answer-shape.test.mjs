@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { scrubReply, speaksLang, scriptProfile } from '../chat/answer-shape.mjs';
+import { languageRequest, scrubReply, speaksLang, scriptProfile } from '../chat/answer-shape.mjs';
 
 const LEAK = [
   'Live page confirmed: language bar + three blocks.',
@@ -84,4 +84,44 @@ test('script counting is the base the rules stand on', () => {
   assert.equal(speaksLang('Hello', 'ru'), false);
   assert.equal(speaksLang('你好', 'zh'), true);
   assert.equal(speaksLang('', 'ru'), true);
+});
+
+// The smart part: a Russian answer may carry English and Chinese, and the scrub
+// must not become a language filter. Only the planning shape is removed — a
+// connective, a quote and a list entry are how real content often begins.
+test('English inside a Russian answer survives unless it is a plan', () => {
+  const answer = [
+    'Готово. По дороге нашёл два момента.',
+    'Also note: API returns 429 — это лимит, не ошибка.',
+    'Next.js конфиг не трогал.',
+    'Он сказал: "file not found", и это была правда.',
+    'Вот список:',
+    '- cache-control: no-store',
+    '1. Проверить логи',
+    '除此之外，中文部分也可以留在里面。',
+  ].join('\n');
+  const out = scrubReply(answer, 'ru');
+  assert.equal(out.text, answer);
+  assert.equal(out.dropped, 0);
+});
+
+test('a plan line is still caught when it is spelled out', () => {
+  const out = scrubReply('Should I also update the list?\n\nГотово: всё на месте.', 'ru');
+  assert.equal(out.text, 'Готово: всё на месте.');
+  assert.equal(out.dropped, 1);
+});
+
+test('the person can ask for another language and the reply is left alone', () => {
+  assert.equal(languageRequest('ответь по-английски, пожалуйста'), 'en');
+  assert.equal(languageRequest('please answer in Chinese'), 'zh');
+  assert.equal(languageRequest('用俄语回答'), 'ru');
+  assert.equal(languageRequest('почини тесты'), '');
+
+  const english = 'Done: the page now carries all three languages.';
+  const free = scrubReply(english, 'ru', { allowForeign: true });
+  assert.equal(free.text, english);
+  assert.equal(free.foreign, false);
+  // Even a plan-shaped line stays: the person overrode the language on purpose.
+  const plan = scrubReply('Should I update the list?\n\nDone: all three languages.', 'ru', { allowForeign: true });
+  assert.equal(plan.dropped, 0);
 });
