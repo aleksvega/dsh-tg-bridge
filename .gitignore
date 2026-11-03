@@ -19,3 +19,6 @@ Thumbs.db
 .DS_Store
 update-backup-*/
 commit-msg.txt
+
+# release notes are written per release, not tracked
+release-body.md
