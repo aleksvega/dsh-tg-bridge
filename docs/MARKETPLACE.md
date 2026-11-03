@@ -4,6 +4,17 @@ The market is not a separate service with its own API: it is a catalog of npm
 packages that declare a DSH bundle, and DSH installs them with
 `dsh plugin add <name>`.
 
+## A fresh release is not installable for a day
+
+DSH installs through pnpm 11, and pnpm 11 refuses a version published in the last
+24 hours (`minimumReleaseAge`). Minutes after 1.47.0 went up, a bare
+`dsh plugin add dsh-tg-bridge` still resolved 1.45.0 — and so did
+`add dsh-tg-bridge@latest`, because `latest` is a range. An exact version is
+honoured at once: `add dsh-tg-bridge@1.47.0` installed it in twelve seconds.
+
+So the post-release check is the pinned form, and a day of lag is the cooling-off
+period working, not a broken publish.
+
 ## What the catalog reads
 
 An entry exists because a YAML file in
