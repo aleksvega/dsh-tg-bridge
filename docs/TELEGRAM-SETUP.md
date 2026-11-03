@@ -11,6 +11,7 @@ the bot sees only commands and replies to its own messages, not regular text in 
 | What | How | Why |
 |---|---|---|
 | Privacy mode | `/setprivacy` → **Disable** | Without it the bot does not receive message text in groups, only commands. The main setting. |
+| Inline mode | `/setinline` → any placeholder | One-time: turns on `@bot rew`, the command hints with their parameters. Without it Telegram never sends an inline query, and the feature looks broken rather than off. The placeholder text is never shown by the bridge. |
 | Groups | `/setjoingroups` → **Enable** | Enabled by default; if disabled, the bot cannot be added to a group. |
 | Commands | nothing | The bridge calls `setMyCommands` on start itself: the Russian list by default plus `en` and `zh` via `language_code`. Manual configuration will be overwritten. |
 | Token | `/token` | Passed to `init --token`; stored in `~/.dsh/.credentials.yaml` → `refs.DSH_TELEGRAM_BOT_TOKEN`, not in `config.json` and not in the repository. |

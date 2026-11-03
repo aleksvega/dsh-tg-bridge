@@ -5,7 +5,7 @@ import test from "node:test";
 import "./sandbox-home.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from "../chat/control.mjs";
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, EXTERNAL_COMMANDS } from "../chat/control.mjs";
 import { helpLines } from "../chat/help-sections.mjs";
 import { LANGS, t } from "../core/i18n.mjs";
 
@@ -34,7 +34,8 @@ test("every documented command is in /help and in the accepted list", () => {
   const shown = new Set(LANGS.flatMap((lang) => names(helpText(lang))));
   const silent = DOCUMENTED_COMMANDS.filter((name) => !shown.has(name));
   assert.deepEqual(silent, [], `commands a person cannot discover: ${silent.join(", ")}`);
-  const unknown = [...shown].filter((name) => !CONTROL_COMMANDS.includes(name));
+  const accepted = new Set([...CONTROL_COMMANDS, ...EXTERNAL_COMMANDS]);
+const unknown = [...shown].filter((name) => !accepted.has(name));
   assert.deepEqual(unknown, [], `help offers commands the bot would reject: ${unknown.join(", ")}`);
 });
 

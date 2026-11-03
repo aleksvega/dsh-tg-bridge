@@ -7,6 +7,7 @@
 // with a heading and no sentence. One table instead: the section names the
 // commands, and both the chat answer and docs/COMMANDS.md are rendered from it.
 import { COMMAND_ALIASES, CONTROL_COMMANDS } from './commands-registry.mjs';
+import { currentBotUsername } from './commands.mjs';
 
 /** The GitHub page with the full list, linked from every /help answer. */
 export const DOC_URL = 'https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/COMMANDS.md';
@@ -55,6 +56,9 @@ export function helpLines(t) {
   for (const section of HELP_SECTIONS) {
     lines.push(`${t(`help.section.${section.id}`)}: ${commandsOf(section.id).join(' · ')}`);
   }
+  // Inline mode stays invisible until @BotFather switches it on, and a person
+  // who never hears about it reads the silence as "this bot cannot do that".
+  lines.push('', t('help.inline', { bot: `@${currentBotUsername() || 'bot'}` }));
   return lines;
 }
 

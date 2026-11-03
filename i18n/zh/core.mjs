@@ -15,6 +15,7 @@ export default {
   'settings.state.off': '关',
   'settings.state.auto': '自动',
   'help.intro': '按主题分组的命令。/help <命令> 说明其中一条。三种语言的完整说明列表：{url}',
+  'help.inline': '行内提示：在任意聊天输入 {bot} rew，会列出以 rew 开头的命令。请在 @BotFather 里用 /setinline 打开一次，否则 Telegram 不会发送行内查询。',
   'help.aliases.title': '旧写法',
   'help.aliases.note': '这些名字同样可用——手指滑了或习惯还在。 /help 不宣传它们：一件事只有一个名字。',
   'help.section.work': '文件与话题的项目',

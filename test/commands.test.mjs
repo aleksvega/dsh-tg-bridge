@@ -9,12 +9,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, MENU_COMMANDS } from '../chat/control.mjs';
+import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS, EXTERNAL_COMMANDS, MENU_COMMANDS } from '../chat/control.mjs';
 import { helpLines, sectionFor, duplicatedCommands, uncoveredCommands } from '../chat/help-sections.mjs';
 import { LANGS, t } from '../core/i18n.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const known = new Set(CONTROL_COMMANDS);
+const known = new Set([...CONTROL_COMMANDS, ...EXTERNAL_COMMANDS]);
 
 /** The /help text as the chat receives it, for one language. */
 const helpText = (lang) => helpLines((k, vars) => t(lang, k, vars)).join('\n');

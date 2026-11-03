@@ -14,7 +14,9 @@
   row posts the usage line — written without its slash — and anything that arrives
   through the bot (`via_bot`) is dropped before it reaches a turn. Send @BotFather
   `/setinline` once to switch inline mode on; without it the chat never sends a
-  query.
+  query. `/help` ends with that line — the bot's own username included — and
+  `docs/TELEGRAM-SETUP.md` lists the switch in its BotFather table, so the step is
+  read before the silence is mistaken for a missing feature.
 
 - **`/plan` is a control now, not a report about one.** The old card said the
   plan switch belongs to the host and cannot be flipped from the chat — true, and

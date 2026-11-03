@@ -64,7 +64,7 @@ export function commandsDoc() {
   for (const lang of DOC_LANGS) {
     parts.push('', `## ${LANG_HEAD[lang]}`, '', NOTE[lang], '');
     for (const section of HELP_SECTIONS) parts.push(sectionLines(lang, section), '');
-    parts.push(aliasLines(lang), '');
+    parts.push(aliasLines(lang), '', t(lang, 'help.inline', { bot: '@bot' }), '');
   }
   return `${parts.join('\n').replace(/\n{3,}/g, '\n\n').trim()}\n`;
 }

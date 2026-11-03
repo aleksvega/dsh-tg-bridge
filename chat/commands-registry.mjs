@@ -6,6 +6,13 @@
 // renderers import the dispatcher that imports them, which Node reports as
 // `undefined is not a function` three frames away instead of as a cycle. This
 // file imports nothing, so it can never be part of one.
+/**
+ * Names that look like commands but belong to Telegram, not to the bridge:
+ * `/setinline` is typed at @BotFather. `/help` tells people to do it, so the
+ * guards against "a promise the bot cannot keep" must not read it as one.
+ */
+export const EXTERNAL_COMMANDS = ['setinline'];
+
 export const CONTROL_COMMANDS = [
   'status', 'models', 'model', 'effort', 'profile', 'agents', 'preset', 'permissions', 'plan',
   'jobs', 'remind', 'every', 'sessions', 'resume', 'plugins', 'plugin', 'mcp',

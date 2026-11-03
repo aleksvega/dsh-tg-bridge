@@ -101,6 +101,8 @@ These names still work — for a slipped finger or an old habit. /help does not 
 
 `/models` → `/model` · `/plugin` → `/plugins` · `/agentset` → `/crew` · `/task` → `/tasks` · `/fork` → `/rewind` · `/branches` → `/rewind` · `/resume` → `/sessions` · `/version` → `/update`
 
+Inline: type @bot rew in any chat to see the commands that start with rew. Switch it on once in @BotFather with /setinline — the bot asks Telegram for inline queries only after that.
+
 ## Русский
 
 Собрано из того же кода, что и `/help`: список, разделы и пояснения совпадают с ботом. В чате `/help` отвечает на языке темы, а на этой странице — все три языка.
@@ -197,6 +199,8 @@ These names still work — for a slipped finger or an old habit. /help does not 
 
 `/models` → `/model` · `/plugin` → `/plugins` · `/agentset` → `/crew` · `/task` → `/tasks` · `/fork` → `/rewind` · `/branches` → `/rewind` · `/resume` → `/sessions` · `/version` → `/update`
 
+Подсказки: наберите @bot rew в любом чате — появятся команды на rew. Включите это один раз у @BotFather командой /setinline, иначе Telegram не присылает запросы.
+
 ## 中文
 
 本页与 `/help` 用同一份代码生成：列表、分组和说明与机器人完全一致。/help 用话题的语言回答，这里三种语言都在。
@@ -292,3 +296,5 @@ These names still work — for a slipped finger or an old habit. /help does not 
 这些名字同样可用——手指滑了或习惯还在。 /help 不宣传它们：一件事只有一个名字。
 
 `/models` → `/model` · `/plugin` → `/plugins` · `/agentset` → `/crew` · `/task` → `/tasks` · `/fork` → `/rewind` · `/branches` → `/rewind` · `/resume` → `/sessions` · `/version` → `/update`
+
+行内提示：在任意聊天输入 @bot rew，会列出以 rew 开头的命令。请在 @BotFather 里用 /setinline 打开一次，否则 Telegram 不会发送行内查询。
