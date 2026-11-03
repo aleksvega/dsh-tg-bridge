@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.47.0
+
 - `/plugin settings` — the plugin settings page of the desktop app, as far as a
   headless profile can honestly have one. The card reads `cordis.patch.yml` and
   draws a switch only where a tap can change the value: a boolean flips, a number
