@@ -44,3 +44,17 @@ test('both voice paths in the prompt go through the note', () => {
   assert.equal(calls.length, 2, 'a voice note and an audio document are both transcripts');
   assert.doesNotMatch(source, /parts\.push\(heard\)/);
 });
+
+// A voice note recorded while a turn is already running reaches the model as a
+// steer, not as a new message. The person asked whether that path keeps the
+// warning; `mediaPrompt` builds both, so the note is not something the steer
+// branch can lose without this test failing.
+test('a mid-turn voice addition carries the same note', () => {
+  const steer = readFileSync(join(here, 'turn', 'steer.mjs'), 'utf8');
+  assert.match(steer, /mediaPrompt\(list,[^)]*\{[^}]*steer: true/s, 'the steer path builds its text from mediaPrompt');
+  const media = readFileSync(join(here, 'chat', 'media.mjs'), 'utf8');
+  // The transcript is a `parts.push` inside `mediaPrompt` itself, which is the
+  // function the steer calls — so a steer cannot bypass it.
+  assert.match(media, /parts\.push\(voicePromptText\(heard\.text, lang\)\)/);
+  assert.doesNotMatch(steer, /t\(lang, 'prompt\.voice'/);
+});
