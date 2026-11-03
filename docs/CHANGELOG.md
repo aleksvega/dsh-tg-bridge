@@ -12,6 +12,11 @@
   subagent, so it does not split the turn's count. `/subagents clear` forgets them.
   Three locales.
 
+- **`/cost` stops promising a fetch it never made.** With no price catalog on
+  disk the card said "run `/cost` again to fetch one", and `/cost` only ever read
+  the file: `/prices` is the one command that touches the network. The sentence
+  now names `/prices`, and a test keeps it that way in all three locales.
+
 ## 1.47.0
 
 - `/plugin settings` — the plugin settings page of the desktop app, as far as a

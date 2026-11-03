@@ -208,3 +208,13 @@ test('/cost answers in every language, and never fetches', async () => {
     assert.doesNotMatch(text, /\{\w+\}/, `${lang} /cost left a placeholder: ${text}`);
   }
 });
+
+test('a cold catalog points at the command that fetches one', () => {
+  // The card used to say "run /cost again" and /cost never fetched anything:
+  // the one command that touches the network is /prices, so it must be named.
+  for (const lang of LANGS) {
+    const text = costReport({ stats: STATS, route: { provider: 'unorouter', model: 'x' }, lang, models: [], cacheAt: 0, t });
+    assert.match(text, /\/prices/, `${lang} /cost must name /prices, got: ${text}`);
+    assert.doesNotMatch(text, /\$\d/, `${lang} printed money without a price`);
+  }
+});

@@ -13,5 +13,5 @@ export default {
   'ctrl.cost.source': 'Prices: OpenRouter for {id} — {input} in / {output} out per 1M, fetched {when}. This is a market reference, not your provider invoice.',
   'ctrl.cost.partial': 'One part of the bill has no published rate — the total is a lower bound.',
   'ctrl.cost.noPrice': 'OpenRouter does not price {route}, so there is no total — only the token counts above.',
-  'ctrl.cost.noCatalog': 'No price catalog cached yet. Run /cost again to fetch one, or /prices to see the list.',
+  'ctrl.cost.noCatalog': 'No price catalog cached yet, so there is no money line. /prices fetches one; /cost shows the bill from then on.',
 };
