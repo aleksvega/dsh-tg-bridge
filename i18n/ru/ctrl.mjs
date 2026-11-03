@@ -475,5 +475,6 @@ export default {
   'ctrl.load.runAnyway': "Всё равно запустить",
   'ctrl.load.running': "Запускаю.",
   'ctrl.load.refreshing': "Обновляю.",
+  'ctrl.inline.hub': "Открыть все команды",
   'ctrl.load.heldGone': "Отложенное сообщение уже не сохранено — пришли его ещё раз.",
 };

@@ -475,5 +475,6 @@ export default {
   'ctrl.load.runAnyway': "Run anyway",
   'ctrl.load.running': "Running it now.",
   'ctrl.load.refreshing': "Refreshing.",
+  'ctrl.inline.hub': "Open all commands",
   'ctrl.load.heldGone': "That held message is gone — send it again.",
 };

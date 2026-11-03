@@ -29,14 +29,17 @@
 
 ## 2. Inline hints
 
-- [ ] 2.1 `answerInlineQuery` from the command registry: prefix match, twenty
+- [x] 2.1 `answerInlineQuery` from the command registry: prefix match, twenty
   results, usage line as the description.
-- [ ] 2.2 An empty prefix offers the most used commands; no match offers the hub.
-- [ ] 2.3 Results insert text and execute nothing.
-- [ ] 2.4 The answer is built from the registry and the language only; a test
+- [x] 2.2 An empty prefix offers the most used commands; no match offers the hub.
+- [x] 2.3 Results execute nothing. Telegram has no way to put text into the
+  input box from an inline result, so a result posts the usage line instead —
+  written without its slash — and a message that arrives `via_bot` is dropped
+  before it reaches a turn. Enabling inline mode is still @BotFather's job.
+- [x] 2.4 The answer is built from the registry and the language only; a test
   asserts two different chats with the same query get the same answer.
-- [ ] 2.5 Test: a prefix returns the command with its usage; nothing is executed.
-- [ ] 2.6 Three locales.
+- [x] 2.5 Test: a prefix returns the command with its usage; nothing is executed.
+- [x] 2.6 Three locales.
 
 ## 3. Acceptance for all three
 

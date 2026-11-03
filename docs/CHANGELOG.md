@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **`@bot rew` answers inline with the commands that start with `rew`.** The bot
+  has had a command menu for a while, and it only appears after you half-type a
+  command — the spelling this repo spent a release making unique was still a thing
+  to remember. Inline mode lists up to twenty matches with the same sentence
+  `/help` gives, in the install's language, built from the registry alone: no chat,
+  no state, no file, so a stranger who finds the bot learns the command names and
+  nothing else, and the answer is cached across requesters. Nothing matched offers
+  the hub button instead of an empty dropdown. One honest deviation: Telegram has
+  no way to drop text into somebody's input box from an inline result, so a chosen
+  row posts the usage line — written without its slash — and anything that arrives
+  through the bot (`via_bot`) is dropped before it reaches a turn. Send @BotFather
+  `/setinline` once to switch inline mode on; without it the chat never sends a
+  query.
+
 - **`/plan` is a control now, not a report about one.** The old card said the
   plan switch belongs to the host and cannot be flipped from the chat — true, and
   useless. Plan mode is a per-topic state the bridge keeps, so `/plan` turns it on

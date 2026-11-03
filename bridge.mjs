@@ -77,6 +77,7 @@ import { activeTurns, killTurn, liveSessions, profileOf, runTurn, runTurnLive, t
 import { approvalKeyboard, continueKeyboard, errorKeyboard } from './chat/keyboards.mjs';
 import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, noteSeed, topicName, topicSeeded, topicSeededRecently, touchTopic } from './chat/topics.mjs';
 import { downloadFile, send, sendEphemeral, sendFile, sendWithMarkup, tg } from './chat/telegram.mjs';
+import { sentThroughUs, takeInlineQuery } from './chat/inline.mjs';
 
 setMessageHandler(handleMessage);
 
@@ -223,6 +224,12 @@ async function main() {
     // to be able to inject text into the owner's live turn.
     if (!allowedSender(msg, config)) {
       log(`ignored update from ${msg.from?.id} (chat ${msg.chat?.id}${msg.message_thread_id ? ` topic=${msg.message_thread_id}` : ''}) allowlist=${JSON.stringify(config.allowedUserIds ?? [])}`);
+      ack(update.update_id);
+      return;
+    }
+    // A hint picked from our own inline results is documentation, not a task.
+    if (sentThroughUs(msg)) {
+      log(`ignored inline hint in chat ${msg.chat?.id}`);
       ack(update.update_id);
       return;
     }
@@ -447,9 +454,14 @@ async function main() {
     try {
       // `callback_query` is required for inline buttons: without it Telegram
       // never delivers button presses, so «Стоп» would draw but do nothing.
-      const updates = await tg('getUpdates', { offset: state.offset, timeout: 50, allowed_updates: ['message', 'callback_query'] }, 120000);
+      // `inline_query` is what `@bot rew` sends.
+      const updates = await tg('getUpdates', { offset: state.offset, timeout: 50, allowed_updates: ['message', 'callback_query', 'inline_query'] }, 120000);
       if (pollFailures > 0) { log(`poll recovered after ${pollFailures} failure(s)`); pollFailures = 0; }
       for (const update of updates) {
+        if (update.inline_query) {
+          await takeInlineQuery({ update, tg, state, config, log, save: saveState });
+          continue;
+        }
         if (update.callback_query) {
           // Buttons are handled inline and immediately: they are neither
           // journaled nor queued, because a stale button must answer at once.

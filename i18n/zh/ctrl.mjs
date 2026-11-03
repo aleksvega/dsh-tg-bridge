@@ -475,5 +475,6 @@ export default {
   'ctrl.load.runAnyway': "仍然运行",
   'ctrl.load.running': "正在运行。",
   'ctrl.load.refreshing': "正在刷新。",
+  'ctrl.inline.hub': "打开全部命令",
   'ctrl.load.heldGone': "那条暂缓的消息已不在——请再发一次。",
 };
