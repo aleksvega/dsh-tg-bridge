@@ -66,6 +66,8 @@ export default {
   'settings.agents.hint': 'Who can be spawned, on which model, with which tools.',
   'settings.cd.label': '📁 Project',
   'settings.cd.hint': 'Which folder this topic works in.',
+  'settings.plugins.label': '🔌 Plugin settings',
+  'settings.plugins.hint': 'The plugin rows of this profile: switches where a tap can change the value.',
   'settings.fallback.label': '🔁 Fallback chain',
   'settings.fallback.hint': 'Who answers when a provider refuses, and in what order.',
   'settings.done': '✓ Done',

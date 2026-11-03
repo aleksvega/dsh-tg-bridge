@@ -21,6 +21,7 @@ import { cardBlocks, cardKeyboard, renderCardSettings, toggleCardBlock } from '.
 import { handleFilePress } from './file-press.mjs';
 import { handleMcpPress } from './mcp-press.mjs';
 import { handlePlanPress } from './plan-press.mjs';
+import { handlePluginSettingsPress } from './plugin-settings-press.mjs';
 import { handleEditPress } from './edit-press.mjs';
 import { handleTourPress } from './tour-press.mjs';
 import { config, done, log, saveState, state } from '../core/state.mjs';
@@ -111,6 +112,14 @@ export async function handleCallback(query) {
   if (data.startsWith('mc:')) {
     guard.mark();
     const claimed = await handleMcpPress({ data, key, lang, chatId, threadId, messageId, answer });
+    if (claimed) return;
+  }
+
+  // A switch on the plugin settings card. It reads the profile again on every
+  // press, writes one key, and redraws the card with the value the file returned.
+  if (data.startsWith('ps:')) {
+    guard.mark();
+    const claimed = await handlePluginSettingsPress({ data, key, lang, chatId, messageId, answer, tg, inlineKeyboard });
     if (claimed) return;
   }
 

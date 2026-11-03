@@ -93,6 +93,9 @@ const PAGES = {
     // refuses. Both already have a card of their own; the row is just the way in.
     { id: 'cd', command: '/cd' },
     { id: 'fallback', command: '/fallback' },
+    // The plugin settings page of the desktop app, as far as a headless
+    // profile can honestly have one: the row's own config keys.
+    { id: 'plugins', command: '/plugin settings' },
   ],
   // New releases: install-wide, so the row is about the install, not the topic.
   updates: [

@@ -66,6 +66,8 @@ export default {
   'settings.agents.hint': '可以派生子代理、用什么模型、带哪些工具。',
   'settings.cd.label': '📁 项目',
   'settings.cd.hint': '本话题在哪个目录里工作。',
+  'settings.plugins.label': '🔌 插件设置',
+  'settings.plugins.hint': '此配置的插件行：只有在点击能改变值时才有开关。',
   'settings.fallback.label': '🔁 备用链路',
   'settings.fallback.hint': '供应商拒绝时由谁接手，按什么顺序。',
   'settings.done': '✓ 完成',

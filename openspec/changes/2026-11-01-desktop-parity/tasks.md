@@ -17,15 +17,19 @@
 
 ## 1. Plugin settings
 
-- [ ] 1.1 Read a plugin's settings schema and current values from the same
-  service the desktop app uses; a key with no value or no type is unsupported.
-- [ ] 1.2 The card draws one control per supported key and a value (not a
-  control) for the rest.
-- [ ] 1.3 Write, read back, and render the value the plugin returned.
-- [ ] 1.4 Write to the topic's profile only.
-- [ ] 1.5 Test: a value that does not stick is shown as refused; a read-only key
-  is not a toggle.
-- [ ] 1.6 Three locales.
+- [x] 1.1 There is no such service to ask: `dsh plugin` only forwards to pnpm,
+  no shipped package declares a settings schema, and a headless turn has no
+  client to call. The card reads `cordis.patch.yml` instead — the file that
+  actually decides what the host loads — and only the keys a row configures.
+- [x] 1.2 The card draws one control per supported key and a value (not a
+  control) for the rest: a boolean is a switch, a number or string is printed,
+  a nested block is named with its line count and never flipped.
+- [x] 1.3 Write, read back, and render the value the profile returned.
+- [x] 1.4 Write to the topic's profile only: the path comes from the profile,
+  and the row is matched by id, so two profiles cannot touch each other.
+- [x] 1.5 Test: a value that does not stick is shown as refused; a read-only key
+  is not a toggle; a card older than the profile executes nothing.
+- [x] 1.6 Three locales.
 
 ## 2. Inline hints
 

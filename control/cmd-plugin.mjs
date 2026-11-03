@@ -15,6 +15,7 @@ import { setRowConfig, unsetRowConfig } from '../profile/profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from '../work/reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from '../profile/agentsets.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
+import { openPluginSettings } from '../chat/plugin-settings-press.mjs';
 import { applyFork, planFork, planRewind } from '../work/rewind.mjs';
 import { cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from '../work/rewind-card.mjs';
@@ -83,7 +84,10 @@ export async function handlePluginCommands(ctx) {
       let target = activeProfile;
       if (words.length > 1 && profileWord(words[0])) target = words.shift();
       else if (words.length > 1 && profileWord(words[words.length - 1])) target = words.pop();
-      const value = words.join(' ').trim();
+      let value = words.join(' ').trim();
+      // `/plugin settings headless` names where to look, not a row: one word that
+      // is a profile is the profile's list, not a hunt for a row by that name.
+      if (action === 'settings' && profileWord(value)) { target = value; value = ''; }
       if (action === 'search' || action === 'find') {
         // The marketplace, from the chat. A word is optional: with none, the
         // registry lists what DSH plugins exist at all — the question the
@@ -119,6 +123,15 @@ export async function handlePluginCommands(ctx) {
             ]),
           },
         );
+        return true;
+      }
+      if (action === 'settings') {
+        // The desktop app's plugin settings page, as far as a headless profile can
+        // honestly have one: the row's own `config:` keys, with a switch where a
+        // value is a boolean and a printed value everywhere else. `value` is a row
+        // id when the person named one, and empty for the list.
+        const card = openPluginSettings(lang, target, value);
+        say(card.text, card.keyboard.length ? { keyboard: card.keyboard } : {});
         return true;
       }
       if (action === 'info' || action === 'about') {

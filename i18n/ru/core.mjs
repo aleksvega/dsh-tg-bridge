@@ -66,6 +66,8 @@ export default {
   'settings.agents.hint': 'Кого можно порождать, на какой модели, с какими инструментами.',
   'settings.cd.label': '📁 Проект',
   'settings.cd.hint': 'В какой папке работает эта тема.',
+  'settings.plugins.label': '🔌 Настройки плагинов',
+  'settings.plugins.hint': 'Строки плагинов этого профиля: тумблеры там, где нажатие меняет значение.',
   'settings.fallback.label': '🔁 Цепочка подмены',
   'settings.fallback.hint': 'Кто отвечает, когда провайдер отказал, и в каком порядке.',
   'settings.done': '✓ Готово',

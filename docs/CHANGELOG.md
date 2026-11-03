@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `/plugin settings` — the plugin settings page of the desktop app, as far as a
+  headless profile can honestly have one. The card reads `cordis.patch.yml` and
+  draws a switch only where a tap can change the value: a boolean flips, a number
+  or string is printed, a nested block is named with its line count. Every write
+  is read back, so the answer names the value the file holds, not the one that was
+  asked for; a card older than the profile refuses instead of flipping whatever
+  now sits at that position. Reachable from `/plugin settings [row]` and from the
+  settings card. Three locales.
+
 ## 1.46.0
 
 - **`@bot rew` answers inline with the commands that start with `rew`.** The bot

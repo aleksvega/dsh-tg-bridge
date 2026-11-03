@@ -92,7 +92,7 @@ export async function handleControl(ctx) {
     const [maybeAction] = String(arg || '').trim().split(/\s+/);
     // `/plugins add|remove|disable|enable …` is the same work as `/plugin …`;
     // the case bodies read `arg`, which already holds the action and its value.
-    if (['add', 'remove', 'disable', 'enable', 'search', 'find', 'info', 'about', 'update', 'upgrade'].includes((maybeAction || '').toLowerCase())) {
+    if (['add', 'remove', 'disable', 'enable', 'search', 'find', 'info', 'about', 'update', 'upgrade', 'settings'].includes((maybeAction || '').toLowerCase())) {
       effective = '/plugin';
     }
   }
