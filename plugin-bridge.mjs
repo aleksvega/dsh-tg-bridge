@@ -125,6 +125,12 @@ const RECONCILE_MS = 30000;
  * no workspaces at all — so the read itself is what needs the guard: a real boot
  * failed here with "cannot get property workspaceRegistry without inject", and
  * the plugin never activated.
+ *
+ * `inject` stays empty on purpose. This host reads a non-array `inject` as a list
+ * of names, so `{ required: [], optional: [...] }` parks the entry forever —
+ * "pending (waiting for services: required, optional)" — and a flat array would
+ * gate activation on services a headless profile does not have, with the same
+ * result. The guard is the only shape that activates everywhere.
  */
 function service(ctx, name) {
   try {
