@@ -12,6 +12,7 @@ import diff from './zh/diff.mjs';
 import model from './zh/model.mjs';
 import endpoint from './zh/endpoint.mjs';
 import every from './zh/every.mjs';
+import mcp from './zh/mcp.mjs';
 import dsh from './zh/dsh.mjs';
 import supervision from './zh/supervision.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...dsh, ...supervision };
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...dsh, ...supervision };

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **`/mcp` shows the MCP servers the profile runs, and adds one.** The install
+  already carries `mcp-exa` — `web_search_exa` and `web_fetch_exa` are tools the
+  agent can call — and the chat said nothing about it. The card reads the profile's
+  own `cordis.patch.yml`, so it cannot disagree with what the host loads: one row
+  per server with its transport, `/mcp <name>` for one server with its address and
+  profile row, and `/mcp add <name> <url>` previews the YAML it would insert and
+  writes only after the **Add** press. The write re-parses the file first and is
+  refused if the file changed under the preview; `/mcp rm` removes only an entry
+  the chat itself added, marked with a line the writer leaves behind, and points
+  at the profile file for anything hand-written. Two limits are stated on the card
+  rather than discovered later: no tool is executed from here (a tool row copies
+  its name, the agent calls it), and a write is not a running server — the profile
+  is read at startup, so **`/restart confirm`** is needed. Secrets are redacted in
+  every view by the same rule as `/logs`: a query parameter, a header value, a
+  credential in the URL's userinfo and an `env` value all print as `***`, while the
+  host and path stay visible so two servers remain distinguishable. Three locales,
+  no new dependency, and every press lands inside the quiet guard.
 - **The reply scrub is smart, not a language filter.** The first version caught
   every line that began with "now", "so", "also" or "next", which in a Russian
   conversation is also how a quoted English sentence, a library name or a list

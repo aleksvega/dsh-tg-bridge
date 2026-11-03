@@ -23,6 +23,7 @@ export default {
   'ctrl.help.about.remind': "Одно напоминание: /remind +15m текст или /remind 09:30 текст.",
   'ctrl.help.about.skills': "Установленные скиллы или текст одного.",
   'ctrl.help.about.plugins': "Список плагинов и изменения: /plugins, /plugins add|remove|disable|enable \u003cid\u003e.",    'ctrl.help.about.soul': "Файл персоны профиля: показать или задать.",
+    'ctrl.help.about.mcp': 'MCP-серверы профиля: /mcp списком, /mcp <имя> одним, /mcp add <имя> <url> и /mcp rm <имя>. Инструменты сервера вызывает агент — карточка их только называет.',
   'ctrl.help.about.version': "Версия моста, которая работает, и последняя на npm.",
   'ctrl.help.about.update': "Какая версия моста работает, что есть на npm, и режим уведомлений: /update, /update on|off|confirm|auto.",
   'ctrl.help.about.subscribe': "Сообщается ли о нас как о пользователе плагина: /subscribe on|off.",

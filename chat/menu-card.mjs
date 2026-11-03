@@ -19,7 +19,7 @@ const SECTIONS = {
   session: ['sessions', 'rewind', 'profile', 'agents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind', 'every'],
   talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'lang', 'endpoint', 'fallback'],
-  ext: ['plugins', 'skills', 'soul', 'preset', 'permissions', 'crew'],
+  ext: ['plugins', 'mcp', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['load', 'settings', 'card', 'find', 'update', 'dsh', 'compact', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'start', 'help'],
 };
 
@@ -81,6 +81,7 @@ const LABELS = {
   endpoint: '/endpoint [list|add|rm]',
   lang: '/lang en|ru|zh',
   plugins: '/plugins add|rm',
+  mcp: '/mcp add|rm',
   skills: '/skills',
   soul: '/soul',
   preset: '/preset <id>',

@@ -23,6 +23,7 @@ export default {
   'ctrl.help.about.remind': "一条提醒：/remind +15m 文本 或 /remind 09:30 文本。",
   'ctrl.help.about.skills': "已安装的技能，或某个技能的内容。",
   'ctrl.help.about.plugins': "插件列表与修改：/plugins、/plugins add|remove|disable|enable \u003cid\u003e。",    'ctrl.help.about.soul': "配置档的人格文件：查看或设置。",
+    'ctrl.help.about.mcp': '配置档的 MCP 服务：/mcp 看列表，/mcp <名称> 看一个，/mcp add <名称> <url>，/mcp rm <名称>。服务的工具由 agent 调用，卡片只报名字。',
   'ctrl.help.about.version': "正在运行的桥接版本，以及 npm 上的最新版本。",
   'ctrl.help.about.update': "你运行的桥接版本、npm 上的版本，以及更新通知模式：/update、/update on|off|confirm|auto。",
   'ctrl.help.about.subscribe': "是否公开本安装为该插件的使用者：/subscribe on|off。",

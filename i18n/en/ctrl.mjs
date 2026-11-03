@@ -23,6 +23,7 @@ export default {
   'ctrl.help.about.remind': "One reminder: /remind +15m text or /remind 09:30 text.",
   'ctrl.help.about.skills': "Installed skills, or the text of one.",
   'ctrl.help.about.plugins': "The plugin list and the changes: /plugins, /plugins add|remove|disable|enable <id>.",    'ctrl.help.about.soul': "The persona file of the profile: show or set.",
+    'ctrl.help.about.mcp': 'The MCP servers of the profile: /mcp as a list, /mcp <name> for one, /mcp add <name> <url> and /mcp rm <name>. The agent calls a server’s tools; the card only names them.',
   'ctrl.help.about.version': "The bridge version you run and the latest one on npm.",
   'ctrl.help.about.update': "Which bridge you run, what npm has, and the mode of update notices: /update, /update on|off|confirm|auto.",
   'ctrl.help.about.subscribe': "Whether this install is announced as a user of the plugin, /subscribe on|off.",

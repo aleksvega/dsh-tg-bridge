@@ -19,6 +19,7 @@ import { runCommandFromButton } from '../core/run-command.mjs';
 import { handleCardPress } from '../profile/settings-press.mjs';
 import { cardBlocks, cardKeyboard, renderCardSettings, toggleCardBlock } from '../turn/card.mjs';
 import { handleFilePress } from './file-press.mjs';
+import { handleMcpPress } from './mcp-press.mjs';
 import { handleEditPress } from './edit-press.mjs';
 import { handleTourPress } from './tour-press.mjs';
 import { config, done, log, saveState, state } from '../core/state.mjs';
@@ -92,6 +93,15 @@ export async function handleCallback(query) {
     await answer(t(lang, 'bridge.cb.done'));
     await runCommandFromButton(`/dsh ${data === 'ds:confirm' ? 'update confirm' : 'update'}`, { chatId, threadId, key, lang });
     return;
+  }
+
+  // `/mcp`'s own presses: open one server, confirm or cancel an add. The press
+  // re-reads the profile rather than trusting the card, so a confirmed add can
+  // never overwrite an edit made after the preview.
+  if (data.startsWith('mc:')) {
+    guard.mark();
+    const claimed = await handleMcpPress({ data, key, lang, chatId, threadId, messageId, answer });
+    if (claimed) return;
   }
 
   // `/compact`'s one press: the card explains where compaction lives and offers

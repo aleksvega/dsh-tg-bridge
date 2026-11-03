@@ -66,6 +66,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 
 - `/skills` — Installed skills, or the text of one.
 - `/plugins` — The plugin list and the changes: /plugins, /plugins add|remove|disable|enable <id>.
+- `/mcp` — The MCP servers of the profile: /mcp as a list, /mcp <name> for one, /mcp add <name> <url> and /mcp rm <name>. The agent calls a server’s tools; the card only names them.
 - `/soul` — The persona file of the profile: show or set.
 
 ### Bridge versions
@@ -161,6 +162,7 @@ These names still work — for a slipped finger or an old habit. /help does not 
 
 - `/skills` — Установленные скиллы или текст одного.
 - `/plugins` — Список плагинов и изменения: /plugins, /plugins add|remove|disable|enable <id>.
+- `/mcp` — MCP-серверы профиля: /mcp списком, /mcp <имя> одним, /mcp add <имя> <url> и /mcp rm <имя>. Инструменты сервера вызывает агент — карточка их только называет.
 - `/soul` — Файл персоны профиля: показать или задать.
 
 ### Версии моста
@@ -256,6 +258,7 @@ These names still work — for a slipped finger or an old habit. /help does not 
 
 - `/skills` — 已安装的技能，或某个技能的内容。
 - `/plugins` — 插件列表与修改：/plugins、/plugins add|remove|disable|enable <id>。
+- `/mcp` — 配置档的 MCP 服务：/mcp 看列表，/mcp <名称> 看一个，/mcp add <名称> <url>，/mcp rm <名称>。服务的工具由 agent 调用，卡片只报名字。
 - `/soul` — 配置档的人格文件：查看或设置。
 
 ### 桥的版本

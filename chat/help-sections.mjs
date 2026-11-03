@@ -23,7 +23,7 @@ export const HELP_SECTIONS = [
   { id: 'model', commands: ['model', 'effort', 'prices', 'cost', 'thoughts', 'fallback', 'endpoint', 'load'] },
   { id: 'agents', commands: ['agents', 'crew', 'preset', 'plan', 'permissions'] },
   { id: 'tuning', commands: ['jobs', 'remind', 'every'] },
-  { id: 'extensions', commands: ['skills', 'plugins', 'soul'] },
+  { id: 'extensions', commands: ['skills', 'plugins', 'mcp', 'soul'] },
   { id: 'versions', commands: ['update', 'subscribe', 'dsh'] },
   { id: 'settings', commands: ['settings', 'lang', 'reasoning', 'pin'] },
   { id: 'panels', commands: ['menu', 'help'] },
