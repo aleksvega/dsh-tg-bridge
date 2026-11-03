@@ -59,6 +59,9 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   // the moment they started: the stream says nothing about them except a call
   // and a later result, so the wall clock is the only duration there is.
   const subagents = new Map();
+  // Finished subagent runs, in the order they were asked for: the panel
+  // `/subagents` prints them after the turn, when the card is long gone.
+  const runs = [];
   const thinkingParts = [];
   /** Last reported token usage for this turn, for the cache line. */
   // `totalTokens` is the provider's own sum of the prompt it just sent, which is
@@ -320,6 +323,14 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     reasoning() {
       return thinkingParts.join('\n\n');
     },
+    /** The subagent runs this turn finished, plus any still open when it ended.
+     *
+     * An open one has no duration: the result that would have timed it never
+     * arrived, and the time the turn happened to stop is not its runtime. */
+    subagentRuns() {
+      const open = [...subagents.values()].map((run) => ({ tool: run.tool, label: run.label, ms: null, failed: false }));
+      return [...runs, ...open];
+    },
     /** Keep the clock moving during long model thinking: the elapsed time is
      *  proof of life, and a frozen counter is what reads as a hang. */
     heartbeat() {
@@ -349,8 +360,10 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
             // The label comes from the call; the result adds the one thing it
             // knows and the call did not — how long the subagent actually ran,
             // and whether it failed.
-            const done = subagentStep({ tool: waiting.tool, input: { description: waiting.label } }, Date.now() - waiting.at);
+            const took = Date.now() - waiting.at;
+            const done = subagentStep({ tool: waiting.tool, input: { description: waiting.label } }, took);
             steps[waiting.index] = `${done}${event.status === 'error' ? ' ✖' : ''}`;
+            runs.push({ tool: waiting.tool, label: waiting.label, ms: took, failed: event.status === 'error' });
             schedule();
           }
         }

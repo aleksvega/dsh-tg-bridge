@@ -22,7 +22,7 @@ export const HELP_SECTIONS = [
   { id: 'goals', commands: ['goal', 'tasks'] },
   { id: 'sessions', commands: ['status', 'sessions', 'rewind', 'profile', 'compact', 'card'] },
   { id: 'model', commands: ['model', 'effort', 'prices', 'cost', 'thoughts', 'fallback', 'endpoint', 'load'] },
-  { id: 'agents', commands: ['agents', 'crew', 'preset', 'plan', 'permissions'] },
+  { id: 'agents', commands: ['agents', 'crew', 'subagents', 'preset', 'plan', 'permissions'] },
   { id: 'tuning', commands: ['jobs', 'remind', 'every'] },
   { id: 'extensions', commands: ['skills', 'plugins', 'mcp', 'soul'] },
   { id: 'versions', commands: ['update', 'subscribe', 'dsh'] },

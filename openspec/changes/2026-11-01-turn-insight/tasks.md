@@ -85,3 +85,30 @@ from, so every one of them was re-checked against the code rather than the file
 list. Two real gaps came out of it: a silent catch (2.3) and no test for the
 subagent row (2.5). Both are closed. The only open box is 3.2, the live
 measurement, which needs the person.
+
+## 5. The panel after the turn (2026-11-03)
+
+The live panel (section 2) is a message the bridge edits while the turn runs, and
+it dies with the turn: `startProgress`'s `Map` lived inside a closure, so "who ran
+and for how long" was answerable for ninety seconds and then not at all. The
+desktop app keeps that list per session; this is the same list, as far as the
+headless host reports it.
+
+- [x] 5.1 `turn/progress.mjs` collects `{ tool, label, ms, failed }` per finished
+  run and exposes `subagentRuns()`. A run still open when the turn ends is listed
+  with `ms: null` — the moment the turn stopped is not its runtime.
+- [x] 5.2 `work/subagents.mjs` keeps the last 24 runs in `state.subagents[key]`,
+  normalised on the way in, returned as copies so a card cannot edit history.
+- [x] 5.3 `chat/subagents-card.mjs` and `/subagents` (`control/cmd-subagents.mjs`):
+  one numbered line per run, the totals, and the sentence that says the host
+  reports no tokens per subagent. `/subagents clear` forgets them.
+- [x] 5.4 No button on the card: a refresh would redraw the same rows from the
+  same state, and this repo deletes controls that cannot change what they show.
+- [x] 5.5 `test/subagents.test.mjs`, 11 tests: order and the cap, an unfinished run
+  stored as `null` rather than `0`, copies on read, forgetting, the totals, the
+  duration formatter, the empty panel in three locales, the row format, the
+  one-line label, and the command's three answers.
+- [ ] 5.6 Not done, on purpose: reading the list back from the session file. A
+  session log is `session.v4.jsonl.zstd` and the bridge only ever cuts it at turn
+  boundaries, so the state file is the cheaper and the honest place to keep four
+  rows.

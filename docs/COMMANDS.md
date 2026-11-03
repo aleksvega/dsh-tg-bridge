@@ -52,6 +52,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 
 - `/agents` — Agents and subagents: who is configured, on which model, and who was actually spawned.
 - `/crew` — A named bundle of model, permissions and preset for this topic: /crew use <id> switches the whole thing, /crew off goes back to the profile, /crew new|copy|rm and /crew model <v> edit one.
+- `/subagents` — The subagents this topic ran: the task each was given, how long it took, and whether it failed. The host reports no tokens per subagent, so the card does not split the turn's count. `/subagents clear` forgets them.
 - `/preset` — The agent preset (persona and tools) of the profile: /preset <id>.
 - `/plan` — Plan mode for this topic: /plan turns it on or off; the plan comes before any change, then an Approve card.
 - `/permissions` — The sandbox and approval preset of the profile.
@@ -150,6 +151,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 
 - `/agents` — Агенты и субагенты: кто настроен, на какой модели, кого реально запускали.
 - `/crew` — Именованный набор «модель + права + пресет» для этой темы: /crew use <id> включает целиком, /crew off возвращает профиль, /crew new|copy|rm и /crew model <v> правят набор.
+- `/subagents` — Субагенты этой темы: какая задача была у каждого, сколько он работал и не упал ли. Хост не сообщает токены по субагентам, поэтому карточка не делит токены хода. `/subagents clear` забывает их.
 - `/preset` — Пресет агента (персона и инструменты) профиля: /preset <id>.
 - `/plan` — Режим плана в теме: /plan включает и выключает; план приходит до любых правок, потом карточка «Одобрить».
 - `/permissions` — Песочница и пресет подтверждений профиля.
@@ -248,6 +250,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 
 - `/agents` — 智能体与子智能体：配置了谁、用什么模型、实际启动了谁。
 - `/crew` — 本话题的命名组合「模型 + 权限 + 预设」：/crew use <id> 整套启用，/crew off 回到配置档，/crew new|copy|rm 与 /crew model <v> 编辑组合。
+- `/subagents` — 本主题运行过的子代理：各自的任务、耗时以及是否失败。宿主不报告单个子代理的 token，因此卡片不拆分本回合的用量。`/subagents clear` 清空记录。
 - `/preset` — 配置档的智能体预设（人格与工具）：/preset <id>。
 - `/plan` — 本话题的计划模式：/plan 打开或关闭，先给计划再改动，然后出现「批准」按钮。
 - `/permissions` — 配置档的沙箱与确认预设。

@@ -26,6 +26,7 @@ import { DIR, GOAL_CMD, THOUGHT_DIR } from '../core/paths.mjs';
 import { renderPrices } from '../model/prices.mjs';
 import { settingsChipOf, turnPlan } from '../profile/profile-view.mjs';
 import { startProgress } from '../turn/progress.mjs';
+import { rememberRuns } from '../work/subagents.mjs';
 import { reportRefusals } from '../profile/sandbox-note.mjs';
 import { noteTurn } from '../core/stability.mjs';
 import { makeTurnEvents, newTelemetry, noteAnswered } from '../turn/turn-events.mjs';
@@ -417,6 +418,7 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
   // enough to find the fix — and every code has a concrete next step, not "try again".
   if (result.error) result.error = explainFailure(result.error, lang);
   await progress.finish(result);
+  if (rememberRuns(state, key, progress.subagentRuns?.() ?? []).length) saveState();
 
   // Never move a topic onto a different session once it has one. A retry that
   // fell back to a fresh session (busy write handle, stale id) is reported in

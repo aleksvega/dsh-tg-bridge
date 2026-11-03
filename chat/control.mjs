@@ -37,6 +37,7 @@ import { handlePluginCommands } from '../control/cmd-plugin.mjs';
 import { handleSessionCommands } from '../control/cmd-session.mjs';
 import { handleStartCommands } from '../control/cmd-start.mjs';
 import { handleSkillCommands } from '../control/cmd-skills.mjs';
+import { handleSubagentCommands } from '../control/cmd-subagents.mjs';
 import { handleTaskCommands } from '../control/cmd-task.mjs';
 import { handleViewCommands } from '../control/cmd-views.mjs';
 import { handleEndpointCommands } from '../control/cmd-endpoint.mjs';
@@ -119,7 +120,7 @@ export async function handleControl(ctx) {
   // that is not its job. The order is alphabetical, not meaningful: no two
   // groups claim the same command, so a miss falls through to `default` below.
   const child = { ...ctx, effective, command, arg: effectiveArgText, send, reply, log, profile, state, key, config, lang };
-  for (const handler of [handleAgentCommands, handleBridgeCommands, handleCardCommands, handleCompactCommands, handleDiffCommands, handleEditCommands, handleEveryCommands, handleDshCommands, handleFallbackCommands, handleFileCommands, handleFindCommands, handleLoadCommands, handleMcpCommands, handlePlanCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleStartCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands]) {
+  for (const handler of [handleAgentCommands, handleBridgeCommands, handleCardCommands, handleCompactCommands, handleDiffCommands, handleEditCommands, handleEveryCommands, handleDshCommands, handleFallbackCommands, handleFileCommands, handleFindCommands, handleLoadCommands, handleMcpCommands, handlePlanCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleStartCommands, handleSubagentCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands]) {
     if (await handler(child)) return true;
   }
   // Nothing claimed it: the bridge answers an unknown `/` command itself, with

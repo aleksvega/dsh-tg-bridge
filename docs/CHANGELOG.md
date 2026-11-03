@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`/subagents` — the panel the turn card could not keep.** The live panel showed
+  each subagent while a turn ran, and forgot it the moment the turn ended, because
+  the rows lived in a closure. The bridge now keeps the last 24 runs per topic in
+  its state and prints them on demand: the task each was given, how long it took,
+  and a mark on the ones that failed. A subagent still running when the turn ends
+  is listed without a duration rather than with the time the turn happened to stop.
+  The card also says what it cannot show — the headless host reports no tokens per
+  subagent, so it does not split the turn's count. `/subagents clear` forgets them.
+  Three locales.
+
 ## 1.47.0
 
 - `/plugin settings` — the plugin settings page of the desktop app, as far as a
