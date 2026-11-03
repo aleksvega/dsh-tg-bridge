@@ -14,6 +14,11 @@
   the bot. Asking about a command that had no sentence of its own used to answer
   with a heading and nothing under it in Russian and Chinese; it now quotes its
   topic.
+- **`docs/COMMANDS.md` holds all three languages behind a language bar.** The page
+  opens with English, Russian and Chinese links and repeats the whole list in each,
+  including the old spellings that still work, because "read the docs" should not
+  depend on which language the reader speaks. The README index now lists every page
+  in `docs/`, and a test fails when one is added without an entry.
 - **`/settings` says what it is before it shows switches.** Each page opens with a
   line about what the page is for, every row reads as label, current value and a
   plain sentence about what it changes, and the foot line says that the buttons

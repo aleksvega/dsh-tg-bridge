@@ -26,6 +26,15 @@ test('every page under docs/ ships', () => {
   assert.deepEqual(missing, [], 'add these to package.json files[]');
 });
 
+// A page nobody links is a page nobody reads: the folder is this project's own
+// documentation and the README is its index, so both lists have to match.
+test('every page under docs/ is listed in the README index', () => {
+  const readme = readFileSync(join(root, 'README.md'), 'utf8');
+  const linked = new Set([...readme.matchAll(/docs\/([A-Za-z0-9_.-]+\.md)/g)].map((m) => m[1]));
+  const unlisted = readdirSync(join(root, 'docs')).filter((name) => name.endsWith('.md') && !linked.has(name));
+  assert.deepEqual(unlisted, [], 'add these to the README Documentation list');
+});
+
 /** `files[]` entries that name one module (a directory entry covers its tree). */
 function shippedModules() {
   const named = new Set(files.filter((entry) => entry.endsWith('.mjs')).map((entry) => entry.replace(/^\.\//, '')));

@@ -696,12 +696,21 @@ no lock race and no lost update.
 
 ## Documentation
 
+- [docs/COMMANDS.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/COMMANDS.md): every command with what it does, in English, Russian and Chinese — the page `/help` links to
 - [docs/LAYOUT.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/LAYOUT.md): which folder answers which question, and why the entry points stay at the root
 - [docs/TELEGRAM-SETUP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TELEGRAM-SETUP.md): BotFather settings, group and bot permissions
 - [docs/SUPPORT.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/SUPPORT.md): what to send with a bug report, what never to send, and the one-line answer for "the bot went silent"
-- [docs/ROADMAP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/ROADMAP.md): what comes next
-- [docs/UX-ANALYSIS.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/UX-ANALYSIS.md): interactive UX review
+- [docs/VOICE.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/VOICE.md): any speech engine as input — a local script, a command with placeholders, an [OI]-compatible API
+- [docs/MOBILE-FIRST.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/MOBILE-FIRST.md): working from a phone: what the chat shows, what it answers first, what it never makes you type
 - [docs/COST.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/COST.md): what one turn costs and how to reduce it
+- [docs/INJECTION-AND-REPLIES.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/INJECTION-AND-REPLIES.md): sending text into a turn that is still running, and how a reply is composed from its parts
+- [docs/DEV-LOOP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/DEV-LOOP.md): how work continues without a person at the keyboard — schedules, the queue, what a turn does when nobody watches
+- [docs/REFACTORING.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/REFACTORING.md): moving code without ever shipping a broken version
+- [docs/ROADMAP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/ROADMAP.md): what comes next
+- [docs/ONBOARDING-PLAN.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/ONBOARDING-PLAN.md): how a newcomer gets from "I found this repo" to a working bot
+- [docs/UX-ANALYSIS.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/UX-ANALYSIS.md): interactive UX review
+- [docs/HERMES-PARITY.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/HERMES-PARITY.md): DSH against the Hermes agent — what parity would take
+- [docs/MARKETPLACE.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/MARKETPLACE.md): publishing in the DSH marketplace
 - [docs/CHANGELOG.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/CHANGELOG.md): change history
 - [docs/RELEASE-CRITERIA.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/RELEASE-CRITERIA.md): release readiness criteria
 
