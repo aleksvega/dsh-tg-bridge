@@ -91,6 +91,20 @@ export const REPLY_NUDGE = [
 ].join(' ');
 
 /**
+ * What to ask a model whose finished reply came back in the wrong language.
+ *
+ * The conversation has one language and the person chose it; a reply in another
+ * one is unreadable to them even when the work behind it was right. Asked once,
+ * in the same session, where the work is still in context.
+ */
+export const LANG_NUDGE = (lang) => [
+  `Your reply must be written in ${lang === 'ru' ? 'Russian' : lang === 'zh' ? 'Chinese' : 'English'}.`,
+  'The conversation is in that language and the person reads only that.',
+  'Write the same answer again in it — the findings, not the plan — and keep code,',
+  'commands, paths and identifiers exactly as they are.',
+].join(' ');
+
+/**
  * One line for a tool call in the panel.
  *
  * The harness runs every call in a fresh shell, so most commands start with

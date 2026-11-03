@@ -477,6 +477,7 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
     turnOptions,
     sessionId: sessionAtStart,
     where,
+    lang,
     log,
   });
   if (reply.echoed) {

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **A reply that carries the model's plan is cleaned before the chat sees it.**
+  The reasoning guard caught the turn that sent *only* its notes; it stayed quiet
+  when a real answer arrived with the notes stuck on top — "Now the answer",
+  "Should I update the list?", "Keep ~5 lines." in front of a Russian reply, which
+  reads as the bot thinking out loud in a language the person did not ask for. The
+  scrub is deterministic: a line that is not in the conversation's language and
+  announces what the model is about to do is dropped, a label like `Mention:` loses
+  only the label, code fences are never touched, and an answer that would come out
+  empty goes out untouched. A reply in the wrong language is logged, not rewritten.
 - **`/dsh` installs the app update it finds.** The card used to stop at a version
   number and a link. It now downloads the installer the feed names, checks it
   against the feed's SHA-512, and only then opens it — a hash that does not match

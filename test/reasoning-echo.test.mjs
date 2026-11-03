@@ -106,6 +106,87 @@ test('a reasoning echo is retried once and the real answer is used', async () =>
   assert.match(lines.join('\n'), /asking once more/);
 });
 
+// The other side of the same defect: an answer that is real but arrives with the
+// model's plan stuck on top, in the wrong language. It is not a reasoning echo,
+// so the retry above never fires — the scrub in the same function has to.
+test('the plan around a real reply is dropped before the chat sees it', async () => {
+  const lines = [];
+  const result = {
+    text: 'Now the answer, short.\n\nKeep ~5 lines.Готово: страница на трёх языках.',
+    error: '',
+  };
+  const out = await replyText({
+    result,
+    reasoning: () => '',
+    key: '1:1',
+    turnOptions: {},
+    sessionId: 'session-x',
+    where: 'chat topic=1',
+    lang: 'ru',
+    log: (line) => lines.push(line),
+  });
+  assert.equal(out.echoed, false);
+  assert.equal(out.text, 'Готово: страница на трёх языках.');
+  assert.match(lines.join('\n'), /planning line/);
+});
+
+test('a clean reply passes through the guard unchanged', async () => {
+  const clean = 'Готово: 988 тестов, коммит на GitHub.\n\n/stats: страница теперь на трёх языках.';
+  const out = await replyText({
+    result: { text: clean, error: '' },
+    reasoning: () => '',
+    key: '1:1',
+    turnOptions: {},
+    sessionId: 'session-x',
+    where: 'chat topic=1',
+    lang: 'ru',
+    log: () => {},
+  });
+  assert.equal(out.text, clean);
+});
+
+// Stripping cannot repair a reply that is entirely in another language — there is
+// nothing to keep. One more ask in the same session is the only repair that costs
+// the person nothing but time, so it is worth exactly one attempt.
+test('a reply in the wrong language is asked for again, once', async () => {
+  const lines = [];
+  let asked = '';
+  const english = 'Done. The page now carries all three languages and the README indexes every document.';
+  const out = await replyText({
+    result: { text: english, error: '' },
+    reasoning: () => '',
+    key: '1:1',
+    turnOptions: {},
+    sessionId: 'session-x',
+    where: 'chat topic=1',
+    lang: 'ru',
+    log: (line) => lines.push(line),
+    retryTurn: (prompt) => async () => {
+      asked = prompt;
+      return { text: 'Готово: страница на трёх языках, README перечисляет все документы.', error: '' };
+    },
+  });
+  assert.match(asked, /Russian/);
+  assert.match(out.text, /на трёх языках/);
+  assert.match(lines.join('\n'), /wrong language/);
+});
+
+test('a second wrong-language answer is sent rather than swallowed', async () => {
+  const english = 'Done. The page now carries all three languages and the README indexes every document.';
+  const out = await replyText({
+    result: { text: english, error: '' },
+    reasoning: () => '',
+    key: '1:1',
+    turnOptions: {},
+    sessionId: 'session-x',
+    where: 'chat topic=1',
+    lang: 'ru',
+    log: () => {},
+    retryTurn: () => async () => ({ text: english, error: '' }),
+  });
+  assert.equal(out.text, english);
+});
+
 test('a second echo is reported, not forwarded', async () => {
   const lines = [];
   const out = await replyText({

@@ -9,7 +9,8 @@
 //
 // Extracted from `handle-message.mjs`, which is at its size ceiling and whose
 // subject is "one incoming message becomes one turn", not "what a reply is".
-import { looksLikeReasoning, REPLY_NUDGE, stripThinkingBlocks } from './panel.mjs';
+import { scrubReply } from './answer-shape.mjs';
+import { LANG_NUDGE, looksLikeReasoning, REPLY_NUDGE, stripThinkingBlocks } from './panel.mjs';
 import { turnAttempt } from '../turn/turn.mjs';
 
 /** Is this text the reasoning the panel already holds, markers included? */
@@ -35,7 +36,7 @@ export function isReasoningEcho(value, reasoning) {
  * @returns {Promise<{ text: string, echoed: boolean }>} `echoed` means nothing
  *   the person should read was produced, and the caller sends its own sentence
  */
-export async function replyText({ result, reasoning, key, turnOptions, sessionId, where, log, retryTurn = turnAttempt }) {
+export async function replyText({ result, reasoning, key, turnOptions, sessionId, where, lang = 'en', log, retryTurn = turnAttempt }) {
   const echoed = (value) => isReasoningEcho(value, reasoning());
   if (echoed(result.text)) {
     log(`reasoning echo for ${where} (${String(result.text).length} chars) — asking once more`);
@@ -49,7 +50,31 @@ export async function replyText({ result, reasoning, key, turnOptions, sessionId
     return { text: '', echoed: true };
   }
   // The marker can survive inside an otherwise real reply; the chat never shows it.
-  return { text: stripThinkingBlocks(result.text), echoed: false };
+  const clean = stripThinkingBlocks(result.text);
+  // A real answer with the model's notes stuck to it is the other half of the
+  // same defect: the reasoning guard sees an answer and stays quiet, and the
+  // person reads a plan in a language they never asked for. The scrub is
+  // deterministic — it removes lines that are not in the conversation's language
+  // and announce what the model is about to do, and never empties an answer.
+  let shaped = scrubReply(clean, lang);
+  // Whole reply in the wrong language is the one case stripping cannot repair:
+  // there is no answer left to keep. Ask once more, in the same session, and only
+  // fall back to the mistranslated text if the second attempt is just as foreign —
+  // a wrong-language answer still beats silence.
+  if (shaped.foreign && !shaped.dropped && String(clean).trim().length > 80) {
+    log(`reply in ${where} is in the wrong language — asking once more`);
+    const retry = await retryTurn(LANG_NUDGE(lang), key, turnOptions)(sessionId);
+    if (!retry.error && !echoed(retry.text)) {
+      const again = scrubReply(stripThinkingBlocks(retry.text), lang);
+      if (!again.foreign) {
+        log(`second attempt for ${where} answered in ${lang}`);
+        shaped = again;
+      }
+    }
+  }
+  if (shaped.dropped) log(`dropped ${shaped.dropped} planning line(s) from the reply in ${where}`);
+  if (shaped.foreign) log(`reply in ${where} is not in the conversation's language`);
+  return { text: shaped.text, echoed: false };
 }
 
 export { REPLY_NUDGE };
