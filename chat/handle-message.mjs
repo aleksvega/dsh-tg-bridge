@@ -9,6 +9,7 @@ import { commandParts, GENERAL_SAFE } from './commands.mjs';
 import { helpLines } from './help-sections.mjs';
 import { CONTROL_COMMANDS, handleControl, modelOf } from './control.mjs';
 import { takeEditText } from '../control/cmd-edit.mjs';
+import { planFollowUp, planOf, planPrelude } from '../control/plan-mode.mjs';
 import { reasoningMode } from './notes.mjs';
 import { explainFailure } from '../turn/failures.mjs';
 import { runFallbackChain } from '../model/fallback.mjs';
@@ -145,14 +146,10 @@ export async function handleMessage(msg, album = null) {
     turnProfile = plan.profile;
   }
 
-  // A brand-new forum topic starts empty: the title says what the person wants
-  // but the thread itself has no message, so scrolling back shows a blank
-  // hole. Seed it with the incoming text and pin the seed, which also pins the
-  // topic to the top of the list — the owner asked for exactly that.
-  //
-  // Seeding runs once per topic: a message written inside an existing topic is
-  // already visible there, and seeding it again would duplicate the person's
-  // own words.
+  // A brand-new forum topic starts empty: no message in the thread, so scrolling
+  // back shows a blank hole. Seed it with the incoming text and pin the seed —
+  // once per topic, since a message written inside an existing topic is already
+  // visible there and a second seed would duplicate the person's own words.
   if (threadId > 0 && msg.is_topic_message && !topicSeeded(threadId)) {
     const seed = await ensureTopicSeed(chatId, threadId, text);
     if (seed) {
@@ -316,14 +313,13 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
     saveState();
   }
 
-  // Desktop-style goal: the topic's goal and task list travel with every turn,
-  // so a fresh session after /new still knows what the project is aiming at.
-  // Without a goal the turn still gets the one line that says how to start one:
-  // a plan nobody can see is not a plan, and the agent cannot ask a question it
-  // does not know exists.
+  // Desktop-style goal: the topic's goal and task list travel with every turn, so
+  // a fresh session after /new still knows what the project aims at. Without one
+  // the turn gets the line that says how to start it. Plan mode adds a block of
+  // its own, read at send time so a `/plan off` sent mid-turn is honoured next.
   const topicGoal = goalOf(state, key);
-  if (topicGoal) text = `${renderPromptBlock(topicGoal, key, GOAL_CMD)}\n\n---\n\n${text}`;
-  else text = `${t(lang, 'prompt.taskHint', { goal: GOAL_CMD, key })}\n\n---\n\n${text}`;
+  const preface = topicGoal ? renderPromptBlock(topicGoal, key, GOAL_CMD) : t(lang, 'prompt.taskHint', { goal: GOAL_CMD, key });
+  text = planPrelude({ state, key, lang, preface, text });
 
   // Working notes: the agent writes a 💭 line at each decision point with
   // `say.mjs --thought`, and the progress message shows the last two. Off means
@@ -487,6 +483,9 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
     return;
   }
   await send(chatId, reply.text || t(lang, 'bridge.progress.emptyReply'), threadId);
+  // The card under a plan: the only way out of plan mode, and the reason the
+  // request is kept — Approve replays it with the flag already cleared.
+  if (!result.error && planOf(state, key)) await planFollowUp({ state, key, lang, request, saveState, send: (body, kb) => sendWithMarkup(chatId, threadId, body, { reply_markup: kb }) });
   // A refusal explains the turn that just ended, so it goes after the answer.
   await reportRefusals({
     refusals,

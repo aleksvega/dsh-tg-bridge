@@ -53,7 +53,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 - `/agents` — Agents and subagents: who is configured, on which model, and who was actually spawned.
 - `/crew` — A named bundle of model, permissions and preset for this topic: /crew use <id> switches the whole thing, /crew off goes back to the profile, /crew new|copy|rm and /crew model <v> edit one.
 - `/preset` — The agent preset (persona and tools) of the profile: /preset <id>.
-- `/plan` — What plan mode is and how to ask for a plan without any edits.
+- `/plan` — Plan mode for this topic: /plan turns it on or off; the plan comes before any change, then an Approve card.
 - `/permissions` — The sandbox and approval preset of the profile.
 
 ### Schedules and the queue
@@ -149,7 +149,7 @@ These names still work — for a slipped finger or an old habit. /help does not 
 - `/agents` — Агенты и субагенты: кто настроен, на какой модели, кого реально запускали.
 - `/crew` — Именованный набор «модель + права + пресет» для этой темы: /crew use <id> включает целиком, /crew off возвращает профиль, /crew new|copy|rm и /crew model <v> правят набор.
 - `/preset` — Пресет агента (персона и инструменты) профиля: /preset <id>.
-- `/plan` — Что такое режим плана и как попросить план без правок.
+- `/plan` — Режим плана в теме: /plan включает и выключает; план приходит до любых правок, потом карточка «Одобрить».
 - `/permissions` — Песочница и пресет подтверждений профиля.
 
 ### Расписания и очередь
@@ -245,7 +245,7 @@ These names still work — for a slipped finger or an old habit. /help does not 
 - `/agents` — 智能体与子智能体：配置了谁、用什么模型、实际启动了谁。
 - `/crew` — 本话题的命名组合「模型 + 权限 + 预设」：/crew use <id> 整套启用，/crew off 回到配置档，/crew new|copy|rm 与 /crew model <v> 编辑组合。
 - `/preset` — 配置档的智能体预设（人格与工具）：/preset <id>。
-- `/plan` — 计划模式是什么，以及如何只要计划、不做修改。
+- `/plan` — 本话题的计划模式：/plan 打开或关闭，先给计划再改动，然后出现「批准」按钮。
 - `/permissions` — 配置档的沙箱与确认预设。
 
 ### 定时与队列

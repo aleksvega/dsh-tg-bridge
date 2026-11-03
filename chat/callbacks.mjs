@@ -20,6 +20,7 @@ import { handleCardPress } from '../profile/settings-press.mjs';
 import { cardBlocks, cardKeyboard, renderCardSettings, toggleCardBlock } from '../turn/card.mjs';
 import { handleFilePress } from './file-press.mjs';
 import { handleMcpPress } from './mcp-press.mjs';
+import { handlePlanPress } from './plan-press.mjs';
 import { handleEditPress } from './edit-press.mjs';
 import { handleTourPress } from './tour-press.mjs';
 import { config, done, log, saveState, state } from '../core/state.mjs';
@@ -98,6 +99,15 @@ export async function handleCallback(query) {
   // `/mcp`'s own presses: open one server, confirm or cancel an add. The press
   // re-reads the profile rather than trusting the card, so a confirmed add can
   // never overwrite an edit made after the preview.
+  // The plan card's two presses: Approve replays the request with plan mode off,
+  // Keep planning asks for a revision. The id on the card decides whether a press
+  // still belongs to the topic's current plan.
+  if (data.startsWith('pm:')) {
+    guard.mark();
+    const claimed = await handlePlanPress({ data, key, lang, chatId, threadId, answer, clearKeyboard, redeliver, log });
+    if (claimed) return;
+  }
+
   if (data.startsWith('mc:')) {
     guard.mark();
     const claimed = await handleMcpPress({ data, key, lang, chatId, threadId, messageId, answer });

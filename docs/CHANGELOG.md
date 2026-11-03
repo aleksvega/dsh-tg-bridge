@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **`/plan` is a control now, not a report about one.** The old card said the
+  plan switch belongs to the host and cannot be flipped from the chat — true, and
+  useless. Plan mode is a per-topic state the bridge keeps, so `/plan` turns it on
+  or off (`/plan on`, `/plan off` also work), it survives a restart with the rest
+  of `state.json`, and a neighbouring topic is untouched. While it is on, every
+  turn is asked for a plan and told to change nothing — do not edit files, do not
+  run commands that change or create, do not commit — and each answer ends with a
+  card: **Approve** replays the same request with the mode already off, **Keep
+  planning** asks for a revision and stays in the mode. The card carries an id, so
+  a tap on an older card runs nothing and says the plan changed. It also says
+  which promise it is making: on a `read-only` preset the sandbox itself refuses
+  the write, on any other preset the guarantee is the model's and the card says so
+  instead of implying a wall. `/plan` is in the registry, `/help` and the Tuning
+  group it already sat in; `docs/COMMANDS.md` is regenerated.
+
 - **`/mcp` shows the MCP servers the profile runs, and adds one.** The install
   already carries `mcp-exa` — `web_search_exa` and `web_fetch_exa` are tools the
   agent can call — and the chat said nothing about it. The card reads the profile's

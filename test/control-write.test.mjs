@@ -174,10 +174,18 @@ test('/jobs reports the bridge turns, not a DSH job list', async () => {
   assert.match(text, /эта тема|this topic/);
 });
 
-test('/plan never claims a state the session did not record', async () => {
-  const { text } = await run('/plan');
-  assert.match(text, /не записала|has not recorded/);
-  assert.match(text, /покажи план|show the plan/);
+test('/plan is a switch of the topic, not a report about the host', async () => {
+  // It used to answer "the session has not recorded a state" because the switch
+  // belonged to the host and could not be flipped from the chat. The bridge owns
+  // it now, so the answer names the state and says who enforces it.
+  const state = { sessions: {}, profiles: {}, lang: {}, titles: {}, reminders: [] };
+  const on = await run('/plan', '', { state });
+  assert.match(on.text, /включён|is on/);
+  assert.ok(state.planMode['42:7'], 'the flag lives in the state, per topic');
+  assert.match(on.text, /обещание модели|model's promise/, 'this fixture is not read-only');
+  const off = await run('/plan', '', { state });
+  assert.match(off.text, /выключен|is off/);
+  assert.equal(state.planMode['42:7'], undefined);
 });
 
 test('/preset explains a profile that declares none', async () => {

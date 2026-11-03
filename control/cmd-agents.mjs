@@ -370,24 +370,8 @@ export async function handleAgentCommands(ctx) {
       say(t(lang, 'ctrl.preset.set', { name: wanted, profile: activeProfile }));
       return true;
     }
-    case '/plan': {
-      // Plan mode is a session-log switch the host writes, so a Telegram turn
-      // cannot flip it. What this card can do is tell the truth about the state
-      // and give the one instruction that produces a plan without changes.
-      const fleet = fleetOf(state.sessions?.[key]);
-      const lines = [t(lang, 'ctrl.plan.title', { name: activeProfile })];
-      if (!fleet.plan) {
-        lines.push(t(lang, 'ctrl.plan.unknown'));
-      } else {
-        lines.push(t(lang, 'ctrl.plan.state', {
-          state: fleet.plan.active ? t(lang, 'ctrl.status.on') : t(lang, 'ctrl.status.off'),
-        }));
-        if (fleet.plan.pending) lines.push(t(lang, 'ctrl.plan.pending'));
-      }
-      lines.push(t(lang, 'ctrl.plan.how'));
-      say(lines.join('\n'));
-      return true;
-    }
+    // `/plan` moved to `cmd-plan.mjs`: it is a switch of the bridge's own now,
+    // not a report about a switch the host writes.
     default:
       return false;
   }

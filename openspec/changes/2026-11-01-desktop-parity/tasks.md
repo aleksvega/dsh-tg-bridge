@@ -2,18 +2,18 @@
 
 ## 0. Plan mode
 
-- [ ] 0.1 State: `state.planMode[key]`, per topic, written with `saveState`.
-- [ ] 0.2 `/plan` toggles it, reports it, and is listed in the control registry,
+- [x] 0.1 State: `state.planMode[key]`, per topic, written with `saveState`.
+- [x] 0.2 `/plan` toggles it, reports it, and is listed in the control registry,
   the `/help` page and the `Tuning` group.
-- [ ] 0.3 The turn is asked for a plan and told not to act; the refusal of a
+- [x] 0.3 The turn is asked for a plan and told not to act; the refusal of a
   writing tool is part of the turn, not a dead end.
-- [ ] 0.4 A card with **Approve** and **Keep planning**, its own router, and the
+- [x] 0.4 A card with **Approve** and **Keep planning**, its own router, and the
   press acknowledged on the path a real tap takes.
-- [ ] 0.5 The card says whether the guarantee is the sandbox's or the model's,
+- [x] 0.5 The card says whether the guarantee is the sandbox's or the model's,
   from the topic's preset.
-- [ ] 0.6 Test: a plan-mode turn performs no write; Approve performs one; a stale
+- [x] 0.6 Test: a plan-mode turn performs no write; Approve performs one; a stale
   card executes nothing.
-- [ ] 0.7 Three locales.
+- [x] 0.7 Three locales.
 
 ## 1. Plugin settings
 
