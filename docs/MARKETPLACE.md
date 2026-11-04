@@ -6,14 +6,27 @@ packages that declare a DSH bundle, and DSH installs them with
 
 ## A fresh release is not installable for a day
 
-DSH installs through pnpm 11, and pnpm 11 refuses a version published in the last
-24 hours (`minimumReleaseAge`). Minutes after 1.47.0 went up, a bare
-`dsh plugin add dsh-tg-bridge` still resolved 1.45.0 — and so did
-`add dsh-tg-bridge@latest`, because `latest` is a range. An exact version is
-honoured at once: `add dsh-tg-bridge@1.47.0` installed it in twelve seconds.
+DSH installs through pnpm 11, whose `minimumReleaseAge` defaults to 1440 minutes
+and is non-strict: a version younger than a day is skipped, and resolution
+quietly falls back to the newest version that is old enough. Minutes after 1.47.1
+went up, a bare `dsh plugin add dsh-tg-bridge` in a clean profile installed
+1.45.0 — and so did `add dsh-tg-bridge@latest`, because `latest` is a range.
+`add dsh-tg-bridge@1.47.1` installed that version at once.
 
-So the post-release check is the pinned form, and a day of lag is the cooling-off
-period working, not a broken publish.
+pnpm 11 reads this key only from `pnpm-workspace.yaml`; `.npmrc` is auth and
+registry only. A profile that must track releases lifts the gate there:
+
+```yaml
+minimumReleaseAgeExclude:
+  - dsh-tg-bridge
+```
+
+Both ways were measured in a fresh profile: 1.45.0 by default, 1.47.1 with the
+exclusion. A day of lag is the cooling-off period working, not a broken publish.
+
+A stale metadata cache can hide a version even after the day passes — pnpm once
+served a packument fetched seven hours earlier that did not mention 1.47.1 yet.
+`npm view dsh-tg-bridge dist-tags` is the honest check of what is published.
 
 ## What the catalog reads
 
