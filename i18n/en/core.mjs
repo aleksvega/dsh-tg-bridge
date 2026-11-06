@@ -265,7 +265,7 @@ export default {
   'bridge.fallback.rejectedAll': 'every route refused this request.\n{list}\n\nThis is not a balance problem and waiting will not help: the conversation itself is what the providers reject. /new starts a fresh session with the same task; /report sends the tail to the maintainer.',
   'bridge.fallback.contextAll': 'every route ran out of context window.\n{list}\n\nThe conversation has grown past what the chain can carry, so no route can answer it as it stands. Topping up a balance will not change this. /new starts a fresh session and keeps the topic; /rewind 2 drops the last turns and keeps the task, the fastest way back under the limit; /model switches to a route with a wider window.',
   'bridge.fallback.sessionBusy': '(the session was busy in another window — continued in a new one)',
-  'bridge.fail.quota': 'the provider balance is empty. Top up the account or stay on free models: /prices and /model.',
+  'bridge.fail.quota': 'the provider balance is empty. /balance shows what is left — top up the account or stay on free models: /prices and /model.',
   'bridge.fail.conflict': 'a second process is polling the same bot. Stop the extra one: /doctor, then /restart.',
   'bridge.fail.noCredential': 'the profile has no provider key. Add it in the DSH app and retry.',
   'bridge.fail.auth': 'the endpoint refused this key — wrong, revoked, or not the one it expects. This is not a balance problem: topping up will not help. Check the key for this provider, or /endpoint list to see which route uses it.',

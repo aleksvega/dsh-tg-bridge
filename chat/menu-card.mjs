@@ -18,7 +18,7 @@ const SECTIONS = {
   work: ['cd', 'ls', 'view', 'edit', 'seed', 'send', 'diff'],
   session: ['sessions', 'rewind', 'profile', 'agents', 'subagents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind', 'every'],
-  talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'lang', 'endpoint', 'fallback'],
+  talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'balance', 'lang', 'endpoint', 'fallback'],
   ext: ['plugins', 'mcp', 'skills', 'soul', 'preset', 'permissions', 'crew'],
   house: ['load', 'settings', 'card', 'find', 'update', 'dsh', 'compact', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'start', 'help'],
 };
@@ -77,6 +77,7 @@ const LABELS = {
   reasoning: '/reasoning ▸ this topic',
   thoughts: '/thoughts',
   prices: '/prices',
+  balance: '/balance',
   fallback: '/fallback',
   endpoint: '/endpoint [list|add|rm]',
   lang: '/lang en|ru|zh',

@@ -21,7 +21,7 @@ export const HELP_SECTIONS = [
   { id: 'work', commands: ['start', 'cd', 'ls', 'view', 'edit', 'new', 'stop', 'send', 'seed', 'diff', 'find'] },
   { id: 'goals', commands: ['goal', 'tasks'] },
   { id: 'sessions', commands: ['status', 'sessions', 'rewind', 'profile', 'compact', 'card'] },
-  { id: 'model', commands: ['model', 'effort', 'prices', 'cost', 'thoughts', 'fallback', 'endpoint', 'load'] },
+  { id: 'model', commands: ['model', 'effort', 'prices', 'cost', 'balance', 'thoughts', 'fallback', 'endpoint', 'load'] },
   { id: 'agents', commands: ['agents', 'crew', 'subagents', 'preset', 'plan', 'permissions'] },
   { id: 'tuning', commands: ['jobs', 'remind', 'every'] },
   { id: 'extensions', commands: ['skills', 'plugins', 'mcp', 'soul'] },

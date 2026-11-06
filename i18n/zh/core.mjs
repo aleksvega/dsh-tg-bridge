@@ -265,7 +265,7 @@ export default {
   'bridge.fallback.rejectedAll': '所有线路都拒绝了这个请求。\n{list}\n\n这不是余额问题，等待也无用：被拒绝的是对话本身。用 /new 以同样的任务开新会话；用 /report 把日志尾部发给维护者。',
   'bridge.fallback.contextAll': '所有线路的上下文窗口都装不下了。\n{list}\n\n对话已经超出整条链路能承载的长度，按现状没有任何线路能回答。充值余额对此没有帮助。用 /new 开新会话并保留本话题；用 /rewind 2 去掉最后几轮、保留任务，这是回到限额以内最快的办法；用 /model 切到窗口更大的线路。',
   'bridge.fallback.sessionBusy': '（会话被另一个窗口占用 —— 已在新会话中继续）',
-  'bridge.fail.quota': '提供商余额为空。请充值，或继续使用免费模型：/prices 和 /model。',
+  'bridge.fail.quota': '提供商余额为空。/balance 可查看剩余额度 — 请充值，或继续使用免费模型：/prices 和 /model。',
   'bridge.fail.conflict': '另一个进程也在轮询同一个机器人。停掉多余的那个：/doctor，然后 /restart。',
   'bridge.fail.noCredential': '配置档中没有提供商的密钥。请在 DSH 应用中添加后重试。',
   'bridge.fail.auth': '该端点拒绝了这个密钥 —— 密钥错误、已撤销，或不是它需要的那一个。这不是余额问题：充值也无效。请检查该提供商的密钥，或用 /endpoint list 查看哪条线路在使用它。',

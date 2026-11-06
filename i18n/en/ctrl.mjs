@@ -16,6 +16,7 @@ export default {
   'ctrl.help.about.model': "One command for the model of this profile: bare /model draws every route as buttons — provider and model together, because one model name can be served by several endpoints — and /model <provider>/<model> switches without tapping. A tap on the card moves THIS topic; the toggle above the list moves the whole profile at once, and it always says which of the two a tap will do. /model <route> all sets the default every topic follows — that is the one to reach for when an endpoint runs out of money and the fallback chain has to start elsewhere. /model <id> both also sets the desktop profile.",
     'ctrl.help.about.prices': "Prices of the models in use, and what the current model costs for the tokens this topic has spent.",
   'ctrl.help.about.thoughts': "The reasoning behind the last turn: text, file or off.",
+  'ctrl.help.about.balance': "What is left on the provider keys — the provider's own number, not a guess from an error. Shows both the key and the account: a key can run past its own grant while the account keeps paying. Needs the network.",
   'ctrl.help.about.cost': "What this session has spent: tokens, cache hits and the sum, with the source of the prices named. /cost reads the catalog on disk, /prices is the one that fetches it.",
   'ctrl.help.about.effort': "How hard the model thinks before answering: /effort high.",
   'ctrl.help.about.permissions': "The sandbox and approval preset of the profile.",

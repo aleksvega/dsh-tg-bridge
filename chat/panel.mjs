@@ -216,6 +216,11 @@ export function progressPanel({
   // `null` means "no choice recorded", and the card keeps every block — the
   // shape it had before `/card` existed, so an old topic does not shrink.
   blocks = null,
+  // Files this turn wrote, already rendered as rows by `turn/files.mjs`, plus a
+  // notice when there were more than the card carries. They are buttons, not
+  // lines: the whole point is one tap from "готово" to the document in hand.
+  files = [],
+  moreFiles = '',
 } = {}) {
   const on = (id) => !blocks || blocks.has(id);
   const snippet = String(task).replace(/\s+/g, ' ').trim().slice(0, 48);
@@ -234,7 +239,12 @@ export function progressPanel({
   const ctx = on('context') ? String(context || '').trim() : '';
   const paid = on('cost') ? String(money || '').trim() : '';
   const cacheLine = on('cache') ? cache : '';
-  const base = [head, ...mind, ctx, paid, cacheLine].filter(Boolean).join('\n').length;
+  // One line, not a list: the files themselves are the buttons underneath, and a
+  // row of names above them would say the same thing twice.
+  const attached = final && files.length
+    ? `📎 ${t(lang, 'card.files.line', { n: files.length })}${moreFiles ? ` · ${moreFiles}` : ''}`
+    : '';
+  const base = [head, ...mind, ctx, paid, cacheLine, attached].filter(Boolean).join('\n').length;
 
   // While the turn runs this message is rewritten every few seconds, and
   // Telegram drops an expanded block on every edit — which is what yanks the
@@ -282,6 +292,7 @@ export function progressPanel({
     escapeHtml(paid),
     all.text ? `<blockquote expandable>${escapeHtml(stepsLabel)}\n${escapeHtml(all.text)}</blockquote>` : '',
     escapeHtml(cacheLine),
+    escapeHtml(attached),
   ].filter(Boolean).join('\n');
   const plain = [
     head,
@@ -294,6 +305,7 @@ export function progressPanel({
     paid,
     all.text ? `${stepsLabel}\n${all.text}` : '',
     cacheLine,
+    attached,
   ].filter(Boolean).join('\n');
   return { html, plain };
 }

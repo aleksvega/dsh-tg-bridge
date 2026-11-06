@@ -16,4 +16,6 @@ import mcp from './ru/mcp.mjs';
 import plan from './ru/plan.mjs';
 import dsh from './ru/dsh.mjs';
 import supervision from './ru/supervision.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision };
+import files from './ru/files.mjs';
+import balance from './ru/balance.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance };

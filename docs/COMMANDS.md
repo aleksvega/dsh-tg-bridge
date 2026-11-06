@@ -43,6 +43,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 - `/effort` — How hard the model thinks before answering: /effort high.
 - `/prices` — Prices of the models in use, and what the current model costs for the tokens this topic has spent.
 - `/cost` — What this session has spent: tokens, cache hits and the sum, with the source of the prices named. /cost reads the catalog on disk, /prices is the one that fetches it.
+- `/balance` — What is left on the provider keys — the provider's own number, not a guess from an error. Shows both the key and the account: a key can run past its own grant while the account keeps paying. Needs the network.
 - `/thoughts` — The reasoning behind the last turn: text, file or off.
 - `/fallback` — The failover chain: which routes a failed turn switches to, in which order, and what starts a switch. /fallback shows the numbered list with buttons; /fallback test asks each route directly.
 - `/endpoint` — The endpoints this profile can reach, and adding one without an AI turn: /endpoint list, /endpoint add <id> <https://url/v1> <KEY_ENV> [model,model], /endpoint rm <id>. Only the name of the variable holding the key is typed — the key stays in the environment. A new model appears on /model as a button.
@@ -142,6 +143,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 - `/effort` — Насколько глубоко модель думает перед ответом: /effort high.
 - `/prices` — Цены моделей в работе и во что обходится текущая модель на токенах этой темы.
 - `/cost` — Сколько потратила эта сессия: токены, попадания в кэш и сумма, с указанием источника цен. /cost читает каталог с диска, /prices — тот, кто его обновляет.
+- `/balance` — Сколько осталось на ключах провайдеров — цифра от самого провайдера, а не догадка по ошибке. Показывает и остаток ключа, и остаток аккаунта: ключ может перебрать свой лимит, пока аккаунт платит. Нужна сеть.
 - `/thoughts` — Рассуждения последнего хода: текстом, файлом или выкл.
 - `/fallback` — Цепочка подмены: на какие маршруты переходит упавший ход, в каком порядке, и что включает переход. /fallback показывает нумерованный список кнопками; /fallback test спрашивает каждый маршрут напрямую.
 - `/endpoint` — Эндпоинты, до которых дотягивается этот профиль, и добавление своего без хода модели: /endpoint list, /endpoint add <id> <https://url/v1> <KEY_ENV> [модель,модель], /endpoint rm <id>. Вводится только имя переменной с ключом — сам ключ живёт в окружении. Новая модель сразу появляется в /model кнопкой.
@@ -241,6 +243,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 - `/effort` — 模型回答前的思考深度：/effort high。
 - `/prices` — 在用模型的价格，以及当前模型花掉本话题令牌的费用。
 - `/cost` — 本会话花了多少：令牌、缓存命中与合计，并注明价格来源。/cost 读取本地目录，/prices 负责更新它。
+- `/balance` — 各提供商密钥还剩多少 — 数字来自提供商本身，而不是从错误里猜的。同时显示密钥与账户余额：密钥可能超出自身额度，而账户仍在付费。需要联网。
 - `/thoughts` — 上一轮的推理：文本、文件或关闭。
 - `/fallback` — 故障切换链：失败的一轮会切到哪些线路、按什么顺序、什么情况才算切换。/fallback 用按钮显示编号列表；/fallback test 直接询问每条线路。
 - `/endpoint` — 本配置档可以访问的端点，以及不经过模型回合直接添加：/endpoint list、/endpoint add <id> <https://url/v1> <KEY_ENV> [模型,模型]、/endpoint rm <id>。只输入存放密钥的变量名 —— 密钥留在环境里。新模型会以按钮出现在 /model。

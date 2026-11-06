@@ -7,7 +7,7 @@
 // the layout from `panel.mjs` (a pure renderer, still untouched).
 import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { config, log, state } from '../core/state.mjs';
+import { config, log, saveState as saveStateNow, state } from '../core/state.mjs';
 import { THOUGHT_DIR } from '../core/paths.mjs';
 import { sessionKey } from '../core/keys.mjs';
 import { tg } from '../chat/telegram.mjs';
@@ -16,6 +16,7 @@ import { t } from '../core/i18n.mjs';
 import { addStep, isSubagentTool, progressPanel, stepLine, subagentStep } from '../chat/panel.mjs';
 import { reasoningMode, thoughtRows } from '../chat/notes.mjs';
 import { cardBlocks } from './card.mjs';
+import { FILES_CAP, fileKeyboard, turnFiles } from './files.mjs';
 import { cardPin } from '../profile/settings-card.mjs';
 import { continueKeyboard, errorKeyboard } from '../chat/keyboards.mjs';
 import { contextFill, contextRow, contextUsed } from './context-meter.mjs';
@@ -48,12 +49,13 @@ export function speedOf(outputTokens, ms) {
  * so the person always sees one continuous trace instead of scattered notes.
  *
  * Reasoning is folded into the same message as a collapsed block, so a turn that
- * thinks for ten minutes still leaves one line in the chat — and the whole trail
- * one tap away.
+ * thinks for ten minutes still leaves one line in the chat, trail one tap away.
  */
 export async function startProgress(chatId, threadId, lang = config.lang || 'en', task = '', chip = '', thoughtFile = '') {
   const started = Date.now();
   const panelKey = sessionKey(chatId, threadId);
+  // Every tool call of this turn, kept so the card can offer files it wrote.
+  const wroteCalls = [];
   const steps = [];
   // Subagent calls in flight, by callId, with the index of their step line and
   // the moment they started: the stream says nothing about them except a call
@@ -99,17 +101,13 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   let dirty = false;
   let timer = null;
 
-  // Short "💭" notes the agent appends with `say.mjs --thought`. The progress
-  // message shows the last two, so the person sees the decision trail without
-  // a second stream of chat messages. The path is unique per turn (see
-  // startTurn) so two turns never share one file.
-  //
-  // Two writers exist and they do not agree on the path. The turn's own file
+  // Short "💭" notes the agent appends with `say.mjs --thought`; the card shows
+  // the last two, so the decision trail is visible without a second stream.
+  // Two writers exist and they disagree on the path: the turn's own file
   // (`DSH_TG_THOUGHT`) is only reachable when the tool shell inherits the
   // bridge's environment, and tool shells usually do not — so `say.mjs` falls
   // back to the stable per-topic file. Reading only the first path silently
-  // dropped every note: the 💭 block stayed empty for a whole session while the
-  // topic file on disk kept growing. Read both, keep this turn's lines only.
+  // dropped every note, so both are read and only this turn's lines are kept.
   const notes = thoughtFile || join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
   const topicNotes = join(THOUGHT_DIR, `${chatId}_${threadId || 0}.jsonl`);
   let thoughts = [];
@@ -168,11 +166,15 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   thoughtTimer.unref?.();
 
   const panel = (final = false) => {
-    // The cache line belongs to the outcome, not to every intermediate edit.
-    // How full the context is. A live card shows it only once it matters —
-    // a percentage that is always there is read once and ignored forever — and
-    // the final card always shows it, which is where the number is learned
-    // without a command. Empty when the window or the usage is unknown.
+    // What the card will attach, computed once per render so the line and the
+    // buttons cannot disagree about how many files the turn wrote.
+    const all = turnFiles(wroteCalls);
+    const rows = all.slice(0, FILES_CAP);
+    const spilled = Math.max(0, all.length - rows.length);
+    // How full the context is. A live card shows it only once it matters — a
+    // percentage that is always there is read once and ignored forever — and the
+    // final card always shows it, which is where the number is learned without a
+    // command. Empty when the window or the usage is unknown.
     const fill = contextFill({ used: contextUsed(usage), limit: contextLimit });
     const context = fill && (final || fill.level !== 'ok')
       ? contextRow({ used: fill.used, limit: fill.limit }, lang)
@@ -222,7 +224,23 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       context,
       money,
       cache,
+      // Files this turn wrote, as buttons under the final card: the answer says
+      // "готово", and the document is one tap away instead of a path to copy.
+      files: rows,
+      moreFiles: spilled ? t(lang, 'card.files.more', { n: spilled }) : '',
     });
+  };
+
+  /** The attachment keys for the final card, and the rows kept for the press. */
+  const attachKeyboard = () => {
+    const files = turnFiles(wroteCalls);
+    if (!files.length) return [];
+    // Stored per topic because the callback can only carry a number — a path
+    // does not fit in 64 bytes. Storing them also makes a press on an older card
+    // answer "stale" rather than sending whatever now sits at that index.
+    state.turnFiles = { ...(state.turnFiles || {}), [panelKey]: files };
+    saveStateNow();
+    return fileKeyboard(files, lang, t);
   };
 
   /** Send or edit the panel; `plainText` and a rejected parse fall back to text. */
@@ -255,11 +273,10 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   }
 
   // Pinned on request. Telegram keeps one pinned message per chat and topic, so
-  // pinning this card is also what replaces the previous turn's — the slot always
-  // holds the turn that is running now, or the numbers of the one that just
-  // finished. A pin that lands with a notification reads as an interruption, so
-  // it goes silently; a chat where the bot may not pin is not an error either —
-  // the card works the same unpinned, and the reason belongs in the log.
+  // pinning this card also replaces the previous turn's — the slot always holds
+  // the running turn, or the numbers of the one that just finished. It goes
+  // silently: a pin with a notification reads as an interruption, and a chat
+  // where the bot may not pin is not an error — the reason belongs in the log.
   if (messageId && cardPin(state, config, panelKey) === 'on') {
     tg('pinChatMessage', {
       chat_id: chatId,
@@ -277,11 +294,7 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
       dirty = false;
       return;
     }
-    const payload = {
-      chat_id: chatId,
-      message_id: messageId,
-      disable_web_page_preview: true,
-    };
+    const payload = { chat_id: chatId, message_id: messageId, disable_web_page_preview: true };
     try {
       if (view) await post('editMessageText', payload, view, keyboard);
       else {
@@ -319,7 +332,7 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
      *
      * The answer is checked against this before it is sent: a turn that ends
      * without one reports the last assistant text it has, which is the
-     * reasoning, and that must not reach the chat as a reply. */
+     * reasoning, and that must never reach the chat as a reply. */
     reasoning() {
       return thinkingParts.join('\n\n');
     },
@@ -339,6 +352,10 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
     },
     handle(event) {
       if (event.type === 'tool_call') {
+        // Kept for the attachment row, not for the step list: the step list
+        // shortens a path to 64 characters and drops the older calls, so the
+        // files have to be remembered as they were called.
+        wroteCalls.push({ tool: event.tool, input: event.input ?? {} });
         if (isSubagentTool(event.tool)) {
           // The line goes in when the call starts, so a subagent that runs for
           // two minutes is visible as running rather than appearing at the end.
@@ -465,6 +482,13 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
         return true;
       }
       await edit('', null, panel(true));
+      // The attachments go on the final card only, and only after the text has
+      // landed: a keyboard sent with a message that then fails to edit would
+      // offer files from a turn whose card never appeared.
+      const attached = attachKeyboard();
+      if (attached.length) {
+        await edit('', { inline_keyboard: attached }).catch(() => {});
+      }
       return false;
     },
   };

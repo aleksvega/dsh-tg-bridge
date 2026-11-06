@@ -16,6 +16,7 @@ export default {
   'ctrl.help.about.model': "本配置档模型的一条命令：直接 /model 把每条线路画成按钮 —— 提供方与模型一起选，因为同一个模型名可能由多个端点提供 —— 也可以用 /model <提供方>/<模型> 直接切换。点卡片上的线路只改本话题；列表上方的开关一次改整个配置档，并且始终写着这一下会改哪一边。用 /model <线路> all 设定所有话题跟随的默认 —— 当某个端点没钱了、fallback 链路必须从别处开始时，就用它。加 both 还会改 desktop 配置档。",
     'ctrl.help.about.prices': "在用模型的价格，以及当前模型花掉本话题令牌的费用。",
   'ctrl.help.about.thoughts': "上一轮的推理：文本、文件或关闭。",
+  'ctrl.help.about.balance': "各提供商密钥还剩多少 — 数字来自提供商本身，而不是从错误里猜的。同时显示密钥与账户余额：密钥可能超出自身额度，而账户仍在付费。需要联网。",
   'ctrl.help.about.cost': "本会话花了多少：令牌、缓存命中与合计，并注明价格来源。/cost 读取本地目录，/prices 负责更新它。",
   'ctrl.help.about.effort': "模型回答前的思考深度：/effort high。",
   'ctrl.help.about.permissions': "配置档的沙箱与确认预设。",

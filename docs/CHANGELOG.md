@@ -1,5 +1,27 @@
 # CHANGELOG — DSH Telegram bridge
 
+## Unreleased
+
+- **`/balance` — the number behind the fallback, from the provider itself.** A 403
+  was answered with "the provider balance is empty", which was a guess: one router
+  sends the same status for an empty account and for a key that may not use the
+  model, so the sentence sent people to top up accounts that were not empty. The
+  command asks the provider's own accounting route instead of reading an error.
+  It prints two numbers, because the two disagree: the key, which can run past its
+  own grant and read negative while the account still pays, and the account, which
+  decides the verdict. A provider that answers no accounting route is named as
+  such rather than shown as empty, and a `403` still says the account is empty
+  only when the number says so. The client is vendor-agnostic — the paths are the
+  ones the common router implementations answer on, root before `/v1`, and the one
+  that answered is remembered for the rest of the process. Three locales, 22 tests.
+
+- **The turn-file row answers with the file, and the quota line names `/balance`.**
+  The finished-turn card offers the paths the turn wrote, and a press sends that
+  file into the chat. Duplicate names are disambiguated by their folder only when
+  they collide, and a card older than the turn's last file answers "stale" instead
+  of sending whatever now sits at that index. `bridge.fail.quota` now points at
+  `/balance` in all three locales, so the hint and the command agree.
+
 ## 1.47.1
 
 - **`/subagents` — the panel the turn card could not keep.** The live panel showed

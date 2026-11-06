@@ -8,7 +8,7 @@ import { previewWindow } from './file-preview.mjs';
 import { listDir, listingCard } from './file-listing.mjs';
 import { t } from '../core/i18n.mjs';
 import { saveState, state } from '../core/state.mjs';
-import { inlineKeyboard, tg } from './telegram.mjs';
+import { inlineKeyboard, sendFile, tg } from './telegram.mjs';
 
 /**
  * Handle one `fs:` or `fv:` press.
@@ -16,6 +16,9 @@ import { inlineKeyboard, tg } from './telegram.mjs';
  * @returns {Promise<boolean>} true when the press was this module's to answer.
  */
 export async function handleFilePress({ data, key, lang, chatId, threadId, messageId, answer }) {
+  if (String(data || '').startsWith('tf:')) {
+    return sendTurnFile({ index: Number(String(data).slice(3)) || 0, key, lang, chatId, threadId, answer });
+  }
   if (String(data || '').startsWith('fv:')) {
     return pressEntry({ data: String(data).slice(3), key, lang, chatId, threadId, messageId, answer });
   }
@@ -68,6 +71,30 @@ export async function handleFilePress({ data, key, lang, chatId, threadId, messa
     reply_markup: { inline_keyboard: inlineKeyboard(view.keyboard) },
   }).catch(() => {});
   await answer(t(lang, 'ctrl.find.opened', { line: hit.line }));
+  return true;
+}
+
+/**
+ * An `tf:` press: send one file the finished turn wrote, as a document.
+ *
+ * The row comes from `state.turnFiles`, written when the card was drawn, so the
+ * button can only send something that turn actually produced. A newer turn
+ * replaces the list; a press on the old card then finds no row and answers
+ * "stale" instead of sending whatever moved into that slot.
+ */
+async function sendTurnFile({ index, key, lang, chatId, threadId, answer }) {
+  const rows = state.turnFiles?.[key];
+  const row = rows?.[index];
+  if (!row) {
+    await answer(t(lang, 'card.files.stale'));
+    return true;
+  }
+  try {
+    await sendFile(chatId, threadId, row.path, row.name);
+    await answer(t(lang, 'card.files.sent', { name: row.name }));
+  } catch (error) {
+    await answer(t(lang, 'card.files.failed', { err: String(error.message).slice(0, 80) }));
+  }
   return true;
 }
 

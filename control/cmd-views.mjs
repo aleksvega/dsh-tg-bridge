@@ -28,6 +28,7 @@ import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../chat/
 import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from '../core/paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, disabledIds, setDisabled, writePatch } from './models.mjs';
 import { handleModelCommand } from './cmd-model.mjs';
+import { balanceCard } from './cmd-balance.mjs';
 import { topicRoute } from './topic-route.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
@@ -444,6 +445,12 @@ export async function handleViewCommands(ctx) {
       const stats = sessionId ? sessionStats(sessionFile(join(DSH_HOME, 'sessions'), sessionId)) : null;
       const { at, models } = loadPrices();
       say(costReport({ stats, route: modelOf(activeProfile), lang, models, cacheAt: at, t }));
+      return true;
+    }
+    case '/balance': {
+      // The only command that asks the provider directly: a number is what turns
+      // "it fell over to another route again" into a decision to top up or not.
+      say(await balanceCard({ profile: activeProfile, lang, t }));
       return true;
     }
     case '/prices': {
