@@ -42,4 +42,12 @@ test('a missing file yields an empty body instead of throwing', () => {
   assert.equal(inlineText(join(dir, 'nope.md'), 'nope.md'), '');
 });
 
+test('the default excerpt stays far under the command-line budget', () => {
+  // The inline body lands in the task on the argv, and Windows cuts a command
+  // line at 32 767 chars: two 60 000-char excerpts once killed the turn at
+  // spawn. The default must stay well inside that, truncation marker included.
+  const body = inlineText(file('huge.txt', 'x'.repeat(200_000)), 'huge.txt');
+  assert.ok(body.length < 24_000, `inline body is ${body.length}`);
+});
+
 test.after(() => rmSync(dir, { recursive: true, force: true }));

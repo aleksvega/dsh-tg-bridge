@@ -1,6 +1,66 @@
 # CHANGELOG — DSH Telegram bridge
 
-## Unreleased
+## 1.48.0
+
+- **`/remember` — long-term memory the person can read whole, kept in the one
+  file the agent already reads on every request.** `/remember <fact>` appends a
+  dated line to a `## Learned (DSH memory)` section of `$DSH_HOME/AGENTS.md`;
+  `/remember` shows the section; `/remember forget <word>` (or `forget all`)
+  erases whole lines; `/remember tidy` does the one part the bridge cannot
+  judge itself — it queues a real turn that rereads its own memory, merges
+  duplicates and drops the stale, through the same per-topic queue a typed
+  message takes. No second store and no hidden vector file: the memory is
+  markdown the person can audit, the section is capped at 60 notes so the
+  injection budget stays predictable, and every write copies `.bak` first and
+  lands by rename so the harness never reads a half-written instructions
+  file. Everything around the section — the person's own hand-written text,
+  the persona — is moved, never rewritten. Three locales, 10 tests.
+
+- **`/branch` — a copy of a conversation that crosses topics, in the two
+  directions people actually asked for.** `/branch <id>` brings another session
+  into this topic and moves this topic onto the copy; `/branch new` carries this
+  topic's session into a topic of its own, seeded and pinned, and leaves this one
+  exactly as it was. Both are snapshots: the source session is never written to,
+  the copy gets a new id, and the topic's project directory and route follow the
+  copy so a branch does not also change the model. The reason it exists at all is
+  the window `/sessions <id>` leaves open — it only moves the pointer, so a
+  message sent before `/fork` writes into the foreign session; `/branch` copies
+  first and switches after. When Telegram refuses to open the topic the copy is
+  removed and nothing changes. Three locales, 7 tests.
+
+- **`/help <word>` answers with the commands whose own sentence mentions it.**
+  `/help ветка` used to answer "нет команды /ветка" while the sentence explaining
+  branching sat one line away: the lookup matched command names only. It now
+  searches the explanations in the chat's language, lists at most three, and needs
+  three characters — two for a CJK word, where two characters are a word and not a
+  fragment. The `/rewind`, `/fork` and `/branch` sentences now name each other in
+  all three locales, so the difference is readable without asking.
+
+- **A reasoning level the model does not declare no longer kills the turn — and it
+  is never answered with a switch.** The host validates `reasoningEffort` against
+  the levels a model declares and refuses the turn before its first token when the
+  two disagree; the failure arrived as `TURN_FAILED: repeat the request`, the one
+  piece of advice that cannot work, because the same profile fails the same way.
+  Measured on `grok-4.7`: the profile asked for `max` while the model declared a
+  list ending at `high`, and the provider answered `200` to all seven levels when
+  asked directly. The level is what is wrong with the request; the model is what
+  the person chose — so the level is removed from the profile and the same route is
+  tried once more, and the chat says which level went. The chain deliberately does
+  not treat this as a route fault: moving to another model would change the model
+  to fix a setting. It has its own sentence naming `/effort` instead of the generic
+  retry. Three locales, 6 tests.
+
+- **Switching the model drops a level the new model does not declare, and says
+  which one.** The setting does not vanish without a word, and a model that declares
+  no levels at all keeps whatever is set, because nothing objected to it.
+
+- **A level belongs to the provider that declares it, not to the model name.**
+  `deepseek-v4.1-flash` is declared by two providers in one profile, and one of the
+  two leaves `minimal` out, so reading the file by name returned whichever entry
+  came first — and the guard above would have kept a level the route refuses, the
+  exact failure it exists to prevent. The lookup now starts and ends inside the
+  provider's own block; a provider the file does not name still falls back to the
+  name, so an overlay carrying only the route row keeps working. 2 tests.
 
 - **`/balance` — the number behind the fallback, from the provider itself.** A 403
   was answered with "the provider balance is empty", which was a guess: one router
@@ -21,6 +81,26 @@
   they collide, and a card older than the turn's last file answers "stale" instead
   of sending whatever now sits at that index. `bridge.fail.quota` now points at
   `/balance` in all three locales, so the hint and the command agree.
+
+- **`/history` — the whole topic as one file, readable on a phone.** Telegram
+  cannot import old turns as messages, and the session file is the only complete
+  record — a zstd-framed store no phone app opens. `/history` exports it as one
+  markdown document: every turn numbered the way the session numbers it, the
+  person's words and the answer under it, tool noise left out. It arrives as a
+  document in the chat, small enough to carry and big enough to hold a thousand
+  turns; in a place without file upload it answers with the path. Reading a live
+  session is safe — a half-written last frame is the one thing the reader skips.
+  Three locales, 4 tests.
+
+- **Long tasks stop dying at the spawn.** The task text travels as the last
+  argv element of the headless CLI, and Windows cuts a whole command line at
+  32 767 UTF-16 chars: two attached text files, pasted in as content at the old
+  60 000-char excerpt cap, made one 72 000-char prompt — and the turn died as
+  `spawn ENAMETOOLONG` in five seconds, tool calls zero, before the model saw a
+  word. Two guards now hold: a task past 24 000 chars moves to a temp file and
+  passes the CLI one short sentence pointing at it, and text attachments paste
+  an excerpt of 8 000 bytes, with the full file already saved under `inbox/` and
+  its path in the message. Two tests keep both limits honest.
 
 ## 1.47.1
 

@@ -6,6 +6,7 @@ import { copyFileSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { t } from '../core/i18n.mjs';
 import { providerRows } from '../model/model-probe.mjs';
+import { parseReasoningEffortsFor } from '../profile/agents.mjs';
 import { PROFILES } from '../core/paths.mjs';
 
 export const read = (path) => {
@@ -229,7 +230,13 @@ export function setModel(profile, wanted) {
   const next = rewriteModelText(text, { provider, model });
   if (!next) return false;
   writeFileSync(path, next, 'utf8');
-  return true;
+  // What the rewrite took away besides the model. A level the new model does not
+  // declare is dropped rather than kept, or the next turn dies before it starts;
+  // the caller says so, because a setting that vanishes without a word reads as
+  // a bug the first time the person notices their effort is no longer set.
+  const before = /^\s+reasoningEffort:\s*(\S+)\s*$/m.exec(text);
+  const after = /^\s+reasoningEffort:\s*(\S+)\s*$/m.exec(next);
+  return { ok: true, dropped: before && !after ? before[1] : '' };
 }
 
 /**
@@ -252,8 +259,36 @@ export function rewriteModelText(text, { provider = '', model = '' } = {}) {
     if (/^\s+provider:\s*\S+/m.test(next)) next = next.replace(/^(\s+provider:\s*)\S+/m, `$1${provider}`);
     else next = next.replace(/^(\s+model:\s*\S+)/m, `$1\n    provider: ${provider}`);
   }
+  // A level the new model does not declare cannot boot: the host answers
+  // UNSUPPORTED_REASONING_EFFORT and the turn dies before its first token, with
+  // advice to "repeat the request" that repeats the failure. Dropping the level
+  // hands the choice back to the provider, which is the only option that keeps
+  // the turn alive — measured on grok-4.7, where an unset level answered fine
+  // while `max` against a list ending at `high` killed every turn.
+  const effort = /^\s+reasoningEffort:\s*(\S+)\s*$/m.exec(next);
+  if (effort) {
+    const allowed = parseReasoningEffortsFor(String(text), { provider, model });
+    if (allowed.length > 0 && !allowed.includes(effort[1])) {
+      next = next.replace(/^\s+reasoningEffort:\s*\S+[ \t]*\r?\n?/m, '');
+    }
+  }
   if (next === block[0]) return '';
   return String(text).replace(block[0], next);
+}
+
+/**
+ * The level `rewriteModelText` would drop for this route, or ''.
+ *
+ * A topic's route is a regenerated copy of the base profile, so the drop happens
+ * inside that copy and the caller has no file of its own to compare. Asking the
+ * same function first is how the message and the write cannot disagree.
+ */
+export function effortThatWouldDrop(text, { provider = '', model = '' } = {}) {
+  const before = /^\s+reasoningEffort:\s*(\S+)\s*$/m.exec(String(text || ''));
+  if (!before) return '';
+  const next = rewriteModelText(text, { provider, model });
+  if (!next) return '';
+  return /^\s+reasoningEffort:\s*\S+\s*$/m.test(next) ? '' : before[1];
 }
 
 /** Top-level patch entry ids that carry `disabled:` in a profile. */

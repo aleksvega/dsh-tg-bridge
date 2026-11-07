@@ -11,6 +11,7 @@ export default {
   'ctrl.model.pickNowDefault': 'По умолчанию в профиле: {route} — для остальных тем',
   'ctrl.model.pickFollow': '↩ Снова как в профиле',
   'ctrl.model.topicSet': 'Эта тема теперь отвечает на {route}. Остальные темы — {default}.',
+  'ctrl.model.effortDropped': 'Уровень усилия {value} снят: эта модель его не объявляет, и с ним каждый ход падал бы до первого слова. Вернуть или выбрать другой — /effort.',
   'ctrl.model.topicCleared': 'Эта тема снова как в профиле: {route}.',
   'ctrl.model.topicNone': 'У этой темы своего маршрута не было, она и так как в профиле: {route}.',
   'ctrl.model.topicKept': 'Свой маршрут сохранили тем: {n}.',

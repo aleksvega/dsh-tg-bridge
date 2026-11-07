@@ -11,6 +11,7 @@ export default {
   'ctrl.model.pickNowDefault': 'Profile default: {route} — every topic that did not choose',
   'ctrl.model.pickFollow': '↩ Follow the profile again',
   'ctrl.model.topicSet': 'This topic now answers on {route}. Other topics keep {default}.',
+  'ctrl.model.effortDropped': 'Reasoning level {value} was dropped: this model does not declare it, and every turn would fail before its first word. Restore it or pick another with /effort.',
   'ctrl.model.topicCleared': 'This topic follows the profile again: {route}.',
   'ctrl.model.topicNone': 'This topic had no route of its own; it follows the profile: {route}.',
   'ctrl.model.topicKept': '{n} topic(s) chose their own route and keep it.',

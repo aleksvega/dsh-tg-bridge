@@ -27,6 +27,12 @@ export function explainFailure(text, lang = 'ru') {
     // — the least useful answer for the one error the chat can actually fix.
     [/CONTEXT_WINDOW_EXCEEDED|context[_ ]length|maximum context|context window|prompt is too long|exceeds the context/i,
       'CONTEXT_OVERFLOW', 'bridge.fail.context'],
+    // A setting, not the account and not the request: the model is fine, the
+    // level asked of it is not one it declares. "Repeat the request" is the one
+    // piece of advice that cannot work here, so it gets its own sentence naming
+    // the command that fixes it.
+    [/UNSUPPORTED_REASONING_EFFORT|does not support reasoning effort/i,
+      'EFFORT_UNSUPPORTED', 'bridge.fail.effort'],
     // Money before keys, because "AUTH 403 ... allowance ... used up" names both
     // and only one of them tells the person what to do. A bare 401/403 with no
     // money word is a refused key and gets its own sentence below; topping up an

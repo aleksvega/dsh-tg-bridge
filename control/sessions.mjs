@@ -105,4 +105,24 @@ export function sessionTitle(id) {
   if (typeof first === 'string' && first.trim()) return first.trim().split('\n')[0].slice(0, 80);
   return '';
 }
+
+/**
+ * The per-topic settings a new topic inherits from the one it was branched off.
+ *
+ * A branch is the same work in another place, so the place must not also change
+ * the model, the project directory or the language: a copy that silently answers
+ * with the install default would look like the branch lost its settings. Only the
+ * maps that decide how work is done are copied — `sessions` is the caller's job
+ * (the branch gets a session of its own), and anything about a message already
+ * sent stays where it was sent.
+ */
+export function inheritTopicState(state, from, to) {
+  if (!state || !from || !to || from === to) return;
+  for (const map of ['cwd', 'route', 'profile', 'reasoning', 'lang']) {
+    const value = state[map]?.[from];
+    if (value === undefined) continue;
+    state[map] = state[map] || {};
+    state[map][to] = value;
+  }
+}
 

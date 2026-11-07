@@ -11,6 +11,7 @@ export default {
   'ctrl.model.pickNowDefault': '档案默认：{route} —— 未单独选择的话题',
   'ctrl.model.pickFollow': '↩ 恢复跟随档案',
   'ctrl.model.topicSet': '本话题现在走 {route}。其他话题仍为 {default}。',
+  'ctrl.model.effortDropped': '推理强度 {value} 已移除：该模型没有声明这个级别,带着它每一轮都会在第一个字之前失败。用 /effort 恢复或另选。',
   'ctrl.model.topicCleared': '本话题恢复跟随档案：{route}。',
   'ctrl.model.topicNone': '本话题本来就没有单独路线，一直跟随档案：{route}。',
   'ctrl.model.topicKept': '保留自己路线的有 {n} 个话题。',

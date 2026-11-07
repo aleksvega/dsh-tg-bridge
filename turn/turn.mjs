@@ -13,6 +13,7 @@ import { providerKeys } from '../core/secrets.mjs';
 import { tg } from '../chat/telegram.mjs';
 import { t } from '../core/i18n.mjs';
 import { turnArgs } from '../core/cli-args.mjs';
+import { condenseTask } from './task-arg.mjs';
 import { turnOutcome } from './turn-outcome.mjs';
 import { routeProfile } from '../control/topic-route.mjs';
 import { clearActive, markActive } from './active.mjs';
@@ -66,7 +67,12 @@ export function baseProfileOf(key) {
 export function runTurn(task, sessionId, key = '', onEvent = null, extraArgs = [], cwd = '', profile = config.profile, lang = config.lang || 'en', env = {}) {
   return new Promise((resolve) => {
     const launch = dshLaunch({ exists: existsSync });
-    const args = turnArgs({ lead: launch.lead, profile, extraArgs, sessionId, task });
+    // Windows refuses a command line past 32 767 chars, and a long task used to
+    // kill the spawn before the model saw a word. Past the limit the task
+    // travels as a file and argv keeps one short sentence pointing at it.
+    const { text: argTask, file: taskFile } = condenseTask(task, (file) => t(lang, 'prompt.taskFile', { path: file }));
+    if (taskFile) log(`task of ${task.length} chars exceeds the argv limit, sent via file`);
+    const args = turnArgs({ lead: launch.lead, profile, extraArgs, sessionId, task: argTask });
     const child = spawn(launch.exe, args, {
       // Per-topic project directory: a topic can be bound to one repository so
       // "work in my-app" stops meaning "cd in every command".

@@ -30,11 +30,11 @@ import { rememberRuns } from '../work/subagents.mjs';
 import { reportRefusals } from '../profile/sandbox-note.mjs';
 import { noteTurn } from '../core/stability.mjs';
 import { makeTurnEvents, newTelemetry, noteAnswered } from '../turn/turn-events.mjs';
-import { lastPrompt, maxParallel, queues } from '../turn/queue.mjs';
+import { lastPrompt, maxParallel, queues, redeliver } from '../turn/queue.mjs';
 import { token } from '../core/secrets.mjs';
 import { config, done, log, saveConfig, saveState, state } from '../core/state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from './telegram.mjs';
-import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
+import { ensureTopicSeed, logTopicToGeneral, newestBoundTopic, openBranchTopic, startTopicFromMessage, topicName, topicSeeded, topicSeededRecently, touchTopic } from './topics.mjs';
 import { activeTurns, killTurn, liveSessions, profileOf, runTurnLive, turnAttempt, turnStartedAt, typingLoop } from '../turn/turn.mjs';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -246,9 +246,9 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
         queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
         max: maxParallel(),
       }),
-      api: tg,
+      api: tg, redeliver,
       sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
-      seedTopic: ensureTopicSeed,
+      seedTopic: ensureTopicSeed, openTopic: openBranchTopic,
       profile: profileOf(key),
       prices: (filter) => {
         const route = modelOf(profileOf(key));

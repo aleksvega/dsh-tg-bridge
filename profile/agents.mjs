@@ -230,6 +230,60 @@ export function parseReasoningEfforts(text, modelId) {
   return out;
 }
 
+/** The lines of one provider's block, or '' when the profile has no such key. */
+function providerSection(text, provider) {
+  const lines = String(text || '').split(/\r?\n/);
+  const key = new RegExp(`^\\s*${provider.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*$`);
+  const start = lines.findIndex((line) => key.test(line));
+  if (start < 0) return '';
+  const indent = indentOf(lines[start]);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (!lines[i].trim()) continue;
+    if (indentOf(lines[i]) <= indent) { end = i; break; }
+  }
+  return lines.slice(start + 1, end).join('\n');
+}
+
+/**
+ * The same list, read inside one provider.
+ *
+ * A model id is not unique in a profile: `deepseek-v4.1-flash` is declared by two
+ * providers in the same file, and one of the two leaves `minimal` out. Searching
+ * the whole file by name returns whichever entry comes first, so a guard built on
+ * that answer keeps a level the route refuses — the exact failure it exists to
+ * prevent. The provider is what makes the name unique.
+ * @param {string} text profile patch
+ * @param {{provider?: string, model?: string}} route
+ */
+export function parseReasoningEffortsFor(text, route = {}) {
+  const provider = String(route.provider || '');
+  const model = String(route.model || '');
+  if (!provider) return parseReasoningEfforts(text, model);
+  return parseReasoningEfforts(providerSection(text, provider) || text, model);
+}
+
+/**
+ * The profile text without the default model's reasoning level, and the level that
+ * was removed.
+ *
+ * Dropping the level is the whole fix for a model that does not declare it: the
+ * host refuses the turn before its first token, and an unset level is the one value
+ * it never objects to — measured on grok-4.7, where an unset level answered fine
+ * while `max` against a list ending at `high` killed every turn. The model stays
+ * the one the person chose; only the level goes.
+ * @param {string} text profile patch
+ * @returns {{text: string, dropped: string}}
+ */
+export function dropEffortFromText(text) {
+  const whole = String(text || '');
+  const block = /- id: agent-default-model[\s\S]*?(?=\n- id:|\n- insert:|$)/.exec(whole);
+  if (!block) return { text: whole, dropped: '' };
+  const line = /^[ \t]*reasoningEffort:[ \t]*(\S+)[ \t]*\r?\n?/m.exec(block[0]);
+  if (!line) return { text: whole, dropped: '' };
+  return { text: whole.replace(block[0], block[0].replace(line[0], '')), dropped: line[1] };
+}
+
 /**
  * The permission table of a profile: the presets it declares and the one it
  * starts in. The bridge runs unattended, so this is the knob that decides

@@ -56,13 +56,18 @@ const after = () => readFileSync(patchFile, 'utf8');
 
 test('a bare model id moves the model and leaves the route alone', () => {
   writeFileSync(patchFile, patch);
-  assert.equal(setModel('headless', 'deepseek-v4.1-flash'), true);
+  const applied = setModel('headless', 'deepseek-v4.1-flash');
+  assert.equal(applied.ok, true);
+  // Nothing here declares a level, and a model that declares none accepts any:
+  // the guard must not empty a setting the provider never objected to.
+  assert.equal(applied.dropped, '');
   assert.deepEqual(modelOf('headless'), { provider: 'alpha', model: 'deepseek-v4.1-flash' });
 });
 
 test('provider/model moves the route too, which is the whole point of asking', () => {
   writeFileSync(patchFile, patch);
-  assert.equal(setModel('headless', 'beta/deepseek-v4.1-flash'), true);
+  const applied = setModel('headless', 'beta/deepseek-v4.1-flash');
+  assert.equal(applied.ok, true);
   assert.deepEqual(modelOf('headless'), { provider: 'beta', model: 'deepseek-v4.1-flash' });
   // Everything else in the row survives: a switch that quietly dropped
   // `reasoningEffort` would change how the model thinks, not just who serves it.
@@ -74,4 +79,36 @@ test('a model or a provider the profile does not declare is refused, file untouc
   assert.equal(setModel('headless', 'beta/not-a-model'), false);
   assert.equal(setModel('headless', 'gamma/deepseek-v4.1-flash'), false, 'an undeclared provider cannot boot a turn');
   assert.equal(after(), patch, 'a refused switch must not leave a half-edited patch');
+});
+
+test('a level the new model does not declare is dropped and named, never kept', () => {
+  // Measured on grok-4.7: the profile asked for `max` while the model declared a
+  // list ending at `high`, and every turn died with UNSUPPORTED_REASONING_EFFORT
+  // before its first token. Keeping the level is what broke the turn; dropping it
+  // in silence is what broke the person's trust in the setting.
+  const narrow = patch
+    .replace(
+      '          - id: glm-5.3',
+      '          - id: glm-5.3\n            reasoningEfforts:\n              low: low\n              high: high',
+    )
+    .replace('      model: glm-5.3', '      model: deepseek-v4.1-flash');
+  writeFileSync(patchFile, narrow);
+  const applied = setModel('headless', 'glm-5.3');
+  assert.equal(applied.ok, true);
+  assert.equal(applied.dropped, 'max', 'the caller cannot warn about a level nobody reported');
+  assert.doesNotMatch(after(), /reasoningEffort:/, 'the level that killed the turn is still in the profile');
+});
+
+test('a declared level survives the switch untouched', () => {
+  // The route moves, the level stays: this is the case the profile is supposed to
+  // support, and the guard must not touch it.
+  const wide = patch.replace(
+    '          - id: deepseek-v4.1-flash',
+    '          - id: deepseek-v4.1-flash\n            reasoningEfforts:\n              high: high\n              max: max',
+  );
+  writeFileSync(patchFile, wide);
+  const applied = setModel('headless', 'deepseek-v4.1-flash');
+  assert.equal(applied.ok, true);
+  assert.equal(applied.dropped, '');
+  assert.match(after(), /reasoningEffort: max/);
 });

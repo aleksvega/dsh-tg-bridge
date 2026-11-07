@@ -5,7 +5,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, copyFileSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { t, LANGS, normalizeLang } from '../core/i18n.mjs';
 import { addTask, clearGoal, doneTask, editTask, finishGoal, goalOf, progressOf, reopenGoal, removeTask, setGoal } from '../work/goals.mjs';
@@ -15,7 +15,9 @@ import { setRowConfig, unsetRowConfig } from '../profile/profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from '../work/reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from '../profile/agentsets.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
-import { applyFork, planFork, planRewind } from '../work/rewind.mjs';
+import { sessionKey } from '../core/keys.mjs';
+import { applyFork, allTurns, branchTarget, planFork, planRewind } from '../work/rewind.mjs';
+import { formatHistory, writeHistory } from '../work/history.mjs';
 import { cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
 import { renderRewindCard, renderRewindUsage } from '../work/rewind-card.mjs';
 import { MENU_GROUPS, commandForName, renderPanel, replyKeyboard } from '../chat/menu-card.mjs';
@@ -24,16 +26,28 @@ import { profileValues, resolveSettings } from '../profile/settings.mjs';
 import { UPDATE_DEFAULTS, describeUpdate, modeChange, updateState } from '../core/update-policy.mjs';
 import { isNewer, pluginInfo, rowLine, searchPlugins } from '../chat/plugin-search.mjs';
 import { COMMAND_ALIASES, CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from '../chat/commands-registry.mjs';
-import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from '../core/paths.mjs';
+import { APP, CLI_JS, DSH_CMD, DSH_HOME, DIR, EXE, HOME, PROFILES, THOUGHT_DIR } from '../core/paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
-import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
+import { cwdSlug, bareId, inheritTopicState, stamp, recentSessions, sessionTitle } from './sessions.mjs';
 import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 import { resolveCd } from './cd-path.mjs';
 import { permissionEnabled } from '../profile/permission-rows.mjs';
+
+/**
+ * Remember a branch in the topic it was made from, so `/rewind branches` can
+ * offer it back. The last dozen is enough to pick from, and state.json stays
+ * small.
+ */
+function rememberFork(state, key, entry) {
+  state.forks = state.forks || {};
+  const list = state.forks[key] || [];
+  list.push(entry);
+  state.forks[key] = list.slice(-12);
+}
 
 export async function handleSessionCommands(ctx) {
   const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
@@ -164,11 +178,7 @@ export async function handleSessionCommands(ctx) {
         return true;
       }
       state.sessions[key] = made.id;
-      state.forks = state.forks || {};
-      const list = state.forks[key] || [];
-      list.push({ id: made.id, from: sessionId, at: Date.now(), kept: plan.kept });
-      // The last dozen is enough to pick from, and state.json stays small.
-      state.forks[key] = list.slice(-12);
+      rememberFork(state, key, { id: made.id, from: sessionId, at: Date.now(), kept: plan.kept });
       ctx.saveState();
       log(`fork ${sessionId} -> ${made.id} at turn ${plan.kept} for ${key}`);
       say(t(lang, 'ctrl.fork.done', { id: made.id, kept: plan.kept }));
@@ -184,6 +194,94 @@ export async function handleSessionCommands(ctx) {
       }]);
       const head = [t(lang, 'ctrl.fork.list', { n: list.length }), t(lang, 'ctrl.fork.current', { id: current || '—' })];
       await reply(head.join('\n'), { keyboard: rows });
+      return true;
+    }
+    case '/branch': {
+      // The two branches `/fork` does not cover, because the copy does not stay
+      // here: `/branch <id>` copies another session INTO this topic, `/branch new`
+      // copies this topic's session into a topic of its own. `/fork` stays the
+      // third — a copy this topic moves onto. The argument picks, and a bare
+      // `/branch` explains instead of guessing: opening a Telegram topic is a
+      // side effect nobody asked for.
+      const target = branchTarget(arg);
+      if (target.kind === 'usage') { say(t(lang, 'ctrl.branch.usage')); return true; }
+      if (ctx.activeTurns && ctx.activeTurns.has(key)) { say(t(lang, 'ctrl.fork.busy')); return true; }
+      const here = state.sessions[key] || '';
+      const source = target.kind === 'here' ? target.id : here;
+      if (!source) { say(t(lang, 'ctrl.fork.noSession')); return true; }
+      if (target.kind === 'topic' && !ctx.openTopic) { say(t(lang, 'ctrl.branch.unsupported')); return true; }
+      const file = sessionFile(join(DSH_HOME, 'sessions'), source);
+      const plan = planFork(file, 0);
+      if (plan.reason) {
+        // The same refusals as a cut: a session being written is the one file this
+        // must never copy, and the reason is the same sentence.
+        say(t(lang, `ctrl.rewind.refused.${plan.reason}`, { total: plan.total, dropped: 0 }));
+        return true;
+      }
+      let made;
+      try {
+        made = applyFork(file, plan.offset, plan.size);
+      } catch (error) {
+        say(t(lang, 'ctrl.fork.failed', { error: error.message }));
+        return true;
+      }
+      if (target.kind === 'here') {
+        state.sessions[key] = made.id;
+        rememberFork(state, key, { id: made.id, from: source, at: Date.now(), kept: plan.kept });
+        ctx.saveState();
+        log(`branch ${source} -> ${made.id} at turn ${plan.kept} into ${key}`);
+        say(t(lang, 'ctrl.branch.hereDone', { id: made.id, kept: plan.kept }));
+        return true;
+      }
+      // The copy exists before the topic does, so the topic never opens onto an
+      // empty page; if Telegram refuses it, the copy goes with it.
+      const title = sessionTitle(source) || t(lang, 'ctrl.branch.untitled');
+      const name = `${title} · ${t(lang, 'ctrl.branch.suffix')}`;
+      const opened = await ctx.openTopic(String(ctx.chatId), name, t(lang, 'ctrl.branch.seed', { name: title, kept: plan.kept }));
+      if (!opened) {
+        try {
+          rmSync(dirname(made.file), { recursive: true, force: true });
+        } catch (error) {
+          log(`branch copy ${made.id} not removed: ${error.message}`);
+        }
+        say(t(lang, 'ctrl.branch.topicFailed'));
+        return true;
+      }
+      const branchKey = sessionKey(String(ctx.chatId), Number(opened));
+      state.sessions[branchKey] = made.id;
+      inheritTopicState(state, key, branchKey);
+      rememberFork(state, key, { id: made.id, from: source, at: Date.now(), kept: plan.kept });
+      ctx.saveState();
+      log(`branch topic ${opened} for ${key}: ${source} -> ${made.id} at turn ${plan.kept}`);
+      say(t(lang, 'ctrl.branch.topicDone', { name, id: made.id, kept: plan.kept }));
+      return true;
+    }
+    case '/history': {
+      // The session file is the only complete record of a topic, and reading it
+      // takes the bridge's own zstd reader. `/history` exists so the person
+      // does not have to: the whole conversation becomes one markdown
+      // document, small enough to carry, big enough to hold a thousand turns.
+      const id = state.sessions[key] || '';
+      if (!id) { say(t(lang, 'ctrl.history.noSession')); return true; }
+      const turns = allTurns(sessionFile(join(DSH_HOME, 'sessions'), id));
+      if (!turns.length) { say(t(lang, 'ctrl.history.empty')); return true; }
+      const short = id.slice(8, 16);
+      const text = formatHistory(turns, {
+        title: t(lang, 'ctrl.history.title', { id: short, n: turns.length }),
+        turn: t(lang, 'ctrl.history.turn'),
+        user: t(lang, 'ctrl.history.user'),
+        answer: t(lang, 'ctrl.history.answer'),
+        silent: t(lang, 'ctrl.history.silent'),
+      });
+      const path = writeHistory(text, join(DIR, 'reports'));
+      if (!path) { say(t(lang, 'ctrl.history.failed')); return true; }
+      if (!ctx.sendFile) { say(t(lang, 'ctrl.history.pathOnly', { path })); return true; }
+      try {
+        await ctx.sendFile(path, t(lang, 'ctrl.history.caption', { id: short, n: turns.length }));
+        log(`history export ${short}: ${turns.length} turns -> ${path}`);
+      } catch (error) {
+        say(t(lang, 'ctrl.history.sendFailed', { error: error.message, path }));
+      }
       return true;
     }
     case '/cd': {

@@ -12,7 +12,12 @@ export const TEXTUAL_EXT = new Set([
   'bat', 'cmd', 'sql', 'env', 'properties', 'srt', 'vtt', 'diff', 'patch',
 ]);
 
-export const INLINE_LIMIT = 60_000;
+// Two attached documents at the old 60 000-char cap made one 72 000-char
+// prompt, and the OS refused to launch the turn at all: the task travels on
+// the command line, and Windows cuts that at 32 767. An excerpt of a few
+// kilobytes is still a whole screen of steer context, and the full file
+// waits on disk with its path already in the message.
+export const INLINE_LIMIT = 8_000;
 
 /**
  * Text body of a small text file, or '' when the file is not worth inlining.

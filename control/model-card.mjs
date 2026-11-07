@@ -323,7 +323,8 @@ export async function handleModelPress({
   // The global scope writes the profile's own default — the same edit the typed
   // `/model <route> global` makes, so the panel and the command cannot drift.
   if (press.scope === 'all') {
-    if (!setModel(profile, wanted)) {
+    const applied = setModel(profile, wanted);
+    if (!applied) {
       await say(t(lang, 'ctrl.model.failed', { name: profile, model: wanted }));
       await redraw(draw('all'));
       return true;
@@ -332,7 +333,10 @@ export async function handleModelPress({
     // Named `line`, not `answer`: `answer` is the callback-acknowledgement
     // parameter of this function, and shadowing it would silently disable the
     // tap feedback for this branch alone.
-    const line = t(lang, 'ctrl.model.switched', { name: profile, model: wanted, desktop: '' });
+    const base = t(lang, 'ctrl.model.switched', { name: profile, model: wanted, desktop: '' });
+    const line = applied.dropped
+      ? `${base}\n${t(lang, 'ctrl.model.effortDropped', { value: applied.dropped })}`
+      : base;
     await say(kept > 0 ? `${line}\n${t(lang, 'ctrl.model.topicKept', { n: kept })}` : line);
     await answer(t(lang, 'ctrl.model.scopeAllSet'));
     await redraw(draw('all'));

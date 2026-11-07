@@ -18,4 +18,7 @@ import dsh from './en/dsh.mjs';
 import supervision from './en/supervision.mjs';
 import files from './en/files.mjs';
 import balance from './en/balance.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance };
+import branch from './en/branch.mjs';
+import history from './en/history.mjs';
+import remember from './en/remember.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance, ...branch, ...history, ...remember };

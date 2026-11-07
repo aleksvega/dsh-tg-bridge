@@ -16,10 +16,10 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
  */
 const SECTIONS = {
   work: ['cd', 'ls', 'view', 'edit', 'seed', 'send', 'diff'],
-  session: ['sessions', 'rewind', 'profile', 'agents', 'subagents'],
+  session: ['sessions', 'rewind', 'branch', 'history', 'profile', 'agents', 'subagents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind', 'every'],
   talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'balance', 'lang', 'endpoint', 'fallback'],
-  ext: ['plugins', 'mcp', 'skills', 'soul', 'preset', 'permissions', 'crew'],
+  ext: ['plugins', 'mcp', 'skills', 'soul', 'remember', 'preset', 'permissions', 'crew'],
   house: ['load', 'settings', 'card', 'find', 'update', 'dsh', 'compact', 'subscribe', 'doctor', 'logs', 'report', 'restart', 'app', 'start', 'help'],
 };
 
@@ -63,6 +63,7 @@ const LABELS = {
   stop: '/stop',
   sessions: '/sessions [<id>]',
   rewind: '/rewind [n|fork|branches]',
+  branch: '/branch [<id>|new]',
   profile: '/profile <name>',
   agents: '/agents',
   goal: '/goal <text>',
@@ -85,6 +86,7 @@ const LABELS = {
   mcp: '/mcp add|rm',
   skills: '/skills',
   soul: '/soul',
+  remember: '/remember <fact>',
   preset: '/preset <id>',
   permissions: '/permissions',
   crew: '/crew use <id>',

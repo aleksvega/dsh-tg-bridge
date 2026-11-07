@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CHANNEL_DOWN, CONTEXT_OVERFLOW, FALLBACK_TRIGGERS, QUOTA_LIKE, REFUSAL_BUDGET, ROUTE_REJECTS,
+  CHANNEL_DOWN, CONTEXT_OVERFLOW, EFFORT_UNSUPPORTED, FALLBACK_TRIGGERS, QUOTA_LIKE, REFUSAL_BUDGET, ROUTE_REJECTS,
   STREAM_BUDGET, STREAM_CUT, exhausted, failureFamily, labelOf, liveChain,
 } from "../model/fallback.mjs";
 
@@ -175,6 +175,19 @@ test("a refusal has a budget; a busy route does not", () => {
   // One other route answers "is it this vendor or this prompt". The whole chain
   // would answer it by replaying the same long conversation seven times.
   assert.equal(REFUSAL_BUDGET, 1);
+});
+
+test("a level the model does not declare is fixed on the same route, never switched", () => {
+  // The live incident: the profile asked grok-4.7 for `max`, the model declared a
+  // list ending at `high`, and the turn died before its first token. The model is
+  // the one the person chose and the level is what is wrong with the request, so
+  // the answer is to drop the level and retry the same route — a chain that read
+  // this as a route fault would change the model to fix a setting.
+  const line = 'dsh: UNSUPPORTED_REASONING_EFFORT: provider "unorouter" '
+    + 'model "grok-4.7" does not support reasoning effort "max"';
+  assert.equal(EFFORT_UNSUPPORTED.test(line), true, "the failure must be recognisable");
+  assert.equal(failureFamily(line), "", "not a route fault: no switch may start here");
+  assert.equal(FALLBACK_TRIGGERS.test(line), false, "the walk must not treat it as a reason to move on");
 });
 
 test("the chain a turn will try is the one the card counts", () => {

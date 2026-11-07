@@ -30,7 +30,7 @@ process.env.DSH_HOME = HOME;
 const { handleControl } = await import('../chat/control.mjs');
 const { DOCUMENTED_COMMANDS, MENU_COMMANDS } = await import('../chat/commands-registry.mjs');
 const { menuCommands } = await import('../chat/menu-card.mjs');
-const { explainCommand } = await import('../chat/help-explain.mjs');
+const { explainCommand, findCommands } = await import('../chat/help-explain.mjs');
 const { t } = await import('../core/i18n.mjs');
 
 function context(overrides = {}) {
@@ -123,5 +123,30 @@ test('/help on a merged name explains the command that owns the job', () => {
     const about = explainCommand('fork', lang, t);
     assert.match(about, /rewind/, `${lang} does not point at /rewind`);
     assert.doesNotMatch(about, /^ctrl\.help\.about\./, `${lang} has no text for it`);
+  }
+});
+
+test('/help on a word, not a name, answers with the commands that mention it', () => {
+  // The word somebody has in mind is not always the name of a command: "ветка"
+  // is what the person says, and the sentence that explains branching is where
+  // the answer lives. In English the word is also the name — then the sentence
+  // itself has to name the other form, which is what the last line checks.
+  const ru = explainCommand('ветка', 'ru', t);
+  assert.match(ru, /\/rewind/, 'ru: "ветка" does not find /rewind');
+  assert.match(ru, /\/branch/, 'ru: "ветка" does not find /branch');
+  assert.doesNotMatch(ru, /^ctrl\./, 'ru has no sentence for the search');
+  assert.match(explainCommand('分支', 'zh', t), /\/rewind/, 'zh: "分支" does not find /rewind');
+  assert.match(explainCommand('branch', 'en', t), /\/rewind/, 'en: /help branch does not name /rewind fork');
+});
+
+test('the word search needs three characters and ignores case', () => {
+  assert.deepEqual(findCommands('ве', 'ru', t), [], 'a two-letter word matched');
+  assert.deepEqual(findCommands('', 'ru', t), [], 'an empty word matched');
+  assert.ok(findCommands('ВЕТКА', 'ru', t).includes('rewind'), 'the search is case-sensitive');
+});
+
+test('/help on a word nobody uses still says there is no such command', () => {
+  for (const lang of ['en', 'ru', 'zh']) {
+    assert.equal(explainCommand('qqqqzz', lang, t), '', `${lang} invented an answer`);
   }
 });

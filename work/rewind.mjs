@@ -220,6 +220,25 @@ export function planFork(file, steps = 0) {
 }
 
 /**
+ * What `/branch` was asked for.
+ *
+ * Two forms, and the argument decides which: a session id means "copy that
+ * session into this topic", the word `new` means "copy this topic into a topic of
+ * its own". A bare `/branch` explains both instead of guessing — opening a
+ * Telegram topic is a visible side effect, and `/branches` (the list) is one
+ * letter away from the name that would trigger it.
+ * @returns {{kind: 'usage'|'topic'|'here', id: string}}
+ */
+export function branchTarget(arg) {
+  const wanted = String(arg || '').trim().toLowerCase();
+  if (!wanted) return { kind: 'usage', id: '' };
+  if (wanted === 'new' || wanted === 'topic') return { kind: 'topic', id: '' };
+  const bare = wanted.replace(/^session-/, '');
+  if (!/^[0-9a-f][0-9a-f-]{7,}$/.test(bare)) return { kind: 'usage', id: '' };
+  return { kind: 'here', id: `session-${bare}` };
+}
+
+/**
  * Write a copy of the session up to `offset` as a NEW session, so the topic can
  * carry on down a different road while the original stays as it was.
  *

@@ -3,10 +3,10 @@
 import { langFor } from '../chat/commands.mjs';
 import { handleControl } from '../chat/control.mjs';
 import { t } from './i18n.mjs';
-import { maxParallel, queues } from '../turn/queue.mjs';
+import { maxParallel, queues, redeliver } from '../turn/queue.mjs';
 import { config, log, saveConfig, saveState, state } from './state.mjs';
 import { send, sendEphemeral, sendFile, sendWithMarkup, tg } from '../chat/telegram.mjs';
-import { ensureTopicSeed } from '../chat/topics.mjs';
+import { ensureTopicSeed, openBranchTopic } from '../chat/topics.mjs';
 import { activeTurns, baseProfileOf, turnStartedAt } from '../turn/turn.mjs';
 
 export async function runCommandFromButton(typed, { chatId, threadId, key }) {
@@ -33,13 +33,14 @@ export async function runCommandFromButton(typed, { chatId, threadId, key }) {
       queued: [...queues.keys()].filter((topic) => !activeTurns.has(topic)).length,
       max: maxParallel(),
     }),
-    api: tg,
+    api: tg, redeliver,
     sendFile: (p, caption = '') => sendFile(chatId, threadId, p, caption),
     // A report meant to be read once (/thoughts) can ask for a message that
     // removes itself. Without this the chat is told it will disappear while the
     // message is a normal one — a promise nothing was keeping.
     ephemeral: (out) => sendEphemeral(chatId, out, threadId),
     seedTopic: ensureTopicSeed,
+    openTopic: openBranchTopic,
     profile: baseProfileOf(key),
     reply: (out, extra = {}) => sendWithMarkup(chatId, threadId, out, extra),
     stopTurn: (k) => {

@@ -13,7 +13,7 @@
 import { existsSync } from 'node:fs';
 import { t } from '../core/i18n.mjs';
 import { describeVerdicts, firstLiveModel, probeHint, probeModel } from './model-probe.mjs';
-import { ensureProfile } from '../profile/profiles.mjs';
+import { ensureProfile, dropReasoningEffort } from '../profile/profiles.mjs';
 import { config, log } from '../core/state.mjs';
 import { killTurn, runTurnLive } from '../turn/turn.mjs';
 
@@ -113,6 +113,16 @@ export const REFUSAL_BUDGET = 1;
 export const TIMEOUT_BUDGET = 1;
 /** The provider's own clock, as a family: `PROVIDER_TIMEOUT: 570`. */
 export const PROVIDER_TIMEOUT = /PROVIDER_TIMEOUT|request exceeded\s+\d+\s*s\b[^\n]{0,40}limit/i;
+
+/**
+ * The level a route's model does not declare.
+ *
+ * Not a switch trigger, and deliberately not a family: the level is what is wrong,
+ * not the model, and the model is the one the person chose. `runFallbackChain`
+ * answers this by dropping the level and retrying the same route, so a chain that
+ * treated it as a reason to move on would change the model to fix a setting.
+ */
+export const EFFORT_UNSUPPORTED = /UNSUPPORTED_REASONING_EFFORT|does not support reasoning effort/i;
 
 /**
  * Failures that must NOT start the chain, and why.
@@ -263,6 +273,23 @@ export async function runFallbackChain({
     lang,
   });
   const tried = [];
+  // A level the model does not declare is the one failure the chain must not
+  // answer with a switch: the model is the one the person chose, and the level is
+  // what is wrong with the request. The profile loses the level and the same route
+  // is tried once more — measured on grok-4.7, where an unset level answered fine
+  // while `max` against a list ending at `high` killed every turn. A second
+  // refusal means the level was not the whole story, and the chain walks on as it
+  // would for any other route fault.
+  const retryProfile = turnProfile || topicProfile || config.profile;
+  if (result.error && retryProfile && EFFORT_UNSUPPORTED.test(String(result.error))) {
+    const dropped = dropReasoningEffort(retryProfile);
+    log(`unsupported reasoning level for ${where} in ${retryProfile}: ${dropped ? `dropped ${dropped}, retrying the same route` : 'no level to drop'}`);
+    if (dropped) {
+      await send(chatId, t(lang, 'bridge.fallback.effortDropped', { level: dropped }), threadId);
+      result = await run(retryProfile);
+      if (!result.error) return result;
+    }
+  }
   // `/fallback off` is a promise the turn must keep: the switch is checked here,
   // before anything is sent, so a person who turned the chain off never sees a
   // "running on another model" line.

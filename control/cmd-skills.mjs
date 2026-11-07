@@ -28,13 +28,14 @@ import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from './models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from './plugins.mjs';
 import { cwdSlug, bareId, stamp, recentSessions, sessionTitle } from './sessions.mjs';
-import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul } from './agents.mjs';
+import { agentsOf, fleetOf, patchRows, skillsOf, AGENTS, PERSONA_HEADING, soulOf, setSoul, appendLearned, learnedOf, setLearned } from './agents.mjs';
+import { syntheticMessage } from '../work/schedules.mjs';
 import { fmt, AGENTSETS, agentset, agentsetOf, profileRowOf, bindAgentset, agentsetCard, agentsetKeyboard } from './agentsets.mjs';
 import { taskKeyboard, goalView, taskView, filterLogLines } from './tasks.mjs';
 import { updatePolicy, bridgeRoot, copyRelease, installRelease, bridgeVersion, newestModuleMtime, npmLatest, npmLatestAsync } from './release.mjs';
 
 export async function handleSkillCommands(ctx) {
-  const { command, arg, send, reply, log, profile, state, key, config, lang: rawLang } = ctx;
+  const { command, arg, send, reply, log, profile, state, key, config, chatId, threadId, lang: rawLang } = ctx;
   // The topic's language, then the config default, then English. Never Russian:
   // a group that has no opinion still must not guess a language.
   const lang = normalizeLang(rawLang) || normalizeLang(config?.lang) || 'en';
@@ -79,6 +80,59 @@ export async function handleSkillCommands(ctx) {
       }
       setSoul(text);
       say(t(lang, 'ctrl.soul.saved'));
+      return true;
+    }
+    case '/remember': {
+      // Long-term memory the person can audit: every fact lands as a dated
+      // line in one section of the instructions file the agent already reads
+      // on every request. No new store, no second truth — and `/remember`
+      // with no argument shows the section, so nothing is remembered in a
+      // place its owner cannot see.
+      const word = (arg || '').trim();
+      const verb = word.split(/\s+/)[0]?.toLowerCase() || '';
+      if (!word || verb === 'list') {
+        const list = learnedOf();
+        const lines = list ? list.split('\n').filter(Boolean) : [];
+        say(lines.length
+          ? t(lang, 'ctrl.remember.list', { n: lines.length, list: lines.slice(-10).join('\n') })
+          : t(lang, 'ctrl.remember.empty'));
+        return true;
+      }
+      if (verb === 'tidy') {
+        // The one job the bridge cannot do itself: deciding which notes are
+        // stale takes judgement, so it goes to a real turn — the agent reads
+        // its own section, edits the file with its own tools, and answers in
+        // the chat. `redeliver` queues it exactly like a typed message.
+        if (typeof ctx.redeliver !== 'function') {
+          say(t(lang, 'ctrl.remember.noTurn'));
+          return true;
+        }
+        const owner = config?.allowedUserIds?.[0] ?? chatId;
+        ctx.redeliver(key, syntheticMessage({ chatId, threadId, text: t(lang, 'ctrl.remember.task') }, owner));
+        say(t(lang, 'ctrl.remember.tidy'));
+        return true;
+      }
+      if (verb === 'forget') {
+        const rest = word.split(/\s+/).slice(1).join(' ').trim();
+        if (rest === 'all') {
+          setLearned('');
+          say(t(lang, 'ctrl.remember.forgotAll'));
+          return true;
+        }
+        const lines = learnedOf().split('\n').map((line) => line.trim()).filter(Boolean);
+        const kept = lines.filter((line) => !line.includes(rest));
+        if (!rest || kept.length === lines.length) {
+          say(t(lang, 'ctrl.remember.notFound', { word: rest || word }));
+          return true;
+        }
+        setLearned(kept.join('\n'));
+        say(t(lang, 'ctrl.remember.forgot', { n: lines.length - kept.length, count: kept.length }));
+        return true;
+      }
+      const { dropped, count } = appendLearned(word);
+      say(dropped
+        ? t(lang, 'ctrl.remember.dropped', { dropped, count })
+        : t(lang, 'ctrl.remember.saved', { count }));
       return true;
     }
     case '/crew': {

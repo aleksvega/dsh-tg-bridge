@@ -8,7 +8,7 @@
 // Extracted from `cmd-views.mjs` by the 500-line ceiling, and it holds together
 // on its own: one card, one command, one idea of scope.
 import { t } from '../core/i18n.mjs';
-import { modelOf, routesOf, setModel } from './models.mjs';
+import { effortThatWouldDrop, modelOf, patchPath, read, routesOf, setModel } from './models.mjs';
 import { modelCard } from './model-card.mjs';
 import { clearTopicRoute, routeExists, setTopicRoute, topicRoute } from './topic-route.mjs';
 
@@ -53,7 +53,8 @@ export async function handleModelCommand(ctx) {
   if (scope === 'both' || scope === 'all' || scope === 'global') {
     // The default every topic without a choice reads. Same word as `/reasoning
     // off all`, so one habit covers both settings.
-    if (!setModel(activeProfile, wanted)) {
+    const applied = setModel(activeProfile, wanted);
+    if (!applied) {
       say(t(lang, 'ctrl.model.failed', { name: activeProfile, model: wanted }));
       return true;
     }
@@ -65,9 +66,13 @@ export async function handleModelCommand(ctx) {
       model: `${route.provider}/${route.model}`,
       desktop: desktop ? t(lang, 'ctrl.model.withDesktop', { model: wanted }) : '',
     });
+    const dropped = (applied && applied.dropped) || (desktop && desktop.dropped) || '';
+    const line = dropped
+      ? `${answer}\n${t(lang, 'ctrl.model.effortDropped', { value: dropped })}`
+      : answer;
     // A default that does not reach every topic has to say so in the same breath,
     // or "now every topic" is a promise the next turn breaks.
-    say(kept > 0 ? `${answer}\n${t(lang, 'ctrl.model.topicKept', { n: kept })}` : answer);
+    say(kept > 0 ? `${line}\n${t(lang, 'ctrl.model.topicKept', { n: kept })}` : line);
     return true;
   }
 
@@ -88,9 +93,14 @@ export async function handleModelCommand(ctx) {
   save();
   const now = topicRoute({ state, config, key });
   const head = modelOf(activeProfile);
-  say(t(lang, 'ctrl.model.topicSet', {
+  const said = t(lang, 'ctrl.model.topicSet', {
     route: `${now.provider}/${now.model}`,
     default: `${head.provider}/${head.model}`,
-  }));
+  });
+  // The copy rewrites the level away when this model does not declare it, so the
+  // answer has to say so: the person set it, and a setting that disappears
+  // without a word is indistinguishable from a bug.
+  const dropped = effortThatWouldDrop(read(patchPath(activeProfile)), route);
+  say(dropped ? `${said}\n${t(lang, 'ctrl.model.effortDropped', { value: dropped })}` : said);
   return true;
 }

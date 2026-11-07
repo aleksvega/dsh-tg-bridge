@@ -9,7 +9,8 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
-import { rewriteModelText } from '../control/models.mjs';
+import { dropEffortFromText } from './agents.mjs';
+import { patchPath, rewriteModelText } from '../control/models.mjs';
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
 const PROFILES = join(DSH_HOME, 'profiles');
@@ -123,6 +124,23 @@ export function ensureRouteProfile(base, route) {
   copyProfile(baseDir, dir);
   writeFileSync(target, next, 'utf8');
   return name;
+}
+
+/**
+ * Remove the reasoning level from a profile's default model row.
+ *
+ * Returns the level that was there, or '' when the profile had none — a turn that
+ * already runs without a level must not rewrite the file. The model is untouched:
+ * a level the model does not declare is the level's problem, not the model's, and
+ * the model is what the person chose.
+ */
+export function dropReasoningEffort(profile) {
+  const file = patchPath(profile);
+  if (!profile || !existsSync(file)) return '';
+  const { text, dropped } = dropEffortFromText(readFileSync(file, 'utf8'));
+  if (!dropped) return '';
+  writeFileSync(file, text, 'utf8');
+  return dropped;
 }
 
 export { ensureProfile, profileNameFor };

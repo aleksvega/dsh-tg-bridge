@@ -214,6 +214,51 @@ export async function startTopicFromMessage(chatId, msg, text) {
 }
 
 /**
+ * Open a new topic that starts from a copy of another one, and seed it.
+ *
+ * `/branch new` from inside a topic: the person wants the same work in a place
+ * of its own, without the new conversation landing in the topic they were
+ * reading. The copy of the session is made by the caller before this runs — a
+ * topic that opens onto nothing is a worse failure than a copy nobody points at
+ * yet — so this only talks to Telegram: create the topic, write the seed line
+ * that says where it came from, and pin it.
+ *
+ * Returns the new thread id, or 0 when Telegram refused (a group without topic
+ * permissions, a rate limit). The caller then removes the copy it made.
+ */
+export async function openBranchTopic(chatId, name, seedText) {
+  let threadId = 0;
+  try {
+    const created = await tg('createForumTopic', { chat_id: chatId, name: String(name).slice(0, 128) });
+    threadId = Number(created?.message_thread_id || 0);
+  } catch (error) {
+    log(`branch topic could not be created: ${error.message}`);
+    return 0;
+  }
+  if (!(threadId > 0)) return 0;
+  log(`branch topic ${threadId} opened as "${name}"`);
+  let messageId = 0;
+  try {
+    const sent = await tg('sendMessage', { chat_id: chatId, message_thread_id: threadId, text: seedText });
+    messageId = Number(sent?.message_id || 0);
+  } catch (error) {
+    log(`branch topic ${threadId} seed failed: ${error.message}`);
+  }
+  if (!messageId) return threadId;
+  state.seededTopics = state.seededTopics ?? {};
+  state.seededTopics[String(threadId)] = messageId;
+  saveState();
+  if (config.pinTopicSeed !== false) {
+    try {
+      await tg('pinChatMessage', { chat_id: chatId, message_id: messageId, disable_notification: false });
+    } catch (error) {
+      log(`branch topic ${threadId} pin failed: ${error.message}`);
+    }
+  }
+  return threadId;
+}
+
+/**
  * Write one line about a new topic into the General chat, so the main stream
  * reads as a log of what was started instead of a wall of prompts. The full
  * text lives in the topic itself; this is only the pointer.
