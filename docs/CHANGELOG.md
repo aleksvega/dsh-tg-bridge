@@ -1,5 +1,21 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.49.0
+
+- **Branching from any turn, as a tap instead of a count.** The `/rewind`
+  card's buttons now carry a second row: 🌿 with a turn number for each of the
+  recent turns. One tap rewrites the card into a confirm — "branch from turn
+  N, the copy keeps the first N turns, the original stays whole" — with two
+  destinations: in this topic, or in a new topic of its own. The buttons
+  carry turn numbers, not steps, so a press stays honest however many turns
+  arrived since the card was drawn; the plan is rebuilt from the file at
+  press time, and a session that is being written, rewound or switched away
+  is refused with the same sentences a typed command gets. The actions
+  themselves type `/fork` and `/branch new` — the commands stay the only
+  implementations of a branch, and the buttons can never disagree with them.
+  `/branch new <n>` accepts the turn count in typed form too. Three locales,
+  5 tests.
+
 ## 1.48.0
 
 - **`/remember` — long-term memory the person can read whole, kept in the one

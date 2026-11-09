@@ -211,11 +211,14 @@ export async function handleSessionCommands(ctx) {
       if (!source) { say(t(lang, 'ctrl.fork.noSession')); return true; }
       if (target.kind === 'topic' && !ctx.openTopic) { say(t(lang, 'ctrl.branch.unsupported')); return true; }
       const file = sessionFile(join(DSH_HOME, 'sessions'), source);
-      const plan = planFork(file, 0);
+      // `steps` is 0 for every form but `new <n>`: a branch into another topic
+      // copies the whole session unless the person named a turn to branch from.
+      const steps = target.steps || 0;
+      const plan = planFork(file, steps);
       if (plan.reason) {
         // The same refusals as a cut: a session being written is the one file this
         // must never copy, and the reason is the same sentence.
-        say(t(lang, `ctrl.rewind.refused.${plan.reason}`, { total: plan.total, dropped: 0 }));
+        say(t(lang, `ctrl.rewind.refused.${plan.reason}`, { total: plan.total, dropped: steps }));
         return true;
       }
       let made;

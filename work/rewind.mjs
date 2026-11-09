@@ -227,12 +227,16 @@ export function planFork(file, steps = 0) {
  * its own". A bare `/branch` explains both instead of guessing — opening a
  * Telegram topic is a visible side effect, and `/branches` (the list) is one
  * letter away from the name that would trigger it.
- * @returns {{kind: 'usage'|'topic'|'here', id: string}}
+ * @returns {{kind: 'usage'|'topic'|'here', id: string, steps?: number}}
  */
 export function branchTarget(arg) {
   const wanted = String(arg || '').trim().toLowerCase();
   if (!wanted) return { kind: 'usage', id: '' };
-  if (wanted === 'new' || wanted === 'topic') return { kind: 'topic', id: '' };
+  // `new 3` names how far back the copy starts: the same branch the rewind
+  // card's 🌿 buttons type, available to fingers as well. No number keeps the
+  // whole session, exactly as before.
+  const fresh = /^(?:new|topic)(?:\s+(\d+))?$/.exec(wanted);
+  if (fresh) return { kind: 'topic', id: '', steps: fresh[1] ? Number.parseInt(fresh[1], 10) : 0 };
   const bare = wanted.replace(/^session-/, '');
   if (!/^[0-9a-f][0-9a-f-]{7,}$/.test(bare)) return { kind: 'usage', id: '' };
   return { kind: 'here', id: `session-${bare}` };

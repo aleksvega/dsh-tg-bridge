@@ -33,7 +33,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 - `/status` — Where this topic stands: session, model, effort, running turns. Read-only.
 - `/sessions` — The sessions of this topic. /sessions lists the last few with the id to copy; /sessions <id> continues an older one here. /new starts a fresh one and leaves the old on disk.
 - `/rewind` — Going back, one command with three words. /rewind 2 removes the last two turns so you can word the task differently: it shows a card of what will go and cuts only on the button; /rewind undo puts it back. /rewind fork [n] is a branch inside this topic: it copies the session as it stood n turns back and moves this topic onto the copy, cutting nothing. /rewind branches lists the copies, a press switches. A branch into another topic is /branch.
-- `/branch` — A branch into another topic, in two forms. /branch <id> brings a copy of that session here: this topic continues it, the original stays whole. /branch new carries a copy of this session into a new topic and leaves this one as it was. A copy inside this topic is /rewind fork. A branch is a snapshot of the conversation: from there the two live on their own.
+- `/branch` — A branch into another topic, in two forms. /branch <id> brings a copy of that session here: this topic continues it, the original stays whole. /branch new [n] carries a copy of this session into a new topic — the whole thing, or from n turns back. The 🌿 buttons on the /rewind card offer the same for recent turns. A copy inside this topic is /rewind fork. A branch is a snapshot of the conversation: from there the two live on their own.
 - `/history` — Exports this topic’s whole history as one markdown file: turns and answers in order, no tool noise. Easy to read and keep on a phone.
 - `/profile` — The profile this topic runs on, and how to change it: /profile <name>, /profile new.
 - `/compact` — Where context compaction happens, the threshold this install runs with, and the one thing that works here instead: /new.
@@ -136,7 +136,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 - `/status` — Где тема сейчас: сессия, модель, усилие, идущие ходы. Ничего не меняет.
 - `/sessions` — Сессии этой темы. /sessions показывает последние и id, который можно скопировать; /sessions <id> продолжает старую сессию здесь же. /new начинает новую, старая остаётся на диске.
 - `/rewind` — Откат — одна команда с тремя словами. /rewind 2 убирает два последних хода, чтобы сформулировать иначе: сначала карточка того, что уйдёт, режет только кнопка; /rewind undo возвращает. /rewind fork [n] — ветка внутри темы: копирует сессию в том виде, каким она была n ходов назад, и переводит тему на копию, ничего не отрезая. /rewind branches показывает копии, нажатие переключает. Ветка в другую тему — это /branch.
-- `/branch` — Ветка в другую тему — две формы. /branch <id> приносит копию той сессии сюда: эта тема продолжит её, исходная остаётся цела. /branch new уносит копию этой сессии в новую тему и оставляет эту как была. Копия внутри этой темы — /rewind fork. Ветка — снимок разговора: дальше обе живут сами.
+- `/branch` — Ветка в другую тему — две формы. /branch <id> приносит копию той сессии сюда: эта тема продолжит её, исходная остаётся цела. /branch new [n] уносит копию этой сессии в новую тему — целиком или от n ходов назад. Кнопки 🌿 в карточке /rewind предлагают то же для последних ходов. Копия внутри этой темы — /rewind fork. Ветка — снимок разговора: дальше обе живут сами.
 - `/history` — Выгружает всю историю темы одним markdown-файлом: ходы и ответы по порядку, без шума инструментов. Удобно читать и хранить на телефоне.
 - `/profile` — Профиль, на котором идёт тема, и как его сменить: /profile <имя>, /profile new.
 - `/compact` — Где происходит сжатие контекста, с каким порогом работает эта установка и что здесь работает вместо него: /new.
@@ -239,7 +239,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 - `/status` — 本话题的状态：会话、模型、力度、进行中的轮次。不改变任何东西。
 - `/sessions` — 本话题的会话。/sessions 列出最近几个和可复制的编号；/sessions <id> 就在这里继续较早的会话。/new 开始新的，旧的留在磁盘上。
 - `/rewind` — 回退只有一条命令、三种说法。/rewind 2 去掉最后两轮以便换种说法：先显示将移除内容的卡片，只有按按钮才裁切；/rewind undo 可恢复。/rewind fork [n] 是话题内部的分支：把会话复制成 n 轮前的样子并把本话题切到副本，不切断任何东西。/rewind branches 列出副本，按一下就切换。分支到另一个话题用 /branch。
-- `/branch` — 分支到另一个话题，两种形式。/branch <id> 把那个会话的副本带到这里：本话题接着它走，原会话完好。/branch new 把本会话的副本带到一个新话题，本话题保持原样。在本话题内部复制用 /rewind fork。分支是对话的快照：之后两者各自独立。
+- `/branch` — 分支到另一个话题，两种形式。/branch <id> 把那个会话的副本带到这里：本话题接着它走，原会话完好。/branch new [n] 把本会话的副本带到一个新话题——整段，或从 n 轮之前。/rewind 卡片上的 🌿 按钮对最近的轮提供同样的操作。在本话题内部复制用 /rewind fork。分支是对话的快照：之后两者各自独立。
 - `/history` — 将本话题的全部历史导出为一个 markdown 文件：按顺序排列的回合与回答，不含工具噪音。适合在手机上阅读和保存。
 - `/profile` — 本话题使用的配置档，以及如何更换：/profile <名称>、/profile new。
 - `/compact` — 上下文压缩发生在哪里、本机用的阈值是多少，以及在这里真正有效的那件事：/new。

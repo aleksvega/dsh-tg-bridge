@@ -62,6 +62,14 @@ export function renderRewindUsage({ t: tr, file, sessionId }) {
       callback_data: `rw:n:${index + 1}:${sessionId.slice(-8)}`,
     }));
     rows.push(row);
+    // A cut is not the only way off a turn: 🌿 offers a branch from that turn —
+    // the same fork `/rewind fork` types, without counting turns by hand. The
+    // button carries the turn number (not steps), so it stays honest however
+    // many turns arrive before the press.
+    rows.push(turns.slice(0, 3).map((turn) => ({
+      text: `🌿${turn.turn}`,
+      callback_data: `bf:k:${turn.turn}:${sessionId.slice(-8)}`,
+    })));
   }
   return { text: lines.join('\n'), keyboard: rows };
 }
