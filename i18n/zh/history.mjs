@@ -4,6 +4,7 @@
 export default {
   'ctrl.help.about.history': '将本话题的全部历史导出为一个 markdown 文件：按顺序排列的回合与回答，不含工具噪音。适合在手机上阅读和保存。',
   'ctrl.history.noSession': '本话题还没有会话——没有可导出的历史。',
+  'ctrl.history.working': '正在把话题历史整理成文件……',
   'ctrl.history.empty': '会话中还没有任何回合。',
   'ctrl.history.title': '历史记录 · 会话 {id} · {n} 回合',
   'ctrl.history.turn': '回合',

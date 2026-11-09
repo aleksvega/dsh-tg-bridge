@@ -8,7 +8,7 @@
 import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config, log, saveState as saveStateNow, state } from '../core/state.mjs';
-import { THOUGHT_DIR } from '../core/paths.mjs';
+import { DSH_HOME, THOUGHT_DIR } from '../core/paths.mjs';
 import { sessionKey } from '../core/keys.mjs';
 import { tg } from '../chat/telegram.mjs';
 import { topicName } from '../chat/topics.mjs';
@@ -16,7 +16,7 @@ import { t } from '../core/i18n.mjs';
 import { addStep, isSubagentTool, progressPanel, stepLine, subagentStep } from '../chat/panel.mjs';
 import { reasoningMode, thoughtRows } from '../chat/notes.mjs';
 import { cardBlocks } from './card.mjs';
-import { FILES_CAP, fileKeyboard, turnFiles } from './files.mjs';
+import { FILES_CAP, finalKeyboard, turnFiles } from './files.mjs';
 import { cardPin } from '../profile/settings-card.mjs';
 import { continueKeyboard, errorKeyboard } from '../chat/keyboards.mjs';
 import { contextFill, contextRow, contextUsed } from './context-meter.mjs';
@@ -232,16 +232,18 @@ export async function startProgress(chatId, threadId, lang = config.lang || 'en'
   };
 
   /** The attachment keys for the final card, and the rows kept for the press. */
-  const attachKeyboard = () => {
-    const files = turnFiles(wroteCalls);
-    if (!files.length) return [];
-    // Stored per topic because the callback can only carry a number — a path
-    // does not fit in 64 bytes. Storing them also makes a press on an older card
-    // answer "stale" rather than sending whatever now sits at that index.
-    state.turnFiles = { ...(state.turnFiles || {}), [panelKey]: files };
-    saveStateNow();
-    return fileKeyboard(files, lang, t);
-  };
+  const attachKeyboard = () => finalKeyboard({
+    calls: wroteCalls,
+    state,
+    key: panelKey,
+    save: saveStateNow,
+    lang,
+    t,
+    // The ↻ row names the turn that just finished, read from the session it
+    // wrote — the file is hot in the page cache seconds after the turn.
+    sessionId: state.sessions?.[panelKey] || '',
+    sessionsRoot: join(DSH_HOME, 'sessions'),
+  });
 
   /** Send or edit the panel; `plainText` and a rejected parse fall back to text. */
   const post = async (method, payload, view, keyboard = undefined) => {

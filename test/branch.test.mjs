@@ -169,3 +169,24 @@ test('/branch refuses while a turn is running', async () => {
   assert.match(text, /идёт ход|turn is running/);
   assert.equal(state.sessions['42:7'], SESSION, 'a busy topic must not be branched');
 });
+
+// The copy commands read whole session files, and a Telegram roundtrip rides
+// on top for `new`: the first line must say the work started, so a slow file
+// is an answer in progress, not the quiet-guard window ticking in silence.
+test('the copy commands answer "working" before the file work, refusals stay one line', async () => {
+  const branch = await run('/branch', OTHER, { state: freshState() });
+  assert.equal(branch.out[0], 'Копирую сессию…', '/branch stayed quiet through the copy');
+  assert.ok(branch.out.length > 1, 'the ack line replaced the result');
+
+  const fork = await run('/fork', '1', { state: freshState() });
+  assert.equal(fork.out[0], 'Копирую сессию…', '/fork stayed quiet through the copy');
+
+  const history = await run('/history', '', { state: freshState() });
+  assert.equal(history.out[0], 'Собираю историю темы в файл…', '/history stayed quiet through the parse');
+
+  // A refusal that is known before the file is touched must not cry "copying":
+  // one line, the honest one.
+  const none = await run('/branch', 'new', { state: { sessions: {}, profiles: {}, lang: {}, titles: {}, reminders: [] } });
+  assert.equal(none.out.length, 1, 'a no-session refusal sent more than its sentence');
+  assert.doesNotMatch(none.out[0], /Копирую/, 'the ack line fired before a known refusal');
+});

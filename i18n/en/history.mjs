@@ -4,6 +4,7 @@
 export default {
   'ctrl.help.about.history': 'Exports this topic\u2019s whole history as one markdown file: turns and answers in order, no tool noise. Easy to read and keep on a phone.',
   'ctrl.history.noSession': 'There is no session in this topic yet \u2014 no history to export.',
+  'ctrl.history.working': 'Collecting the topic history into a file…',
   'ctrl.history.empty': 'The session has no turns yet.',
   'ctrl.history.title': 'History \u00b7 session {id} \u00b7 {n} turn(s)',
   'ctrl.history.turn': 'Turn',

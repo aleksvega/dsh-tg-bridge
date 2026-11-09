@@ -16,7 +16,7 @@ import { CONTROL_COMMANDS, DOCUMENTED_COMMANDS } from './commands-registry.mjs';
  */
 const SECTIONS = {
   work: ['cd', 'ls', 'view', 'edit', 'seed', 'send', 'diff'],
-  session: ['sessions', 'rewind', 'branch', 'history', 'profile', 'agents', 'subagents'],
+  session: ['sessions', 'rewind', 'regen', 'branch', 'history', 'profile', 'agents', 'subagents'],
   goals: ['goal', 'task', 'tasks', 'plan', 'jobs', 'remind', 'every'],
   talk: ['effort', 'reasoning', 'pin', 'thoughts', 'prices', 'cost', 'balance', 'lang', 'endpoint', 'fallback'],
   ext: ['plugins', 'mcp', 'skills', 'soul', 'remember', 'preset', 'permissions', 'crew'],

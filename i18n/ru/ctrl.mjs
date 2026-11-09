@@ -107,15 +107,8 @@ export default {
   'ctrl.rewind.refused.too-many-steps': "В сессии {total} ход(ов); откат на {dropped} не оставит ничего. Для чистой сессии — /new.",
   'ctrl.rewind.refused.would-leave-open-turn': "Граница сессии не совпала с концом хода; ничего не удалено.",
   'ctrl.rewind.refused.no-header': "В файле сессии нет шапки, которую надо сохранить; ничего не удалено.",
-  'ctrl.fork.done': "Ветка создана: тема продолжается в {id}, сохранено {kept} ход(ов). Старая сессия цела — обе видны в /rewind branches.",
-  'ctrl.fork.noSession': "В этой теме ещё нет сессии: её начнёт первое сообщение.",
-  'ctrl.fork.busy': "В теме идёт ход. Он пишет свою сессию — ветвить надо после него.",
-  'ctrl.fork.usage': "Как это работает: /rewind fork — копия отсюда, /rewind fork 2 — копия с двух ходов назад.",
-  'ctrl.fork.failed': "Ветку создать не удалось: {error}",
-  'ctrl.fork.none': "В этой теме ещё нет веток. Создать: /rewind fork.",
-  'ctrl.fork.list': "Ветки этой темы: {n}",
-  'ctrl.fork.current': "Тема сейчас на {id}.",
-  'ctrl.fork.turns': "{n} ход(ов)",
+  // The ctrl.fork.* family lives in branch.mjs with the rest of branching: a
+  // fork is a branch that stays in this topic, and ctrl.mjs sat on the ceiling.
   'menu.cmd.new': "Новая сессия в этой теме",
   'menu.cmd.status': "Что сейчас: сессия, модель, активный ход",
   'menu.cmd.sessions': "Сессии этой темы и переключение между ними",

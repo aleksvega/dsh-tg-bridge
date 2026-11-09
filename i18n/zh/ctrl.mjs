@@ -107,15 +107,8 @@ export default {
   'ctrl.rewind.refused.too-many-steps': "本会话共有 {total} 轮；回退 {dropped} 轮将没有可继续的内容。需要全新的会话请用 /new。",
   'ctrl.rewind.refused.would-leave-open-turn': "会话边界不在轮次结束处；没有删除任何内容。",
   'ctrl.rewind.refused.no-header': "会话文件没有可保留的头部记录；没有删除任何内容。",
-  'ctrl.fork.done': "已建立分支：本话题继续在 {id}，保留 {kept} 轮。原会话完好——用 /rewind branches 查看两者。",
-  'ctrl.fork.noSession': "本话题还没有会话：第一条消息会开启它。",
-  'ctrl.fork.busy': "本话题正在进行一轮。它会写入会话，请在结束后再分支。",
-  'ctrl.fork.usage': "用法：/rewind fork 从这里复制，/rewind fork 2 从两轮前复制。",
-  'ctrl.fork.failed': "无法建立分支：{error}",
-  'ctrl.fork.none': "本话题还没有分支。用 /rewind fork 创建。",
-  'ctrl.fork.list': "本话题的分支：{n}",
-  'ctrl.fork.current': "本话题当前在 {id}。",
-  'ctrl.fork.turns': "{n} 轮",
+  // The ctrl.fork.* family lives in branch.mjs with the rest of branching: a
+  // fork is a branch that stays in this topic, and ctrl.mjs sat on the ceiling.
   'menu.cmd.new': "在此话题新建会话",
   'menu.cmd.status': "当前状态：会话、模型、轮次",
   'menu.cmd.sessions': "本话题的会话与切换",

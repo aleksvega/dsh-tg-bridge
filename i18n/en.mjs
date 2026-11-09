@@ -21,4 +21,5 @@ import balance from './en/balance.mjs';
 import branch from './en/branch.mjs';
 import history from './en/history.mjs';
 import remember from './en/remember.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance, ...branch, ...history, ...remember };
+import regen from './en/regen.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance, ...branch, ...history, ...remember, ...regen };

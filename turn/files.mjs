@@ -10,6 +10,8 @@
 // forty, and a card offering to send them would be a file manager nobody asked
 // for.
 import { extname } from 'node:path';
+import { regenRow } from '../work/regen.mjs';
+import { sessionFile } from '../chat/thoughts.mjs';
 
 /**
  * Tools that leave a file behind, in the shape each one names its target.
@@ -92,4 +94,29 @@ export function fileKeyboard(files, lang, t) {
     text: `📎 ${head}: ${file.name}`.slice(0, 64),
     callback_data: `tf:${index}`,
   }]);
+}
+
+/**
+ * The whole keyboard of a finished turn's card: the ↻ row first, file rows
+ * under it. Kept here so the card's attachments stay one idea — the turn says
+ * what it did, and the buttons offer to redo it or send the files.
+ *
+ * `state.turnFiles` is written for the press resolver before the rows are
+ * returned, because a keyboard whose numbers resolve to nothing is a button
+ * that fails on tap. The ↻ row needs no state: its callback carries the turn
+ * number and the session tail, and the press re-reads both from the session.
+ */
+export function finalKeyboard({ calls = [], state, key, save, lang, t, sessionId = '', sessionsRoot = '' }) {
+  const files = turnFiles(calls);
+  const rows = [];
+  const regen = sessionId && sessionsRoot
+    ? regenRow(sessionId, sessionFile(sessionsRoot, sessionId), lang, t)
+    : [];
+  if (regen.length) rows.push(regen);
+  if (files.length) {
+    state.turnFiles = { ...(state.turnFiles || {}), [key]: files };
+    save();
+    rows.push(...fileKeyboard(files, lang, t));
+  }
+  return rows;
 }

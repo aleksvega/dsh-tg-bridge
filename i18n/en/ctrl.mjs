@@ -107,15 +107,8 @@ export default {
   'ctrl.rewind.refused.too-many-steps': "The session has {total} turn(s); going back {dropped} would leave nothing to continue from. Use /new for a fresh session.",
   'ctrl.rewind.refused.would-leave-open-turn': "The session boundary does not fall where a turn ends; nothing was removed.",
   'ctrl.rewind.refused.no-header': "The session file has no header record to keep; nothing was removed.",
-  'ctrl.fork.done': "Branched: this topic now continues in {id}, keeping {kept} turn(s). The old session is untouched — /rewind branches lists both.",
-  'ctrl.fork.noSession': "This topic has no session yet: the first message starts one.",
-  'ctrl.fork.busy': "A turn is running in this topic. A run writes its session, so branch after it finishes.",
-  'ctrl.fork.usage': "Usage: /rewind fork — a copy from here, or /rewind fork 2 — a copy from two turns back.",
-  'ctrl.fork.failed': "Could not branch: {error}",
-  'ctrl.fork.none': "No branches in this topic yet. /rewind fork makes one.",
-  'ctrl.fork.list': "{n} branch(es) of this topic:",
-  'ctrl.fork.current': "This topic is on {id}.",
-  'ctrl.fork.turns': "{n} turn(s)",
+  // The ctrl.fork.* family lives in branch.mjs with the rest of branching: a
+  // fork is a branch that stays in this topic, and ctrl.mjs sat on the ceiling.
   'menu.cmd.new': "A new session in this topic",
   'menu.cmd.status': "What is running: session, model, turn",
   'menu.cmd.sessions': "The sessions of this topic, and switching between them",

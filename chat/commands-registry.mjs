@@ -19,7 +19,7 @@ export const CONTROL_COMMANDS = [
   'skills', 'soul', 'remember', 'restart', 'app', 'stop', 'new', 'seed', 'send', 'cd',
   'prices', 'cost', 'balance', 'help', 'doctor', 'logs', 'report', 'lang', 'reasoning', 'pin', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
-  'rewind', 'fork', 'branches', 'branch', 'history', 'menu', 'fallback', 'load', 'diff', 'endpoint', 'dsh', 'compact', 'card', 'find', 'start',
+  'rewind', 'fork', 'branches', 'branch', 'history', 'menu', 'fallback', 'load', 'diff', 'endpoint', 'dsh', 'compact', 'card', 'find', 'start', 'regen',
   'ls', 'view', 'edit', 'subagents',
 ];
 

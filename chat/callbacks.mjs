@@ -12,6 +12,7 @@ import { commandForName, isMenuPress, menuTarget, renderPanel, runsUnasked } fro
 import { DSH_HOME, LOG } from '../core/paths.mjs';
 import { approvals, enqueue, lastPrompt, redeliver, rewindUsed } from '../turn/queue.mjs';
 import { handleBranchPress } from './branch-press.mjs';
+import { handleRegenPress } from './regen-press.mjs';
 import { answerRewindPress, cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
 import { applyRewind, newestBackup, restoreBackup } from '../work/rewind.mjs';
 import { diffPressRouter } from '../control/cmd-diff.mjs';
@@ -179,6 +180,8 @@ export async function handleCallback(query) {
   }
 
   if (await handleBranchPress({ data, key, lang, chatId, threadId, messageId, answer, clearKeyboard, runCommandFromButton, log })) return;
+
+  if (await handleRegenPress({ data, key, lang, chatId, threadId, messageId, answer, clearKeyboard, runCommandFromButton, log })) return;
 
   // A search result's plus button. The name came from the registry and the
   // command is the one the hint under the list names, so a tap installs exactly

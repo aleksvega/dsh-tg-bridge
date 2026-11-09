@@ -20,7 +20,7 @@ export const DOC_URL = 'https://github.com/aleksvega/dsh-tg-bridge/blob/master/d
 export const HELP_SECTIONS = [
   { id: 'work', commands: ['start', 'cd', 'ls', 'view', 'edit', 'new', 'stop', 'send', 'seed', 'diff', 'find'] },
   { id: 'goals', commands: ['goal', 'tasks'] },
-  { id: 'sessions', commands: ['status', 'sessions', 'rewind', 'branch', 'history', 'profile', 'compact', 'card'] },
+  { id: 'sessions', commands: ['status', 'sessions', 'rewind', 'regen', 'branch', 'history', 'profile', 'compact', 'card'] },
   { id: 'model', commands: ['model', 'effort', 'prices', 'cost', 'balance', 'thoughts', 'fallback', 'endpoint', 'load'] },
   { id: 'agents', commands: ['agents', 'crew', 'subagents', 'preset', 'plan', 'permissions'] },
   { id: 'tuning', commands: ['jobs', 'remind', 'every'] },
