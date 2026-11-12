@@ -1,5 +1,20 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.51.1
+
+- **Stale turn markers are swept, not left behind.** A marker named a turn that
+  was over, and `say.mjs` reads two live markers in one folder as ambiguous and
+  refuses to place a line. The old check ran only for the folder that asked, so
+  a marker left by a turn in another folder stayed forever; and a marker whose
+  pid Windows had handed to some other process looked alive, because the only
+  test was `process.kill(pid, 0)`. Eight such markers had piled up in one bot's
+  folder before anyone looked. `sweep()` now runs on every marker write and
+  every read, drops a marker whose process is gone or whose file is older than
+  any turn could be (12 h — the age limit exists for pid reuse, not for long
+  turns), and deletes the file it read rather than the file its pid names: the
+  two are the same until one of them is wrong, and then a sweep would take a
+  live turn with it. 4 tests.
+
 ## 1.51.0
 
 - **A second instance keeps its own 💭 lines, markers and steer files.**

@@ -35,6 +35,7 @@ export function activeDir() {
 export function markActive({ pid, key, chatId, threadId, cwd, thought }) {
   try {
     mkdirSync(activeDir(), { recursive: true });
+    sweep();
     const path = join(activeDir(), `${pid}.json`);
     const record = {
       pid,
@@ -62,12 +63,14 @@ export function clearActive(pid) {
 /**
  * Live markers for one folder, ignoring files whose process is gone.
  *
- * Staleness is judged by the pid, not by age: a turn that runs for an hour is
- * normal, and a killed bridge leaves a marker nobody will ever clear.
+ * The whole folder is swept first, not just the entries this folder would use:
+ * a marker from another folder is still a marker nobody clears. Eight of them
+ * had piled up in one bot's folder before anyone looked.
  */
 export function activeTargets(cwd) {
   const want = String(cwd || '').trim().toLowerCase();
   if (!want) return [];
+  sweep();
   let names = [];
   try {
     names = readdirSync(activeDir()).filter((name) => name.endsWith('.json'));
@@ -80,14 +83,51 @@ export function activeTargets(cwd) {
       const record = JSON.parse(readFileSync(join(activeDir(), name), 'utf8'));
       if (!record?.chatId) continue;
       if (String(record.cwd || '').trim().toLowerCase() !== want) continue;
-      if (!alive(record.pid)) {
-        clearActive(record.pid);
-        continue;
-      }
       found.push(record);
     } catch {}
   }
   return found;
+}
+
+/**
+ * Drop every marker whose turn is over. A handful of small files, so: on read.
+ *
+ * Deletes the file it read, not the file its pid names: the two are the same
+ * until one of them is wrong, and then the sweep would take a live turn with it.
+ */
+export function sweep() {
+  let names = [];
+  try {
+    names = readdirSync(activeDir()).filter((name) => name.endsWith('.json'));
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    let record = null;
+    try {
+      record = JSON.parse(readFileSync(join(activeDir(), name), 'utf8'));
+    } catch {}
+    if (record && !stale(record)) continue;
+    try {
+      rmSync(join(activeDir(), name), { force: true });
+    } catch {}
+  }
+}
+
+/**
+ * Is this marker from a turn that is over?
+ *
+ * Two ways to be over: the process is gone, or the file is older than any turn
+ * could be. The age limit is not about long turns — it is about pid reuse.
+ * Windows hands the same number out again, and a marker from yesterday then
+ * looks alive because a browser now owns that pid.
+ */
+const MAX_TURN_MS = 12 * 60 * 60 * 1000;
+
+function stale(record) {
+  const at = Number(record?.at || 0);
+  if (at > 0 && Date.now() - at > MAX_TURN_MS) return true;
+  return !alive(record?.pid);
 }
 
 /** Is that process still there? A shell cannot see a child it did not start. */
