@@ -1,5 +1,24 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.51.0
+
+- **A second instance keeps its own 💭 lines, markers and steer files.**
+  `DSH_TG_HOME` already moved the state folder, but four paths were still built
+  from `~/.dsh/tg-bridge`. The turn preamble named the agent
+  `<state>/say.mjs` — `chat/handle-message.mjs` built the path from `DIR`
+  instead of the `SAY` that `core/paths.mjs` already exported — so a second
+  instance's very first step failed with `MODULE_NOT_FOUND`, and a turn asked
+  to greet a person went off to repair the bridge instead of answering: the
+  word "Привет" cost nine tool calls and two minutes. `say.mjs` itself took its
+  `active/`, `thoughts/` and `steer/` folders from `~/.dsh/tg-bridge` whatever
+  the instance was, so the adviser bot's lines landed in the first bot's
+  thoughts folder — a file nobody reads, and the card stayed empty. And two
+  bots running turns in the same folder both wrote a marker into one shared
+  `active/` folder, which `say.mjs` reads as "more than one live turn here" and
+  refuses to place a line at all. Markers now live under `DIR`, `say.mjs` takes
+  its folders from `DSH_TG_HOME`, and `SAY` is built from `SELF_DIR` the way
+  `GOAL_CMD` already was. A single instance behaves exactly as before. 2 tests.
+
 ## 1.50.0
 
 - **↻ — the last answer, asked again.** Every finished turn's card now opens a

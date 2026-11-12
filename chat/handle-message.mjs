@@ -22,7 +22,7 @@ import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
 import { replyText } from './reply-guard.mjs';
 import { QUIET_MS, quietGuard } from './quiet-guard.mjs';
-import { DIR, GOAL_CMD, THOUGHT_DIR } from '../core/paths.mjs';
+import { DIR, GOAL_CMD, SAY, THOUGHT_DIR } from '../core/paths.mjs';
 import { renderPrices } from '../model/prices.mjs';
 import { settingsChipOf, turnPlan } from '../profile/profile-view.mjs';
 import { startProgress } from '../turn/progress.mjs';
@@ -341,7 +341,7 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
   // differently when it lands in the chat as a message of its own.
   const notesMode = reasoningMode(state, config, key);
   if (notesMode !== 'off') {
-    const prompt = t(lang, 'prompt.reasoning', { say: join(DIR, 'say.mjs') });
+    const prompt = t(lang, 'prompt.reasoning', { say: SAY });
     const note = notesMode === 'chat' ? `\n\n${t(lang, 'prompt.reasoningChat')}` : '';
     text = `${prompt}${note}\n\n---\n\n${text}`;
   }

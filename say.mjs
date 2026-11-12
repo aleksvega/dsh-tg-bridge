@@ -24,9 +24,13 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
-const STEER = join(DSH_HOME, 'tg-bridge', 'steer');
+// A second bridge instance keeps its state in its own folder (`DSH_TG_HOME`,
+// see core/paths.mjs). Without this the adviser's 💭 lines landed in the first
+// bot's thoughts folder — a file nobody reads, so the card stayed empty.
+const TG_DIR = (process.env.DSH_TG_HOME || '').trim() || join(DSH_HOME, 'tg-bridge');
+const STEER = join(TG_DIR, 'steer');
 const ACKS = join(STEER, 'acks');
-const THOUGHTS = (process.env.DSH_TG_THOUGHTS || '').trim() || join(DSH_HOME, 'tg-bridge', 'thoughts');
+const THOUGHTS = (process.env.DSH_TG_THOUGHTS || '').trim() || join(TG_DIR, 'thoughts');
 
 function findToken() {
   const env = (process.env.DSH_TELEGRAM_BOT_TOKEN || '').trim();
@@ -95,7 +99,7 @@ function activeThoughtFile() {
  */
 function activeMarker() {
   try {
-    const dir = join(DSH_HOME, 'tg-bridge', 'active');
+    const dir = join(TG_DIR, 'active');
     const want = process.cwd().toLowerCase();
     const hits = [];
     for (const name of readdirSync(dir)) {

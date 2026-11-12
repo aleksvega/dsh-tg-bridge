@@ -26,8 +26,12 @@ export const PENDING_DIR = join(DIR, 'pending');
 export const STEER_DIR = join(DIR, 'steer');
 export const THOUGHT_DIR = join(DIR, 'thoughts');
 // The helper the agent calls to confirm an addition in the chat while the turn
-// is still running. Lives next to the bridge so an installed copy works too.
-export const SAY = join(DIR, 'say.mjs');
+// is still running. Lives next to the bridge's code, like GOAL_CMD above: a
+// second instance keeps its state in DSH_TG_HOME, and pointing at DIR there
+// named a file that does not exist — the agent's first 💭 line failed with
+// MODULE_NOT_FOUND, and the turn went off to repair the bridge instead of
+// answering the person.
+export const SAY = join(SELF_DIR, 'say.mjs');
 export const DONE_FILE = join(DIR, 'done.json');
 export const RESTART_MARKER = join(DIR, 'restart.pending');
 // `/restart confirm` leaves a note here for the process that replaces it: the

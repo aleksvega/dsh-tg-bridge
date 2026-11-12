@@ -12,11 +12,18 @@
 // zero or two match: an ambiguous answer is the one thing worse than none.
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DSH_HOME } from '../core/paths.mjs';
+import { DIR } from '../core/paths.mjs';
 
-/** Where the markers live: under `~/.dsh`, next to the thoughts they name. */
+/**
+ * Where the markers live: next to the thoughts they name.
+ *
+ * Under `DIR`, not a fixed `~/.dsh/tg-bridge`: a second bridge instance (the
+ * adviser bot) has its own state folder, and both bots run turns in the same
+ * workspace. Sharing one marker folder made each of them see two live turns in
+ * that folder and refuse to place a 💭 line at all.
+ */
 export function activeDir() {
-  return join(DSH_HOME, 'tg-bridge', 'active');
+  return join(DIR, 'active');
 }
 
 /**
