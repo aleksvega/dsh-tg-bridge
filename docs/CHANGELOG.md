@@ -1,5 +1,15 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.51.2
+
+- **`say.mjs` sweeps stale markers too.** 1.51.1 taught the bridge to sweep, but
+  `say.mjs` runs as its own process and reads the marker folder itself: it does
+  not import `turn/active.mjs`, so the sweep never ran on the path that suffers
+  from a stale marker — two live markers in one folder is a refusal to place a
+  line, and a marker from yesterday is not live. The same rule now lives there,
+  with the same 12 h age limit for pid reuse, and it deletes the file it read.
+  1 test.
+
 ## 1.51.1
 
 - **Stale turn markers are swept, not left behind.** A marker named a turn that

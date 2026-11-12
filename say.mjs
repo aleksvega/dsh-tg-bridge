@@ -19,7 +19,7 @@
 //
 // With `--steer` the chat/thread come from the job file and an ack marker is
 // written, which suppresses the bridge's fallback line.
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -106,9 +106,17 @@ function activeMarker() {
       if (!name.endsWith('.json')) continue;
       try {
         const record = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+        // Swept on read, like the bridge does: this file runs after the turn and
+        // after the process that wrote the marker may be gone. Two live markers
+        // in one folder is a refusal, and a marker from yesterday is not live.
+        if (stale(record)) {
+          try {
+            unlinkSync(join(dir, name));
+          } catch {}
+          continue;
+        }
         if (!record?.chatId) continue;
         if (String(record.cwd || '').toLowerCase() !== want) continue;
-        if (!alive(record.pid)) continue;
         hits.push(record);
       } catch {}
     }
@@ -134,6 +142,22 @@ function alive(pid) {
   } catch (error) {
     return error?.code === 'EPERM';
   }
+}
+
+/**
+ * Is this marker from a turn that is over?
+ *
+ * Same rule as `turn/active.mjs`, and it has to be here too: this file runs as
+ * its own process and does not import the bridge's marker code. The age limit
+ * exists for pid reuse — Windows hands the same number out again, and a marker
+ * from yesterday then looks alive because a browser owns that pid.
+ */
+const MAX_TURN_MS = 12 * 60 * 60 * 1000;
+
+function stale(record) {
+  const at = Number(record?.at || 0);
+  if (at > 0 && Date.now() - at > MAX_TURN_MS) return true;
+  return !alive(record?.pid);
 }
 
 /**

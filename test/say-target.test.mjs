@@ -100,6 +100,27 @@ test('a second instance reads its own markers, not the first bot\'s', () => {
   assert.ok(!existsSync(join(first, 'tg-bridge', 'thoughts')), 'the first bot\'s folder stays untouched');
 });
 
+// A marker from a turn that is over must not block the next one: two live
+// markers in one folder is a refusal, and a marker from yesterday is not live.
+// Eight stale markers had piled up in one bot's folder before anyone looked.
+test('a stale marker is swept on read, not counted as a live turn', () => {
+  const dir = home({ marker: { chatId: 111, threadId: 222 } });
+  const dead = join(dir, 'tg-bridge', 'active', '999999.json');
+  writeFileSync(dead, JSON.stringify({
+    pid: 2147483646,
+    chatId: 111,
+    threadId: 333,
+    cwd: process.cwd(),
+    at: Date.now() - 24 * 60 * 60 * 1000,
+  }), 'utf8');
+
+  const res = run(dir, ['--thought', 'stale neighbour']);
+
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(!existsSync(dead), 'the stale marker is gone');
+  assert.match(res.stdout.trim(), /111_222_t1\.jsonl$/, 'the live turn still wins');
+});
+
 // The preamble is built by hand in `handle-message.mjs`, and it used to name
 // `<state>/say.mjs` — a file that exists only for the first instance. The
 // agent's first step then died with MODULE_NOT_FOUND, and the turn went off to
