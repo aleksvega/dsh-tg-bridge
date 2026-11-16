@@ -92,7 +92,7 @@ export async function sendVoice(chatId, threadId, filePath, caption = '') {
   const res = await fetch(`https://api.telegram.org/bot${token}/sendVoice`, { method: 'POST', body: form });
   const json = await res.json().catch(() => ({}));
   if (!json.ok) throw new Error(`sendVoice: ${json.description || res.status}`);
-  log(`sent voice ${basename(filePath)} (${buf.length} B) chat=${chatId}`);
+  log(`sent voice ${basename(filePath)} (${buf.length} B) chat=${chatId} topic=${threadId ?? 0}`);
   return json.result;
 }
 

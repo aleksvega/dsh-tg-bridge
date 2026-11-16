@@ -125,10 +125,12 @@ the `ru` one rather than going silent. `/voice <name>` sets a voice for that top
 without touching the config, which is how a person tries one out.
 
 The answer is spoken, not the thinking and not the progress lines: code blocks,
-tables, links and emoji are stripped first, and anything longer than `maxChars` is
-cut at a sentence. The engine writes MP3 and `ffmpeg` converts it to OGG/Opus,
-because Telegram draws a voice bubble only for that container. A provider that
-already speaks OGG sets `speech.ogg: true` and needs no ffmpeg.
+tables, links and emoji are stripped first. A long answer is **several voice
+notes in order**, each cut at a sentence, so the whole answer is heard —
+`maxChars` is the per-note limit, not the limit of what gets spoken. The engine
+writes MP3 and `ffmpeg` converts it to OGG/Opus, because Telegram draws a voice
+bubble only for that container. A provider that already speaks OGG sets
+`speech.ogg: true` and needs no ffmpeg.
 
 A local Piper install is the same shape:
 

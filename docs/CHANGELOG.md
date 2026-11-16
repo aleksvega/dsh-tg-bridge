@@ -1,5 +1,24 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.53.0
+
+- **`/voice` now speaks the whole answer.** 1.52.0 cut the spoken text at
+  `maxChars` — a 3300-character answer arrived as its first 1155 characters and
+  the person heard a reply that ended mid-thought, which read as a stitching
+  defect ("parts of different messages in one voice"). The answer is now
+  **several voice notes sent in order**, each cut at a sentence, each its own
+  engine run: `maxChars` is the per-note limit, not the limit of what is spoken.
+  A note that fails is logged as `speech failed for note 2/4` and costs that
+  note, never the notes after it and never the answer. 4 tests for the split
+  (sentence end, word boundary, no dropped tail) and the sequence (order,
+  per-note failure, one log line per failure).
+- **`speech.ogg: true` is read now.** It was documented in `docs/VOICE.md`
+  before `speechConfig` read it, so an engine already speaking OGG/Opus still
+  paid an ffmpeg run it did not need.
+- **`sent voice` log lines carry the topic.** A voice note in the log had
+  `chat=` but no `topic=`, which made a voice sent to its own topic look
+  indistinguishable from one sent to the wrong one when reading `bridge.log`.
+
 ## 1.52.0
 
 - **`/voice` — the answer can be listened to.** `/voice on` makes the topic send
