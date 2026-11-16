@@ -122,6 +122,7 @@ export default {
   'menu.cmd.stop': "Stop the current turn",
   'menu.cmd.help': "Every command with an explanation: /help <command>",
   'menu.cmd.update': "Version and update: /update confirm",
+  'menu.cmd.voice': "Read answers out loud: /voice on, /voice off",
   'ctrl.settings.usage': 'Settings as buttons: /settings, /settings agent, /settings updates',
   'ctrl.profile.title': '🧩 Profile {name}',
   'ctrl.profile.model': 'Model: {route}',

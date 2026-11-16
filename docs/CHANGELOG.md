@@ -1,5 +1,25 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.52.0
+
+- **`/voice` — the answer can be listened to.** `/voice on` makes the topic send
+  each finished answer as a voice note after the text, `/voice off` returns to
+  text, `/voice <name>` sets the voice for that topic, and the card's button does
+  the same as the command. The switch is per topic: one chat can be listened to
+  while another stays quiet, and a fresh install is silent until asked — audio
+  nobody asked for is the one failure a person cannot undo by reading.
+  The engine is config, not code: `speech.provider` runs with `{text}` and `{out}`
+  placeholders, `edge-tts` (male voice per topic language) is the default shape and
+  a local Piper install is a config block, not a new module. The text is always
+  sent first and is never delayed by the engine: a missing interpreter, a hang or
+  an outage costs the sound, is logged, and never costs the answer. Markup, code
+  blocks, tables, links and emoji are stripped before speaking, and a long answer
+  is cut at a sentence — a voice that stops mid-word sounds like a fault.
+  `docs/VOICE.md` has the block and both shapes; `docs/COMMANDS.md` the command.
+  13 tests, and one pre-existing flaky test fixed: `active-sweep` compared a
+  sorted directory listing against an unsorted expectation, so it passed only
+  while the runner's pid sorted before `333`.
+
 ## 1.51.2
 
 - **`say.mjs` sweeps stale markers too.** 1.51.1 taught the bridge to sweep, but

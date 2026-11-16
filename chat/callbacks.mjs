@@ -20,6 +20,7 @@ import { handleModelPress, MODEL_PREFIX, modelPressRouter } from '../control/mod
 import { runCommandFromButton } from '../core/run-command.mjs';
 import { handleCardPress } from '../profile/settings-press.mjs';
 import { cardBlocks, cardKeyboard, renderCardSettings, toggleCardBlock } from '../turn/card.mjs';
+import { handleVoicePress, isVoicePress } from './voice-press.mjs';
 import { handleFilePress } from './file-press.mjs';
 import { handleMcpPress } from './mcp-press.mjs';
 import { handlePlanPress } from './plan-press.mjs';
@@ -88,6 +89,9 @@ export async function handleCallback(query) {
     await handleCardPress(query, { chatId, messageId, threadId, key, lang, answer });
     return;
   }
+
+  // `/voice`'s button: flip the topic's setting and redraw the card that shows it.
+  if (isVoicePress(data)) { await handleVoicePress({ data, query, state, key, config, lang, saveState, answer }); guard.mark(); return; }
 
   // `/dsh`'s own two presses. Each types the command the card advertised, so the
   // install path and the confirmation in front of it exist exactly once — a

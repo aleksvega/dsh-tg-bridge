@@ -122,6 +122,7 @@ export default {
   'menu.cmd.stop': "停止当前轮次",
   'menu.cmd.help': "所有命令及说明：/help <命令>",
   'menu.cmd.update': "版本与更新：/update confirm",
+  'menu.cmd.voice': "朗读回答：/voice on、/voice off",
   'ctrl.settings.usage': '用按钮调设置：/settings、/settings agent、/settings updates',
   'ctrl.profile.title': '🧩 配置档 {name}',
   'ctrl.profile.model': '模型：{route}',

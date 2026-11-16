@@ -20,7 +20,7 @@ export const CONTROL_COMMANDS = [
   'prices', 'cost', 'balance', 'help', 'doctor', 'logs', 'report', 'lang', 'reasoning', 'pin', 'goal', 'task', 'tasks',
   'thoughts', 'version', 'update', 'crew', 'agentset', 'subscribe', 'settings',
   'rewind', 'fork', 'branches', 'branch', 'history', 'menu', 'fallback', 'load', 'diff', 'endpoint', 'dsh', 'compact', 'card', 'find', 'start', 'regen',
-  'ls', 'view', 'edit', 'subagents',
+  'ls', 'view', 'edit', 'subagents', 'voice',
 ];
 
 /**
@@ -69,5 +69,5 @@ export const DOCUMENTED_COMMANDS = CONTROL_COMMANDS.filter((name) => !COMMAND_AL
  */
 export const MENU_COMMANDS = [
   'new', 'status', 'diff', 'sessions', 'goal', 'tasks', 'model', 'plugins',
-  'settings', 'menu', 'rewind', 'stop', 'help', 'update',
+  'settings', 'menu', 'rewind', 'stop', 'help', 'update', 'voice',
 ];

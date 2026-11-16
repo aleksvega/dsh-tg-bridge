@@ -26,7 +26,7 @@ export const HELP_SECTIONS = [
   { id: 'tuning', commands: ['jobs', 'remind', 'every'] },
   { id: 'extensions', commands: ['skills', 'plugins', 'mcp', 'soul', 'remember'] },
   { id: 'versions', commands: ['update', 'subscribe', 'dsh'] },
-  { id: 'settings', commands: ['settings', 'lang', 'reasoning', 'pin'] },
+  { id: 'settings', commands: ['settings', 'lang', 'reasoning', 'pin', 'voice'] },
   { id: 'panels', commands: ['menu', 'help'] },
   { id: 'health', commands: ['doctor', 'logs', 'report', 'app', 'restart'] },
 ];

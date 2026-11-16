@@ -95,6 +95,52 @@ saved under `inbox/` and handed over as a path, with text-like files pasted in s
 a mid-turn steer can read them too. That part works on a fresh install with an
 empty `voice` block.
 
+## Speaking the answer back: `/voice`
+
+The opposite direction, for the days a person cannot read: `/voice on` makes the
+bridge send each finished answer as a voice note after the text. `/voice off`
+returns to text only. The switch is **per topic** — one topic can be listened to
+while another stays quiet — and the button on the card does the same thing as the
+command, so the chat and the command line never disagree.
+
+The text always goes first and is never delayed by the engine. A missing
+interpreter, an engine that hangs or a provider outage costs the sound and is
+logged; it never costs the answer.
+
+Everything lives in the `speech` block of `config.json`:
+
+```json
+{ "speech": { "provider": "edge-tts", "python": "python", "ffmpeg": "ffmpeg",
+  "maxChars": 1200, "timeoutMs": 120000,
+  "voices": { "ru": "ru-RU-DmitryNeural", "en": "en-US-GuyNeural", "zh": "zh-CN-YunjianNeural" } } }
+```
+
+| `speech.provider` | What it runs | Needs |
+| --- | --- | --- |
+| `edge-tts` (default) | `python -m edge_tts --voice … --text … --write-media …` | `speech.python` with `edge-tts` installed, `speech.ffmpeg` |
+| anything else | `speech.command` + `speech.args`, with `{text}` and `{out}` placeholders | an engine that writes audio to `{out}` |
+
+`voices` is one male voice per topic language; a language without an entry uses
+the `ru` one rather than going silent. `/voice <name>` sets a voice for that topic
+without touching the config, which is how a person tries one out.
+
+The answer is spoken, not the thinking and not the progress lines: code blocks,
+tables, links and emoji are stripped first, and anything longer than `maxChars` is
+cut at a sentence. The engine writes MP3 and `ffmpeg` converts it to OGG/Opus,
+because Telegram draws a voice bubble only for that container. A provider that
+already speaks OGG sets `speech.ogg: true` and needs no ffmpeg.
+
+A local Piper install is the same shape:
+
+```json
+{ "speech": { "provider": "piper", "command": "C:/piper/piper.exe",
+  "args": ["--model", "C:/piper/ru_RU-ruslan-medium.onnx", "--output_file", "{out}"],
+  "ogg": false, "voices": { "ru": "ruslan" } } }
+```
+
+`/voice` on a topic with no engine answers with the state it is in and the reason
+in `bridge.log` — a switch that turns nothing on would be a promise, not a feature.
+
 ## Checking your setup
 
 Send the bridge a voice note. A misconfiguration answers in the chat with the

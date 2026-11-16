@@ -22,4 +22,5 @@ import branch from './ru/branch.mjs';
 import history from './ru/history.mjs';
 import remember from './ru/remember.mjs';
 import regen from './ru/regen.mjs';
-export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance, ...branch, ...history, ...remember, ...regen };
+import voice from './ru/voice.mjs';
+export default { ...core, ...ctrl, ...cost, ...sandbox, ...fallback, ...release, ...diff, ...model, ...endpoint, ...every, ...mcp, ...plan, ...dsh, ...supervision, ...files, ...balance, ...branch, ...history, ...remember, ...regen, ...voice };

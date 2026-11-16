@@ -76,6 +76,27 @@ export async function sendFile(chatId, threadId, filePath, caption = '') {
 }
 
 /**
+ * Upload a spoken answer as a voice note: the bubble a person plays with one tap.
+ *
+ * Deliberately not `sendAudio`: that arrives as a file with a player, a name and
+ * a duration to open, which is the wrong shape for "I cannot read right now".
+ * Telegram wants OGG/Opus in the `voice` field, so the caller converts first.
+ */
+export async function sendVoice(chatId, threadId, filePath, caption = '') {
+  const buf = readFileSync(filePath);
+  const form = new FormData();
+  form.set('chat_id', String(chatId));
+  if (threadId > 0) form.set('message_thread_id', String(threadId));
+  if (caption) form.set('caption', caption.slice(0, 1000));
+  form.set('voice', new Blob([buf], { type: 'audio/ogg' }), basename(filePath));
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendVoice`, { method: 'POST', body: form });
+  const json = await res.json().catch(() => ({}));
+  if (!json.ok) throw new Error(`sendVoice: ${json.description || res.status}`);
+  log(`sent voice ${basename(filePath)} (${buf.length} B) chat=${chatId}`);
+  return json.result;
+}
+
+/**
  * Download a Telegram file into the bridge dir under a stable name.
  * Voice notes arrive as OGG/Opus, which the local ASR CLI does not decode,
  * so the caller passes the name it wants (including the extension).

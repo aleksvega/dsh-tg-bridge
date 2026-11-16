@@ -20,7 +20,7 @@ import { holdIfLoaded } from '../work/load-guard.mjs';
 import { guardOf } from '../core/machine.mjs';
 import { mediaPrompt } from './media.mjs';
 import { keyboardCommand } from './menu-card.mjs';
-import { replyText } from './reply-guard.mjs';
+import { deliverAnswer, replyText } from './reply-guard.mjs';
 import { QUIET_MS, quietGuard } from './quiet-guard.mjs';
 import { DIR, GOAL_CMD, SAY, THOUGHT_DIR } from '../core/paths.mjs';
 import { renderPrices } from '../model/prices.mjs';
@@ -484,7 +484,7 @@ ${helpLines((k, vars) => t(lang, k, vars)).join('\n')}`,
     await send(chatId, t(lang, 'bridge.progress.reasoningOnly'), threadId);
     return;
   }
-  await send(chatId, reply.text || t(lang, 'bridge.progress.emptyReply'), threadId);
+  await deliverAnswer({ send, chatId, threadId, state, key, text: reply.text, empty: t(lang, 'bridge.progress.emptyReply'), config, lang, log });
   // The card under a plan: the only way out of plan mode, and the reason the
   // request is kept — Approve replays it with the flag already cleared.
   if (!result.error && planOf(state, key)) await planFollowUp({ state, key, lang, request, saveState, send: (body, kb) => sendWithMarkup(chatId, threadId, body, { reply_markup: kb }) });

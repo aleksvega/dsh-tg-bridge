@@ -87,6 +87,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 - `/lang` — The language of the bot in this topic: /lang en|ru|zh.
 - `/reasoning` — Working notes: off, in the progress card, or as messages in the chat — /reasoning off|card|chat.
 - `/pin` — Holds the progress card pinned while its turn runs, so the clock and the steps are one tap away — /pin on|off.
+- `/voice` — Read answers out loud: /voice on turns sound on for this topic, /voice off turns it off, /voice <name> changes the voice.
 
 ### Panels and help
 
@@ -191,6 +192,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 - `/lang` — Язык бота в теме: /lang en|ru|zh.
 - `/reasoning` — Заметки о ходе работы: выкл, в карточке прогресса или отдельными сообщениями в чат — /reasoning off|card|chat.
 - `/pin` — Держит карточку прогресса закреплённой на время хода, чтобы часы и шаги были в одно касание — /pin on|off.
+- `/voice` — Читать ответы вслух: /voice on включает голос в этой теме, /voice off выключает, /voice <имя> меняет голос.
 
 ### Панели и справка
 
@@ -295,6 +297,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 - `/lang` — 本话题中机器人的语言：/lang en|ru|zh。
 - `/reasoning` — 工作记录：关闭、放在进度卡片里，或作为消息发到聊天——/reasoning off|card|chat。
 - `/pin` — 让进度卡片在本次运行期间保持置顶，时间和步骤一按就到——/pin on|off。
+- `/voice` — 朗读回答：/voice on 为本话题打开声音，/voice off 关闭，/voice <名称> 换声音。
 
 ### 面板与帮助
 

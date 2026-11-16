@@ -31,5 +31,18 @@
   "vision": {
     "patch": "",
     "model": ""
+  },
+  "speech": {
+    "_comment": "Answers as voice notes after the text, when a topic turns it on with /voice on. Needs edge-tts in the python below, and ffmpeg for the OGG conversion.",
+    "provider": "edge-tts",
+    "python": "python",
+    "ffmpeg": "ffmpeg",
+    "maxChars": 1200,
+    "timeoutMs": 120000,
+    "voices": {
+      "ru": "ru-RU-DmitryNeural",
+      "en": "en-US-GuyNeural",
+      "zh": "zh-CN-YunjianNeural"
+    }
   }
 }

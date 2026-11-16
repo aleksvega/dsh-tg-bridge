@@ -49,6 +49,9 @@ test('a live marker in this folder is found, and a new turn sweeps the rest', ()
   marker('444.json', { pid: DEAD_PID, chatId: 1, threadId: 2, cwd: process.cwd(), at: Date.now() });
   markActive({ pid: process.pid, key: '1:2', chatId: 1, threadId: 2, cwd: process.cwd(), thought: '' });
   const names = readdirSync(activeDir()).sort();
-  assert.deepEqual(names, [`${process.pid}.json`, '333.json'], 'the dead one went, the live ones stayed');
+  // The list is read through `sort()`, so the expectation has to be sorted too:
+  // written as `[pid, '333.json']` it passed only while the test runner's pid
+  // happened to sort before 333, and went red on every other machine.
+  assert.deepEqual(names, [`${process.pid}.json`, '333.json'].sort(), 'the dead one went, the live ones stayed');
   assert.equal(activeTargets(process.cwd()).length, 2);
 });

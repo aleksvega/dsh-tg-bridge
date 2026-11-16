@@ -11,7 +11,22 @@
 // subject is "one incoming message becomes one turn", not "what a reply is".
 import { languageRequest, scrubReply } from './answer-shape.mjs';
 import { LANG_NUDGE, looksLikeReasoning, REPLY_NUDGE, stripThinkingBlocks } from './panel.mjs';
+import { speak } from './speech.mjs';
 import { turnAttempt } from '../turn/turn.mjs';
+
+/**
+ * Send the finished answer: words first, sound after.
+ *
+ * Both live here because "what the chat gets" is this module's subject, and the
+ * order is the promise: a voice that hangs, a missing engine or an outage costs
+ * the sound and never the answer. `speak` decides for itself whether this topic
+ * asked for sound, and returns without a call when it did not.
+ */
+export async function deliverAnswer({ send, chatId, threadId, state, key, text, empty, config, lang, log, say = speak }) {
+  const shown = text || empty;
+  await send(chatId, shown, threadId);
+  void say({ chatId, threadId, state, key, text: shown, config, lang, log });
+}
 
 /** Is this text the reasoning the panel already holds, markers included? */
 export function isReasoningEcho(value, reasoning) {

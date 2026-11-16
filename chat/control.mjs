@@ -49,6 +49,7 @@ import { handleEditCommands } from '../control/cmd-edit.mjs';
 import { handleFindCommands } from '../control/cmd-find.mjs';
 import { handleDshCommands } from '../control/cmd-dsh.mjs';
 import { handleCompactCommands } from '../control/cmd-compact.mjs';
+import { handleVoiceCommands } from '../control/cmd-voice.mjs';
 import { APP, CLI_JS, DSH_CMD, DSH_HOME, EXE, HOME, PROFILES, THOUGHT_DIR } from '../core/paths.mjs';
 import { read, readJson, patchPath, pkgPath, OVERLAY_MARK, modelsOf, modelOf, windowOf, modelIndent, depthOf, modelsReport, setModel, disabledIds, setDisabled, writePatch } from '../control/models.mjs';
 import { listPids, waitForExit, waitForStart, pluginsOf, bundleRowIds, addBundle, removeBundle, createProfile, dshPlugin } from '../control/plugins.mjs';
@@ -120,7 +121,7 @@ export async function handleControl(ctx) {
   // that is not its job. The order is alphabetical, not meaningful: no two
   // groups claim the same command, so a miss falls through to `default` below.
   const child = { ...ctx, effective, command, arg: effectiveArgText, send, reply, log, profile, state, key, config, lang };
-  for (const handler of [handleAgentCommands, handleBridgeCommands, handleCardCommands, handleCompactCommands, handleDiffCommands, handleEditCommands, handleEveryCommands, handleDshCommands, handleFallbackCommands, handleFileCommands, handleFindCommands, handleLoadCommands, handleMcpCommands, handlePlanCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleStartCommands, handleSubagentCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands]) {
+  for (const handler of [handleAgentCommands, handleBridgeCommands, handleCardCommands, handleCompactCommands, handleDiffCommands, handleEditCommands, handleEveryCommands, handleDshCommands, handleFallbackCommands, handleFileCommands, handleFindCommands, handleLoadCommands, handleMcpCommands, handlePlanCommands, handlePluginCommands, handleSessionCommands, handleSkillCommands, handleStartCommands, handleSubagentCommands, handleTaskCommands, handleViewCommands, handleEndpointCommands, handleVoiceCommands]) {
     if (await handler(child)) return true;
   }
   // Nothing claimed it: the bridge answers an unknown `/` command itself, with
