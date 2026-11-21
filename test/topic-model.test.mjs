@@ -105,6 +105,40 @@ test('`/model auto` hands the topic back to the profile', async () => {
   assert.match(again, /never|did not|no route/i);
 });
 
+test('`/model auto` names the profile default, not the route copy the topic boots', async () => {
+  // A topic that chose a model boots a generated copy of the profile, and that
+  // copy's one rewritten row IS the choice. The command receives the copy as
+  // `profile`, so reading the default out of it made `auto` answer with the very
+  // route it had just cleared: the topic went back to the profile while the
+  // message claimed it went back to the old provider.
+  // An earlier test moved the profile's default, so it is put back: the copy is
+  // only materialised when the route differs from the profile's own default.
+  writeFileSync(join(HOME, 'profiles', 'headless', 'cordis.patch.yml'), PATCH, 'utf8');
+  const state = { route: { '1:7': { provider: 'acme', model: 'glm-5.3:free' } } };
+  const copy = routeProfile('headless', { provider: 'acme', model: 'glm-5.3:free' });
+  assert.ok(copy, 'no copy was materialised');
+  assert.equal(modelOf(copy).model, 'glm-5.3:free', 'the copy does not carry the choice');
+
+  const said = [];
+  await handleModelCommand({
+    arg: 'auto',
+    say: (text) => said.push(text),
+    log: () => {},
+    state,
+    key: '1:7',
+    config: { profile: 'headless', lang: 'en' },
+    lang: 'en',
+    profile: copy,
+    t,
+    saveState: () => {},
+  });
+
+  assert.deepEqual(state.route, {}, 'the route was not cleared');
+  const text = said.join('\n');
+  assert.match(text, /acme\/deepseek-v4\.1-flash/, 'the answer does not name the profile default');
+  assert.doesNotMatch(text, /glm-5\.3:free/, 'the answer still names the cleared route');
+});
+
 test('a route the profile does not declare is refused in every language', async () => {
   for (const lang of ['en', 'ru', 'zh']) {
     const state = {};

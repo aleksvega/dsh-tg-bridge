@@ -69,6 +69,8 @@ export function agentsetCard(set, lang, profile, boundId) {
     `${t(lang, 'ctrl.set.field.permissions')}: ${pick('permissions')}`,
     `${t(lang, 'ctrl.set.field.preset')}: ${pick('dshPreset')}`,
     `${t(lang, 'ctrl.set.field.lang')}: ${pick('lang')}`,
+    `${t(lang, 'ctrl.set.field.instructions')}: ${(set.instructions || []).join(', ') || `— ${t(lang, 'ctrl.set.inherit')}`}`,
+    `${t(lang, 'ctrl.set.field.skills')}: ${(set.skillDirs || []).join(', ') || `— ${t(lang, 'ctrl.set.inherit')}`}`,
   ];
   const warnings = [];
   for (const field of ['model', 'effort', 'permissions', 'dshPreset']) {

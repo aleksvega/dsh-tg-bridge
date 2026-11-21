@@ -14,6 +14,7 @@ import { parseAgentPresets, parseModelSelection, parsePermissionPresets, parseRe
 import { setRowConfig, unsetRowConfig } from '../profile/profile-edit.mjs';
 import { parseReminder, stampAt, upcoming } from '../work/reminders.mjs';
 import { AgentsetStore, emptySet, slugId } from '../profile/agentsets.mjs';
+import { ensureInstructionFile, instructionName } from '../profile/topic-docs.mjs';
 import { SETTINGS_PAGES, renderSettingsCard, settingsCurrent } from '../profile/settings-card.mjs';
 import { applyFork, planFork, planRewind } from '../work/rewind.mjs';
 import { cutSession, isRewindPress } from '../work/rewind-buttons.mjs';
@@ -270,7 +271,7 @@ export async function handleSkillCommands(ctx) {
       // `/agentset model inherit`. The DSH profile keeps its own /agents set …
       // verbs; this one only ever writes the topic's set.
       const field = verb;
-      const known = new Set(['model', 'effort', 'permissions', 'preset', 'lang', 'notes']);
+      const known = new Set(['model', 'effort', 'permissions', 'preset', 'lang', 'notes', 'instructions', 'skills']);
       if (!known.has(field)) {
         say(t(lang, 'ctrl.set.badField', { field, list: [...known].join(', ') }));
         return true;
@@ -287,6 +288,40 @@ export async function handleSkillCommands(ctx) {
       const valueWords = maybe ? rest.slice(0, -1) : rest;
       const value = valueWords.join(' ').trim();
       const cleared = !value || value === 'inherit' || value === '-';
+
+      // Two fields are lists rather than scalars: `/agentset instructions
+      // AGENTS.game.md` names a candidate file, `/agentset skills <dir>` a skill
+      // directory. They replace the set's list wholesale, so `inherit` clears it
+      // exactly like a scalar field — a half-applied list has no meaning.
+      const listField = field === 'instructions' ? 'instructions' : field === 'skills' ? 'skillDirs' : '';
+      if (listField) {
+        const items = cleared ? [] : value.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
+        if (listField === 'instructions') {
+          const bad = items.filter((item) => !instructionName(item));
+          if (bad.length > 0) {
+            say(t(lang, 'ctrl.set.badDocs', { value: bad.join(', ') }));
+            return true;
+          }
+        }
+        if (!commit(set.id, store.put({ ...set, [listField]: items }))) return true;
+        say(cleared
+          ? t(lang, 'ctrl.set.fieldCleared', { field })
+          : t(lang, 'ctrl.set.fieldSet', { field, value: items.join(', '), name: set.name || set.id }));
+        if (listField === 'instructions' && !cleared) {
+          // The name is only worth setting if a file answers to it, so the same
+          // command creates it in the directory this topic's turns run in and
+          // says so — the alternative is a setting that reads as applied and
+          // changes nothing the model ever sees.
+          const dir = state.cwd?.[key] || config?.cwd || '';
+          for (const name of items) {
+            const made = ensureInstructionFile(name, dir);
+            if (made.created) say(t(lang, 'ctrl.set.docsCreated', { file: name, dir }));
+            else if (made.error) say(t(lang, 'ctrl.set.docsMissing', { file: name, dir }));
+          }
+        }
+        return true;
+      }
+
       const storeField = field === 'preset' ? 'dshPreset' : field;
       const next = { ...set, [storeField]: cleared ? '' : value };
       if (commit(set.id, store.put(next))) {

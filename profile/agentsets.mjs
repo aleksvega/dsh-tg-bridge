@@ -26,7 +26,7 @@ function snapshot(sets) {
 
 /** Fields a set may carry. Anything else is preserved but never read. */
 export const FIELDS = ['model', 'provider', 'effort', 'permissions', 'dshPreset', 'lang', 'thinkBlock', 'base', 'notes'];
-export const LIST_FIELDS = ['plugins', 'toolFilter', 'agents'];
+export const LIST_FIELDS = ['plugins', 'toolFilter', 'agents', 'instructions', 'skillDirs'];
 
 export function emptySet(id, name = id) {
   const now = new Date().toISOString();
@@ -46,6 +46,11 @@ export function emptySet(id, name = id) {
     plugins: { add: [], remove: [], disable: [], enable: [] },
     toolFilter: { deny: [], allow: [] },
     agents: {},
+    // The topic's own documentation, layered after the project's AGENTS.md, and
+    // the skill directories only this topic's catalog scans. Both are lists of
+    // names/paths, and empty means "whatever the profile already loads".
+    instructions: [],
+    skillDirs: [],
     lang: '',
     thinkBlock: '',
     notes: '',

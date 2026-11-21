@@ -29,7 +29,11 @@ export async function handleModelCommand(ctx) {
       routes,
       current: routes.length ? { provider: topic.provider, model: topic.model } : null,
       topic: topic.source === 'topic',
-      fallback: topic.source === 'topic' ? modelOf(activeProfile) : null,
+      // Read from the profile the commands EDIT, not from `activeProfile`: for a
+      // topic that chose a model, `activeProfile` is the generated copy whose one
+      // rewritten row IS that choice, so the card would name the topic's own route
+      // as "the default it falls back to".
+      fallback: topic.source === 'topic' ? modelOf(topic.base) : null,
       answered: state.answered?.[key] || null,
       t: (k, v) => t(lang, k, v),
     });
@@ -43,7 +47,11 @@ export async function handleModelCommand(ctx) {
   if (/^(auto|off|default|profile)$/i.test(wanted)) {
     const cleared = clearTopicRoute(state, key);
     save();
-    const head = modelOf(activeProfile);
+    // The answer names where the topic lands, so it must read the profile the
+    // commands edit. `activeProfile` here is the route copy the topic boots, and
+    // its default is the very route that was just cleared — that is why `auto`
+    // used to answer with the provider it had just handed the topic back from.
+    const head = modelOf(topic.base);
     say(t(lang, cleared ? 'ctrl.model.topicCleared' : 'ctrl.model.topicNone', {
       route: `${head.provider}/${head.model}`,
     }));
@@ -92,7 +100,9 @@ export async function handleModelCommand(ctx) {
   setTopicRoute(state, key, route);
   save();
   const now = topicRoute({ state, config, key });
-  const head = modelOf(activeProfile);
+  // Same reason as above: `activeProfile` is this topic's copy, and once the route
+  // is written into it, its default and the route are the same string.
+  const head = modelOf(topic.base);
   const said = t(lang, 'ctrl.model.topicSet', {
     route: `${now.provider}/${now.model}`,
     default: `${head.provider}/${head.model}`,

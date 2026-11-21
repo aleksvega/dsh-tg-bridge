@@ -42,7 +42,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 
 ### Model, prices, fallback
 
-- `/model` — One command for the model of this profile: bare /model draws every route as buttons — provider and model together, because one model name can be served by several endpoints — and /model <provider>/<model> switches without tapping. A tap on the card moves THIS topic; the toggle above the list moves the whole profile at once, and it always says which of the two a tap will do. /model <route> all sets the default every topic follows — that is the one to reach for when an endpoint runs out of money and the fallback chain has to start elsewhere. /model <id> both also sets the desktop profile.
+- `/model` — One command for the model of this profile: bare /model draws every route as buttons — provider and model together, because one model name can be served by several endpoints — and /model <provider>/<model> switches without tapping. A tap on the card moves THIS topic; the toggle above the list moves the whole profile at once, and it always says which of the two a tap will do. /model <route> all sets the default every topic follows — that is the one to reach for when an endpoint runs out of money and the fallback chain has to start elsewhere. /model <id> both also sets the desktop profile. A model id may itself carry a prefix (`gateway/model`), so a route is spelled `<endpoint>/<model id>` and the first slash is the one that separates them.
 - `/effort` — How hard the model thinks before answering: /effort high.
 - `/prices` — Prices of the models in use, and what the current model costs for the tokens this topic has spent.
 - `/cost` — What this session has spent: tokens, cache hits and the sum, with the source of the prices named. /cost reads the catalog on disk, /prices is the one that fetches it.
@@ -55,7 +55,7 @@ Built from the same code as `/help`: the list, the sections and the sentences ar
 ### Agents and permissions
 
 - `/agents` — Agents and subagents: who is configured, on which model, and who was actually spawned.
-- `/crew` — A named bundle of model, permissions and preset for this topic: /crew use <id> switches the whole thing, /crew off goes back to the profile, /crew new|copy|rm and /crew model <v> edit one.
+- `/crew` — A named bundle of model, permissions, preset and topic rules for this topic: /crew use <id> switches the whole thing, /crew off goes back to the profile, /crew new|copy|rm and /crew model <v> edit one. /crew instructions AGENTS.game.md gives the topic its own rules file, loaded after AGENTS.md; /crew skills <dir> adds skill directories.
 - `/subagents` — The subagents this topic ran: the task each was given, how long it took, and whether it failed. The host reports no tokens per subagent, so the card does not split the turn's count. `/subagents clear` forgets them.
 - `/preset` — The agent preset (persona and tools) of the profile: /preset <id>.
 - `/plan` — Plan mode for this topic: /plan turns it on or off; the plan comes before any change, then an Approve card.
@@ -147,7 +147,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 
 ### Модель, цены, подмена
 
-- `/model` — Одна команда для модели этого профиля: голый /model рисует все маршруты кнопками — провайдер и модель вместе, потому что одно имя модели могут отдавать разные эндпоинты, — а /model <провайдер>/<модель> переключает без кнопок. Нажатие на карточке меняет ЭТУ тему; переключатель над списком меняет весь профиль разом и всегда говорит, что именно сделает нажатие. /model <маршрут> all задаёт значение по умолчанию для всех тем — это то, что нужно, когда у эндпоинта кончились деньги и цепочке fallback надо начинать с другого места. /model <id> both ещё и меняет профиль desktop.
+- `/model` — Одна команда для модели этого профиля: голый /model рисует все маршруты кнопками — провайдер и модель вместе, потому что одно имя модели могут отдавать разные эндпоинты, — а /model <провайдер>/<модель> переключает без кнопок. Нажатие на карточке меняет ЭТУ тему; переключатель над списком меняет весь профиль разом и всегда говорит, что именно сделает нажатие. /model <маршрут> all задаёт значение по умолчанию для всех тем — это то, что нужно, когда у эндпоинта кончились деньги и цепочке fallback надо начинать с другого места. /model <id> both ещё и меняет профиль desktop. Сам id модели может нести префикс (`gateway/model`), поэтому маршрут пишется `<эндпоинт>/<id модели>`, и делит их первый слэш.
 - `/effort` — Насколько глубоко модель думает перед ответом: /effort high.
 - `/prices` — Цены моделей в работе и во что обходится текущая модель на токенах этой темы.
 - `/cost` — Сколько потратила эта сессия: токены, попадания в кэш и сумма, с указанием источника цен. /cost читает каталог с диска, /prices — тот, кто его обновляет.
@@ -160,7 +160,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 ### Агенты и права
 
 - `/agents` — Агенты и субагенты: кто настроен, на какой модели, кого реально запускали.
-- `/crew` — Именованный набор «модель + права + пресет» для этой темы: /crew use <id> включает целиком, /crew off возвращает профиль, /crew new|copy|rm и /crew model <v> правят набор.
+- `/crew` — Именованный набор «модель + права + пресет + правила темы»: /crew use <id> включает целиком, /crew off возвращает профиль, /crew new|copy|rm и /crew model <v> правят набор. /crew instructions AGENTS.game.md даёт теме свой файл правил — он грузится после AGENTS.md; /crew skills <каталог> добавляет каталоги навыков.
 - `/subagents` — Субагенты этой темы: какая задача была у каждого, сколько он работал и не упал ли. Хост не сообщает токены по субагентам, поэтому карточка не делит токены хода. `/subagents clear` забывает их.
 - `/preset` — Пресет агента (персона и инструменты) профиля: /preset <id>.
 - `/plan` — Режим плана в теме: /plan включает и выключает; план приходит до любых правок, потом карточка «Одобрить».
@@ -252,7 +252,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 
 ### 模型、价格、替补
 
-- `/model` — 本配置档模型的一条命令：直接 /model 把每条线路画成按钮 —— 提供方与模型一起选，因为同一个模型名可能由多个端点提供 —— 也可以用 /model <提供方>/<模型> 直接切换。点卡片上的线路只改本话题；列表上方的开关一次改整个配置档，并且始终写着这一下会改哪一边。用 /model <线路> all 设定所有话题跟随的默认 —— 当某个端点没钱了、fallback 链路必须从别处开始时，就用它。加 both 还会改 desktop 配置档。
+- `/model` — 本配置档模型的一条命令：直接 /model 把每条线路画成按钮 —— 提供方与模型一起选，因为同一个模型名可能由多个端点提供 —— 也可以用 /model <提供方>/<模型> 直接切换。点卡片上的线路只改本话题；列表上方的开关一次改整个配置档，并且始终写着这一下会改哪一边。用 /model <线路> all 设定所有话题跟随的默认 —— 当某个端点没钱了、fallback 链路必须从别处开始时，就用它。加 both 还会改 desktop 配置档。模型 id 本身可能带前缀（`gateway/model`），所以线路写作 `<端点>/<模型 id>`，由第一个斜杠分隔。
 - `/effort` — 模型回答前的思考深度：/effort high。
 - `/prices` — 在用模型的价格，以及当前模型花掉本话题令牌的费用。
 - `/cost` — 本会话花了多少：令牌、缓存命中与合计，并注明价格来源。/cost 读取本地目录，/prices 负责更新它。
@@ -265,7 +265,7 @@ Inline: type @bot rew in any chat to see the commands that start with rew. Switc
 ### 智能体与权限
 
 - `/agents` — 智能体与子智能体：配置了谁、用什么模型、实际启动了谁。
-- `/crew` — 本话题的命名组合「模型 + 权限 + 预设」：/crew use <id> 整套启用，/crew off 回到配置档，/crew new|copy|rm 与 /crew model <v> 编辑组合。
+- `/crew` — 本话题的命名组合「模型 + 权限 + 预设 + 话题规则」：/crew use <id> 整套启用，/crew off 回到配置档，/crew new|copy|rm 与 /crew model <v> 编辑组合。/crew instructions AGENTS.game.md 给本话题一个独立规则文件（在 AGENTS.md 之后加载）；/crew skills <目录> 增加技能目录。
 - `/subagents` — 本主题运行过的子代理：各自的任务、耗时以及是否失败。宿主不报告单个子代理的 token，因此卡片不拆分本回合的用量。`/subagents clear` 清空记录。
 - `/preset` — 配置档的智能体预设（人格与工具）：/preset <id>。
 - `/plan` — 本话题的计划模式：/plan 打开或关闭，先给计划再改动，然后出现「批准」按钮。

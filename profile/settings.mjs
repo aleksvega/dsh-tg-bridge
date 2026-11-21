@@ -100,6 +100,10 @@ export function resolveSettings({
     allow: [...(set?.toolFilter?.allow || [])],
   };
   const agents = { ...(set?.agents || {}) };
+  // Documentation and skills are lists, and an empty list is inheritance — the
+  // same delta rule the scalar fields above follow.
+  const instructions = Array.isArray(set?.instructions) ? [...set.instructions] : [];
+  const skillDirs = Array.isArray(set?.skillDirs) ? [...set.skillDirs] : [];
 
   const out = {
     model: checkedModel.value,
@@ -112,6 +116,8 @@ export function resolveSettings({
     plugins,
     toolFilter,
     agents,
+    instructions,
+    skillDirs,
     base: set?.base || '',
     sources: src,
   };
@@ -132,6 +138,8 @@ export function touchesProfile(resolved) {
     || own('permissions')
     || own('dshPreset')
     || Object.keys(resolved.agents || {}).length
+    || resolved.instructions?.length
+    || resolved.skillDirs?.length
     || resolved.toolFilter?.deny?.length
     || resolved.toolFilter?.allow?.length,
   );

@@ -118,7 +118,7 @@ Everything lives in the `speech` block of `config.json`:
 | `speech.provider` | What it runs | Needs |
 | --- | --- | --- |
 | `edge-tts` (default) | `python -m edge_tts --voice … --text … --write-media …` | `speech.python` with `edge-tts` installed, `speech.ffmpeg` |
-| anything else | `speech.command` + `speech.args`, with `{text}` and `{out}` placeholders | an engine that writes audio to `{out}` |
+| anything else | `speech.command` + `speech.args`, with `{text}`, `{out}` and `{voice}` placeholders | an engine that takes the text as an argument and writes audio to `{out}` |
 
 `voices` is one male voice per topic language; a language without an entry uses
 the `ru` one rather than going silent. `/voice <name>` sets a voice for that topic
@@ -132,12 +132,22 @@ writes MP3 and `ffmpeg` converts it to OGG/Opus, because Telegram draws a voice
 bubble only for that container. A provider that already speaks OGG sets
 `speech.ogg: true` and needs no ffmpeg.
 
-A local Piper install is the same shape:
+A local Piper install is the same shape. Three placeholders exist: `{text}` is
+the sentence to say, `{out}` the file to write, `{voice}` the name `/voice <name>`
+set for the topic. The bridge passes the text as an argument and does not write to
+stdin, and Piper reads its text from stdin, so one line of glue is what makes an
+engine like that fit:
+
+```bat
+@echo off
+rem %1 the text, %2 the output file, %3 the voice
+echo %~1 | C:\piper\piper.exe --model C:\piper\%~3.onnx --output_file %~2
+```
 
 ```json
-{ "speech": { "provider": "piper", "command": "C:/piper/piper.exe",
-  "args": ["--model", "C:/piper/ru_RU-ruslan-medium.onnx", "--output_file", "{out}"],
-  "ogg": false, "voices": { "ru": "ruslan" } } }
+{ "speech": { "provider": "piper", "command": "C:/piper/piper.cmd",
+  "args": ["{text}", "{out}", "{voice}"],
+  "voices": { "ru": "ru_RU-ruslan-medium" } } }
 ```
 
 `/voice` on a topic with no engine answers with the state it is in and the reason

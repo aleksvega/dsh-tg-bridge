@@ -38,6 +38,12 @@ export function speechConfig(config) {
   const raw = config?.speech || {};
   return {
     provider: raw.provider || 'edge-tts',
+    // The two fields `providerArgs` reads for a non-edge engine. They were
+    // documented ("a local Piper install is config, not a code change") but
+    // never copied here, so any provider other than edge-tts spawned itself
+    // by name and failed with ENOENT.
+    command: raw.command,
+    args: Array.isArray(raw.args) ? raw.args : undefined,
     python: raw.python || 'python',
     ffmpeg: raw.ffmpeg || 'ffmpeg',
     // An engine that already speaks OGG/Opus skips the ffmpeg conversion; the
@@ -130,8 +136,14 @@ export function providerArgs(cfg, { text, mp3 }) {
   }
   // Any other provider receives the text and the target file through the same
   // two placeholders, so a local Piper install is config, not a code change.
+  // `{voice}` is the third: `/voice <name>` sets the voice per topic, and an
+  // engine that owns its own voices (Piper maps them to model files) needs that
+  // name or the card would confirm a change nothing makes.
   const args = (cfg.args || ['{text}', '{out}']).map((part) =>
-    String(part).replace('{text}', text).replace('{out}', mp3));
+    String(part)
+      .replace('{text}', text)
+      .replace('{out}', mp3)
+      .replace('{voice}', cfg.voice || ''));
   return { command: cfg.command || cfg.provider, args };
 }
 

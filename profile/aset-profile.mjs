@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
-import { setAgentPreset, setModel, setSubagents } from './patch-rows.mjs';
+import { setAgentPreset, setInstructionFiles, setModel, setSkillDirs, setSubagents } from './patch-rows.mjs';
 import { sandboxModeOf, setPermission } from './permission-rows.mjs';
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh');
@@ -41,6 +41,13 @@ export function derivedName(base, set, workspace = '') {
     String(workspace || ''),
     set?.agents || null,
     set?.toolFilter || null,
+    // The topic's own instruction files and skill directories change what the
+    // turn reads, so they belong in the name: without them an edit would land in
+    // the same directory as the copy it does not change, and `materialiseProfile`
+    // returns early on the existing patch — the edit would look applied and never
+    // be loaded.
+    set?.instructions || null,
+    set?.skillDirs || null,
   ]);
   return `${DERIVED_PREFIX}${createHash('sha256').update(material).digest('hex').slice(0, 10)}`;
 }
@@ -77,6 +84,10 @@ export function overlayPatch(basePatch, set, base = {}, workspace = '') {
   const preset = String(set?.dshPreset || '').trim();
   if (preset && preset !== base.preset) next = setAgentPreset(next, preset);
   if (set?.agents && typeof set.agents === 'object') next = setSubagents(next, set.agents);
+  // Documentation and skills the topic loads: the same delta rule as the rows
+  // above — a set that names none leaves the chain the base profile already has.
+  if (set?.instructions) next = setInstructionFiles(next, set.instructions);
+  if (set?.skillDirs) next = setSkillDirs(next, set.skillDirs);
   return { patch: next, changed: next !== source };
 }
 

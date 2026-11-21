@@ -121,7 +121,10 @@ function splitRoute(text) {
   if (cut <= 0 || cut === text.length - 1) return null;
   const provider = text.slice(0, cut);
   const model = text.slice(cut + 1);
-  if (!/^[\w.-]+$/.test(provider) || !/^[\w.:-]+$/.test(model)) return null;
+  // A model id may itself carry a provider prefix — subscription gateways name
+  // their models `gateway/model`, and the card of such a route drew a button
+  // whose tap this `/` silently rejected. The provider half stays prefix-free.
+  if (!/^[\w.-]+$/.test(provider) || !/^[\w./:-]+$/.test(model)) return null;
   return { provider, model };
 }
 

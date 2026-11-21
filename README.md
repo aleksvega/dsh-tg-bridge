@@ -38,8 +38,10 @@ that answers, one step at a time.
   are prepended to every turn.
 - **Two scopes for every setting.** `/reasoning <mode> all` moves the default,
   without `all` it moves this topic; language and pinning follow the same rule,
-  and `/crew use reviewer` gives one topic its own effort, permissions and agent
-  preset (four built-in sets, read-only, copyable).
+  and `/crew use reviewer` gives one topic its own effort, permissions, agent
+  preset and rule file — `AGENTS.<name>.md` loaded after the project's `AGENTS.md`
+  ([docs/TOPIC-PROFILE.md](docs/TOPIC-PROFILE.md)); four built-in sets, read-only,
+  copyable.
 - **It says what it cost.** A turn reports tokens and the cache hit rate; `/cost`
   says what the session has spent and `/prices` shows the rates it used.
 - **Out of quota is not a dead end.** When the quota runs out it switches to a
@@ -374,7 +376,7 @@ Agents:       /agents · /agents <id> · /agents set model|depth|filter
 Models:       /model · /model <route> · /model <route> all · /model auto · /endpoint · /prices
 Tuning:       /effort · /permissions · /preset · /plan · /jobs · /remind · /every
 Profiles:     /profile · /profile <name> · /profile new <name> from <template>
-Sets:         /crew · /crew use|off|new|copy|rm · /crew model <v>
+Sets:         /crew · /crew use|off|new|copy|rm · /crew model|effort|lang <v> · /crew instructions <file.md> · /crew skills <dir>
 Extensions:   /skills · /plugins · /plugins search <word> · /plugins disable|enable <id> · /soul
 Updates:      /update · /update confirm · /update on|off|check|auto · /subscribe on|off
 Diagnostics:  /doctor · /logs [errors|N|text] · /report
@@ -698,6 +700,7 @@ no lock race and no lost update.
 
 - [docs/COMMANDS.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/COMMANDS.md): every command with what it does, in English, Russian and Chinese — the page `/help` links to
 - [docs/LAYOUT.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/LAYOUT.md): which folder answers which question, and why the entry points stay at the root
+- [docs/TOPIC-PROFILE.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TOPIC-PROFILE.md): the five layers between a turn and its profile, and how a set adds rules and skills to one topic
 - [docs/TELEGRAM-SETUP.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/TELEGRAM-SETUP.md): BotFather settings, group and bot permissions
 - [docs/SUPPORT.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/SUPPORT.md): what to send with a bug report, what never to send, and the one-line answer for "the bot went silent"
 - [docs/VOICE.md](https://github.com/aleksvega/dsh-tg-bridge/blob/master/docs/VOICE.md): any speech engine as input — a local script, a command with placeholders, an [OI]-compatible API

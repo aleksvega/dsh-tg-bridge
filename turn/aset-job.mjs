@@ -6,7 +6,7 @@
 // before a turn — writing `<base>` + the set's rows into a profile of their own
 // — is spawned as a detached child, and this CLI is that child.
 //
-// Usage (from a job file the agent writes, see docs/AGENTSET.md):
+// Usage (from a job file the agent writes, see docs/TOPIC-PROFILE.md):
 //   node cli.mjs aset materialise <setId> [--base <profile>]
 // Prints one JSON line: {ok, profile, base} or {ok: false, error}.
 import { spawn } from 'node:child_process';

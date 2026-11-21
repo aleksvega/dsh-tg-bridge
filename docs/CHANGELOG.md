@@ -1,5 +1,47 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.54.0
+
+- **A set can carry the topic's own rules.** `/crew instructions AGENTS.game.md`
+  names a candidate file for the set's profile; the harness then loads it after
+  the project's `AGENTS.md`, so a topic gets instructions of its own without
+  editing a file every other topic reads. Naming the file creates it in the
+  directory this topic's turns run in, and the answer says where — a candidate
+  that does not exist loads nothing, and a setting that reads as applied while
+  nothing changed is the failure this command exists to avoid. `inherit` clears
+  it, `/crew show` lists it. The name is a bare `*.md` file name: candidates are
+  matched per directory, so a path would never match and is refused instead of
+  stored. Verified end to end on a real turn: with the project file and the topic
+  file both present, both markers arrive, in that order.
+- **A set can carry its own skill directory.** `/crew skills <dir>` adds
+  directories to the catalog this topic scans, on top of the install's own roots
+  (`includeDefaultRoots` stays on), so project skills stop leaking into every
+  other topic.
+- **Both fields are a delta like every other field.** An empty list inherits, the
+  derived profile's name hashes them, and a set that only names a rule file still
+  materialises a profile — otherwise the edit would land in the directory it did
+  not change and never be loaded. `docs/TOPIC-PROFILE.md` explains the five-layer
+  chain and what it costs; `/help` and `docs/COMMANDS.md` name the two verbs.
+  8 tests.
+- **`/model` works for routes whose model id carries a slash.** Subscription
+  gateways name their models `gateway/model`, and the card drew a button whose
+  tap the route parser silently rejected — the offered route was the one tap
+  that did nothing, with no message saying why. The provider half stays
+  prefix-free; the model half may now contain `/`.
+- **`/model auto` names where the topic actually lands.** A topic that chose a
+  model boots a generated copy of the profile in which the choice is the only
+  rewritten row, and the command read the default out of that copy — so
+  un-pinning answered with the very route it had just cleared ("back to the old
+  provider" while the topic went back to the profile). The answer now reads the
+  profile the commands edit. 2 tests.
+- **A speech engine other than `edge-tts` can actually start.** `docs/VOICE.md`
+  promised that a local Piper install is a config block, not a code change, but
+  `speechConfig` never copied `command` and `args`, so every other provider
+  spawned itself by name and died with ENOENT. Both fields are read now, and
+  `{voice}` joins `{text}` and `{out}` as a placeholder — `/voice <name>` sets the
+  voice per topic, and an engine that owns its own voices needs that name or the
+  card confirms a change nothing makes.
+
 ## 1.53.0
 
 - **`/voice` now speaks the whole answer.** 1.52.0 cut the spoken text at
