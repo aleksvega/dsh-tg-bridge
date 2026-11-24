@@ -1,5 +1,24 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.55.0
+
+- **The parallel ceiling goes to twelve.** `/jobs` was closed at eight by two
+  separate rules — the card's range and the queue's clamp — so `config.maxParallel`
+  could not exceed it even when edited by hand. Both now stop at twelve, and the
+  card offers `1 2 3 4 6 8 10 12` so the ceiling is reachable by thumb. The clamp
+  in `turn/queue.mjs` matches `CAP_MAX`: a hand-edited `20` becomes twelve, not
+  twenty DSH processes.
+- **The card says what twelve actually costs.** A parallel turn is a whole DSH
+  process of a few hundred megabytes, so the range text now calls twelve a
+  ceiling rather than a target and says which way it fails past the machine's
+  real capacity — everything gets slower, nothing gets faster. A refusal also
+  names the range (`1 to 12`) instead of clamping silently.
+- **Four tests, one of them on the buttons.** Twelve is accepted and lands in
+  config; thirteen is refused and writes nothing; every offered button is inside
+  `1..12` and the card can actually reach the ceiling; the queue clamps a
+  hand-edited `20` to twelve, a `0` to one, and an unset cap to the old default
+  of three.
+
 ## 1.54.0
 
 - **A set can carry the topic's own rules.** `/crew instructions AGENTS.game.md`

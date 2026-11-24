@@ -8,6 +8,9 @@ import assert from 'node:assert/strict';
 import './sandbox-home.mjs';
 import { handleControl } from '../chat/control.mjs';
 import { inlineKeyboard } from '../chat/telegram.mjs';
+import { CAP_CHOICES, CAP_MAX, CAP_MIN } from '../work/jobs-cap.mjs';
+import { maxParallel } from '../turn/queue.mjs';
+import { config } from '../core/state.mjs';
 
 /** The smallest context `/jobs` needs, with the config write recorded. */
 function context({ arg = '', max = 3, write = true } = {}) {
@@ -62,7 +65,7 @@ test('/jobs shows the current ceiling and a button per value', async () => {
   const rows = inlineKeyboard(run.extra.at(-1).keyboard);
   assert.equal(rows.length, 1, 'one row, so a thumb never hits the neighbour');
   const values = rows[0].map((b) => b.callback_data);
-  assert.deepEqual(values, ['jb:1', 'jb:2', 'jb:3', 'jb:4', 'jb:5', 'jb:8']);
+  assert.deepEqual(values, ['jb:1', 'jb:2', 'jb:3', 'jb:4', 'jb:6', 'jb:8', 'jb:10', 'jb:12']);
   // The value in force is marked, not hidden: the card must answer "what is it
   // now" without a second read.
   assert.equal(rows[0][2].text, '• 3');
@@ -88,13 +91,45 @@ test('a failed write is reported, not hidden', async () => {
   assert.match(run.said.join('\n'), /restart/);
 });
 
-test('a number outside 1..8 changes nothing', async () => {
-  for (const bad of ['0', '9', '-1', '2.5', 'many', '100']) {
+test('a number outside 1..12 changes nothing', async () => {
+  for (const bad of ['0', '13', '-1', '2.5', 'many', '100']) {
     const run = context({ arg: bad });
     await handleControl(run.ctx);
     assert.equal(run.ctx.config.maxParallel, 3, `/jobs ${bad} moved the ceiling`);
     assert.deepEqual(run.saves, [], `/jobs ${bad} wrote config.json`);
-    assert.match(run.said.join('\n'), /1 to 8/, `/jobs ${bad} did not explain the range`);
+    assert.match(run.said.join('\n'), /1 to 12/, `/jobs ${bad} did not explain the range`);
+  }
+});
+
+test('twelve is the ceiling and every offered button is inside it', async () => {
+  // The person asked for twelve parallel turns; the command must accept it and
+  // the card must be able to reach it by tap, or the number exists only in docs.
+  const top = context({ arg: '12' });
+  await handleControl(top.ctx);
+  assert.equal(top.ctx.config.maxParallel, 12, '/jobs 12 was refused');
+  assert.match(top.said.join('\n'), /Parallel turns at once: 12/);
+
+  for (const n of CAP_CHOICES) {
+    assert.ok(n >= CAP_MIN && n <= CAP_MAX, `the card offers ${n}, outside 1..${CAP_MAX}`);
+  }
+  assert.ok(CAP_CHOICES.includes(CAP_MAX), 'the card cannot reach the ceiling');
+});
+
+test('the queue honours twelve and refuses more than a hand-edited config allows', () => {
+  // The clamp in the queue is the last line of defence: a config.json edited by
+  // hand must not turn into twenty Electron children.
+  const keep = config.maxParallel;
+  try {
+    config.maxParallel = 12;
+    assert.equal(maxParallel(), 12);
+    config.maxParallel = 20;
+    assert.equal(maxParallel(), 12, 'the queue let a hand-edited 20 through');
+    config.maxParallel = 0;
+    assert.equal(maxParallel(), 1, 'the queue let a zero through');
+    config.maxParallel = undefined;
+    assert.equal(maxParallel(), 3, 'an unset cap is the old default');
+  } finally {
+    config.maxParallel = keep;
   }
 });
 

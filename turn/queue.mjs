@@ -37,11 +37,14 @@ export const MAX_PARALLEL = 3;
  * three long turns in flight a fourth topic waited with no message at all, so a
  * prompt in a fresh topic looked exactly like a dead bot. The number is a
  * setting now, and waiting for a slot is announced (see `enqueue`).
+ *
+ * The clamp matches `CAP_MAX` in `work/jobs-cap.mjs`; a value above it is a
+ * hand-edited config, not something the chat can write.
  */
 export function maxParallel() {
   const raw = Number(config?.maxParallel);
   if (!Number.isFinite(raw)) return MAX_PARALLEL;
-  return Math.min(8, Math.max(1, Math.round(raw)));
+  return Math.min(12, Math.max(1, Math.round(raw)));
 }
 
 export function acquire() {

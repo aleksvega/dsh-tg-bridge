@@ -410,7 +410,7 @@ export default {
   'ctrl.jobs.cap': 'Parallel turns at once: {n}. Tap a number below, or send /jobs 5.',
   'ctrl.jobs.capSet': 'Parallel turns at once: {n}. Saved to config.json — it applies to the next turn that starts, no restart needed.',
   'ctrl.jobs.capUnsaved': 'Parallel turns at once: {n} for this process only — config.json could not be written, so a restart goes back to the old value. Check /logs.',
-  'ctrl.jobs.capRange': 'A number from 1 to 8. Each parallel turn is a full DSH process, so more than 8 on one machine makes every turn slower, not faster.',
+  'ctrl.jobs.capRange': 'A number from 1 to 12. Each parallel turn is a full DSH process taking a few hundred megabytes, so 12 is a ceiling, not a target: past what the machine holds, every turn gets slower instead of faster.',
   'ctrl.remind.title': '⏰ Reminders',
   'ctrl.remind.empty': 'Nothing scheduled.',
   'ctrl.remind.line': '{n}. {when} ({left}) — {text}',

@@ -410,7 +410,7 @@ export default {
   'ctrl.jobs.cap': '同时运行的轮次：{n}。点下面的数字，或发送 /jobs 5。',
   'ctrl.jobs.capSet': '同时运行的轮次：{n}。已写入 config.json——下一轮开始时生效，无需重启。',
   'ctrl.jobs.capUnsaved': '同时运行的轮次：{n}，仅本进程有效——config.json 未能写入，重启后会回到旧值。请看 /logs。',
-  'ctrl.jobs.capRange': '数字范围 1 到 8。每个并行轮次都是一个完整的 DSH 进程，所以同一台机器上超过 8 会让所有轮次变慢，而不是变快。',
+  'ctrl.jobs.capRange': '数字范围 1 到 12。每个并行轮次都是一个完整的 DSH 进程，占用数百 MB，所以 12 是上限而不是常态：超过机器能承受的数量，所有轮次只会变慢。',
   'ctrl.remind.title': '⏰ 提醒',
   'ctrl.remind.empty': '没有安排。',
   'ctrl.remind.line': '{n}. {when}（{left}）— {text}',
