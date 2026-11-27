@@ -294,7 +294,12 @@ export async function readVoiceIntoText(msg, chatId, threadId, lang) {
     return { text: '', fatal };
   }
   log(`voice -> text len=${heard.length}${error ? ` (warn: ${error})` : ''}`);
-  const preview = heard.length > 1200 ? `${heard.slice(0, 1200)}…` : heard;
+  // The echo is what the person reads back, and a cut here looked like the
+  // recogniser stopping mid-word: a minute of dense dictation is 2000-2400
+  // characters, and the old 1200 cap chopped it in half. Telegram allows 4096
+  // per message, so the cap sits just under that; only a note longer than the
+  // platform's own voice limit can still reach the ellipsis.
+  const preview = heard.length > 3600 ? `${heard.slice(0, 3600)}…` : heard;
   if (statusId || config.voice?.echo !== false) await editOrSend(`🎤 ${preview}`, `🎤 ${preview}`);
   return { text: heard, fatal: false };
 }

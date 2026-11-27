@@ -1,5 +1,16 @@
 # CHANGELOG — DSH Telegram bridge
 
+## 1.55.1
+
+- **A voice note is echoed whole.** The transcript always reached the model in
+  full, but the chat echo stopped at 1200 characters. A minute of dense dictation
+  runs to 2000–2400 characters, so the visible transcript was cut in the middle of
+  a word — which reads as the recogniser giving up rather than the bridge showing
+  less than it heard. The echo now allows 3600, just under Telegram's 4096 limit,
+  so only a note longer than the platform's own voice limit can reach the ellipsis.
+- **Nothing else moved.** The prompt still carries the full transcript and the
+  engine is untouched; the number shown to the person is the only change.
+
 ## 1.55.0
 
 - **The parallel ceiling goes to twelve.** `/jobs` was closed at eight by two
